@@ -1,0 +1,9 @@
+{
+  "name": "d1-seed",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "ISC",
+  "dependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

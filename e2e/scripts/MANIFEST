@@ -1,0 +1,16 @@
+# cellp e2e MANIFEST — executed in order by run-all.sh
+# Phase 0 storage gates run only when RUN_GATES=1 (see run-all.sh)
+
+health-all.sh
+ve-cd-loop.sh
+ve-promote.sh
+ve-fail-compensate.sh
+ve-destroy.sh
+v1-d1-seed.sh
+v1-d1-branch.sh
+v2-quiesce-fork.sh
+v3-dual-route.sh
+v4-promote-cutover.sh
+v5-saga-compensate.sh
+v6-migrate-order.sh
+v7-external-ci.sh

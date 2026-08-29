@@ -1,0 +1,13 @@
+{
+  "name": "demo-counter",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "vars": {
+    "PROJECT_ID": "demo-app",
+    "VERSION_ID": "v-dev"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "COUNTER", "class_name": "Counter" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }]
+}

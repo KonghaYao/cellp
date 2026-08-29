@@ -1,0 +1,471 @@
+openapi: 3.0.3
+info:
+  title: cellp API
+  version: 1.0.0
+  description: cellp control plane REST API (DESIGN §9)
+servers:
+  - url: http://127.0.0.1:8790/v1
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  registry:
+                    type: string
+                  gateway:
+                    type: string
+  /health/deep:
+    get:
+      summary: Deep health check (queue depth)
+      operationId: getHealthDeep
+      responses:
+        "200":
+          description: OK
+        "503":
+          description: Overloaded (queue full)
+  /projects:
+    get:
+      summary: List projects (cursor-paginated)
+      operationId: listProjects
+      security:
+        - adminToken: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+          description: Page size (default 50, max 200)
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque cursor from previous page next_cursor
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        prod_version_id:
+                          type: string
+                          nullable: true
+                        version_count:
+                          type: integer
+                        created_at:
+                          type: string
+                          format: date-time
+                  next_cursor:
+                    type: string
+                    description: Present when more pages exist
+        "400":
+          description: Invalid cursor
+    post:
+      summary: Create project
+      operationId: createProject
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                git_remote:
+                  type: string
+      responses:
+        "201":
+          description: Created
+  /projects/{projectID}:
+    get:
+      summary: Get project
+      operationId: getProject
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [versions]
+          description: Include first page of versions (default omits embedded versions)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+          description: Page size when include=versions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  git_remote:
+                    type: string
+                    nullable: true
+                  prod_version_id:
+                    type: string
+                    nullable: true
+                  prod_url:
+                    type: string
+                    description: Production gateway URL ({GATEWAY_URL}/{projectID}/)
+                  created_at:
+                    type: string
+                    format: date-time
+                  version_count:
+                    type: integer
+                  versions_url:
+                    type: string
+                    description: Paginated versions collection URL
+                  versions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Version'
+                    description: Present only when include=versions
+                  versions_next_cursor:
+                    type: string
+                    description: Present when include=versions and more pages exist
+  /projects/{projectID}/versions:
+    get:
+      summary: List versions (cursor-paginated)
+      operationId: listVersions
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by version status
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return versions created at or after this timestamp
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Version'
+                  next_cursor:
+                    type: string
+        "400":
+          description: Invalid cursor or since parameter
+        "404":
+          description: Project not found
+    post:
+      summary: Create version (CD entry)
+      operationId: createVersion
+      security:
+        - deployToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                parent_version_id:
+                  type: string
+                git_ref:
+                  type: string
+                git_sha:
+                  type: string
+                artifact_digest:
+                  type: string
+                env:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "202":
+          description: Accepted
+        "422":
+          description: Validation error (e.g. fork prod)
+  /projects/{projectID}/versions/{versionID}:
+    get:
+      summary: Get version status
+      operationId: getVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+    delete:
+      summary: Destroy version
+      operationId: destroyVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Accepted (draining)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: draining
+                  id:
+                    type: string
+                  project_id:
+                    type: string
+  /projects/{projectID}/versions/{versionID}/database:
+    get:
+      summary: Get database metadata for a version
+      operationId: getDatabase
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Version not ready or no database
+  /projects/{projectID}/versions/{versionID}/database/tables:
+    get:
+      summary: List database tables
+      operationId: listDatabaseTables
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+  /projects/{projectID}/versions/{versionID}/database/tables/{tableName}/rows:
+    get:
+      summary: Paginated table rows
+      operationId: getDatabaseTableRows
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tableName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: OK
+  /projects/{projectID}/versions/{versionID}/database/query:
+    post:
+      summary: Execute SQL against version database
+      operationId: queryDatabase
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sql]
+              properties:
+                sql:
+                  type: string
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Invalid SQL
+        "503":
+          description: celld unavailable
+  /projects/{projectID}/versions/{versionID}/promote:
+    post:
+      summary: Promote version to prod
+      operationId: promoteVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Promoted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: promoted
+                  prod_version_id:
+                    type: string
+                  prod_url:
+                    type: string
+        "409":
+          description: Version not ready
+components:
+  schemas:
+    Version:
+      type: object
+      properties:
+        id:
+          type: string
+        project_id:
+          type: string
+        status:
+          type: string
+        preview_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+  securitySchemes:
+    deployToken:
+      type: http
+      scheme: bearer
+      description: CELLP_DEPLOY_TOKEN or PLATFORM_TOKEN — POST /versions only
+    adminToken:
+      type: http
+      scheme: bearer
+      description: CELLP_ADMIN_TOKEN or PLATFORM_TOKEN (dev-local-token fallback) — full admin

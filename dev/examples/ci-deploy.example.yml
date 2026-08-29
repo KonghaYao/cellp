@@ -1,0 +1,66 @@
+# 外部 CI → cellp CD 示例（GitHub Actions 语法；Forgejo/Gitea 等兼容格式亦可）
+# cellp 不托管 Git、不跑 CI — 仅接收 artifact + POST /versions
+# 见 DESIGN.md 附录 A
+
+name: Build and Deploy
+on:
+  push:
+    branches: [prod]
+env:
+  PROJECT_ID: my-shop
+  CELLP_URL: ${{ vars.CELLP_URL }}          # e.g. https://cellp.internal/v1
+  ARTIFACT_BUCKET: cellp-artifacts
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    outputs:
+      version_id: ${{ steps.meta.outputs.version_id }}
+      artifact_digest: ${{ steps.upload.outputs.digest }}
+      git_sha: ${{ github.sha }}
+      git_ref: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci && npm run build
+      - id: meta
+        run: echo "version_id=v-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+      - id: upload
+        env:
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          VERSION="${{ steps.meta.outputs.version_id }}"
+          # 上传 wrangler bundle 到 s3://${ARTIFACT_BUCKET}/${PROJECT_ID}/${VERSION}/
+          # 具体命令取决于你的 S3 客户端 / aws cli / mc
+          aws --endpoint-url "$S3_ENDPOINT" s3 cp bundle.tar.gz \
+            "s3://${{ env.ARTIFACT_BUCKET }}/${{ env.PROJECT_ID }}/${VERSION}/bundle.tar.gz"
+          echo "digest=sha256:$(sha256sum bundle.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+  cd:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to cellp
+        env:
+          CELLP_DEPLOY_TOKEN: ${{ secrets.CELLP_DEPLOY_TOKEN }}
+        run: |
+          BODY=$(jq -n \
+            --arg id "${{ needs.ci.outputs.version_id }}" \
+            --arg ref "${{ needs.ci.outputs.git_ref }}" \
+            --arg sha "${{ needs.ci.outputs.git_sha }}" \
+            --arg digest "${{ needs.ci.outputs.artifact_digest }}" \
+            '{id:$id, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}, inherit_kv:true}')
+          RESP=$(curl -sf -X POST "${{ env.CELLP_URL }}/projects/${{ env.PROJECT_ID }}/versions" \
+            -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" \
+            -H "Content-Type: application/json" -d "$BODY")
+          POLL=$(echo "$RESP" | jq -r .poll_url)
+          for i in $(seq 1 120); do
+            V=$(curl -sf -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" "${{ env.CELLP_URL }}$POLL")
+            S=$(echo "$V" | jq -r .status)
+            [ "$S" = "ready" ] && echo "Preview: $(echo "$V" | jq -r .preview_url)" && exit 0
+            [ "$S" = "failed" ] && echo "$V" | jq .error && exit 1
+            sleep 5
+          done
+          exit 1

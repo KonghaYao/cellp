@@ -1,0 +1,800 @@
+package registry
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	_ "modernc.org/sqlite"
+)
+
+const (
+	maxRetries = 30
+	retryBase  = 50 * time.Millisecond
+	retryMax   = 2 * time.Second
+)
+
+// SQLiteStore implements Store with WAL mode and busy timeout.
+type SQLiteStore struct {
+	db *sql.DB
+}
+
+// Open opens or creates a SQLite registry database.
+func Open(path string) (*SQLiteStore, error) {
+	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(60000)&_pragma=foreign_keys(ON)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_pragma=mmap_size(268435456)", path)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	s := &SQLiteStore{db: db}
+	if err := s.migrate(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *SQLiteStore) Close() error {
+	return s.db.Close()
+}
+
+func (s *SQLiteStore) migrate() error {
+	schema := `
+CREATE TABLE IF NOT EXISTS projects (
+	id TEXT PRIMARY KEY,
+	git_remote TEXT,
+	prod_version_id TEXT,
+	created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS versions (
+	id TEXT NOT NULL,
+	project_id TEXT NOT NULL,
+	parent_version_id TEXT,
+	git_ref TEXT,
+	git_sha TEXT,
+	artifact_uri TEXT,
+	artifact_digest TEXT,
+	data_branch TEXT,
+	preview_url TEXT,
+	status TEXT NOT NULL,
+	error TEXT,
+	ttl TEXT,
+	env_json TEXT,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	ready_at TEXT,
+	PRIMARY KEY (project_id, id),
+	FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS routes (
+	project_id TEXT NOT NULL,
+	version_id TEXT NOT NULL,
+	active INTEGER NOT NULL DEFAULT 0,
+	upstream_host TEXT NOT NULL,
+	upstream_port INTEGER NOT NULL,
+	PRIMARY KEY (project_id, version_id),
+	FOREIGN KEY (project_id, version_id) REFERENCES versions(project_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+	id TEXT PRIMARY KEY,
+	project_id TEXT NOT NULL,
+	version_id TEXT NOT NULL,
+	step TEXT NOT NULL,
+	status TEXT NOT NULL,
+	lease_until TEXT,
+	updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_versions_status ON versions(project_id, status);
+CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
+`
+	_, err := s.db.Exec(schema)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func withRetry[T any](fn func() (T, error)) (T, error) {
+	var zero T
+	delay := retryBase
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		v, err := fn()
+		if err == nil {
+			return v, nil
+		}
+		if !isBusy(err) {
+			return zero, err
+		}
+		lastErr = err
+		time.Sleep(delay)
+		if delay < retryMax {
+			delay *= 2
+			if delay > retryMax {
+				delay = retryMax
+			}
+		}
+	}
+	return zero, fmt.Errorf("sqlite busy after retries: %w", lastErr)
+}
+
+func withRetryErr(fn func() error) error {
+	_, err := withRetry(func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
+}
+
+func isBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY")
+}
+
+func (s *SQLiteStore) CreateProject(ctx context.Context, in CreateProjectInput) (*Project, error) {
+	now := time.Now().UTC()
+	p := &Project{
+		ID:        in.ID,
+		GitRemote: in.GitRemote,
+		CreatedAt: now,
+	}
+	err := withRetryErr(func() error {
+		_, err := s.db.ExecContext(ctx,
+			`INSERT INTO projects (id, git_remote, prod_version_id, created_at) VALUES (?, ?, NULL, ?)
+			 ON CONFLICT(id) DO NOTHING`,
+			in.ID, nullStr(in.GitRemote), now.Format(time.RFC3339Nano))
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func (s *SQLiteStore) GetProject(ctx context.Context, id string) (*Project, error) {
+	return withRetry(func() (*Project, error) {
+		row := s.db.QueryRowContext(ctx,
+			`SELECT id, git_remote, prod_version_id, created_at FROM projects WHERE id = ?`, id)
+		var p Project
+		var gitRemote, prod sql.NullString
+		var created string
+		if err := row.Scan(&p.ID, &gitRemote, &prod, &created); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		if gitRemote.Valid {
+			p.GitRemote = &gitRemote.String
+		}
+		if prod.Valid {
+			p.ProdVersionID = &prod.String
+		}
+		p.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+		return &p, nil
+	})
+}
+
+func normalizePageLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultPageLimit
+	}
+	if limit > MaxPageLimit {
+		return MaxPageLimit
+	}
+	return limit
+}
+
+func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (*ListProjectsPage, error) {
+	return withRetry(func() (*ListProjectsPage, error) {
+		limit := normalizePageLimit(opts.Limit)
+		fetch := limit + 1
+
+		var (
+			rows *sql.Rows
+			err  error
+		)
+		if opts.Cursor == "" {
+			rows, err = s.db.QueryContext(ctx, `
+				SELECT p.id, p.git_remote, p.prod_version_id, p.created_at
+				FROM projects p
+				ORDER BY p.created_at ASC, p.id ASC
+				LIMIT ?`, fetch)
+		} else {
+			cursorAt, cursorID, err := DecodeCursor(opts.Cursor)
+			if err != nil {
+				return nil, err
+			}
+			cursorStr := cursorAt.UTC().Format(time.RFC3339Nano)
+			rows, err = s.db.QueryContext(ctx, `
+				SELECT p.id, p.git_remote, p.prod_version_id, p.created_at
+				FROM projects p
+				WHERE p.created_at > ? OR (p.created_at = ? AND p.id > ?)
+				ORDER BY p.created_at ASC, p.id ASC
+				LIMIT ?`, cursorStr, cursorStr, cursorID, fetch)
+		}
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		var items []ProjectListItem
+		for rows.Next() {
+			var item ProjectListItem
+			var gitRemote, prod sql.NullString
+			var created string
+			if err := rows.Scan(&item.ID, &gitRemote, &prod, &created); err != nil {
+				return nil, err
+			}
+			if gitRemote.Valid {
+				item.GitRemote = &gitRemote.String
+			}
+			if prod.Valid {
+				item.ProdVersionID = &prod.String
+			}
+			item.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+			items = append(items, item)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+
+		page := &ListProjectsPage{Projects: items}
+		if len(items) > limit {
+			last := items[limit-1]
+			page.NextCursor = EncodeCursor(last.CreatedAt, last.ID)
+			page.Projects = items[:limit]
+		}
+		if err := s.fillProjectVersionCounts(ctx, page.Projects); err != nil {
+			return nil, err
+		}
+		return page, nil
+	})
+}
+
+func (s *SQLiteStore) fillProjectVersionCounts(ctx context.Context, items []ProjectListItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(items))
+	args := make([]any, len(items))
+	for i, item := range items {
+		placeholders[i] = "?"
+		args[i] = item.ID
+	}
+	q := fmt.Sprintf(`
+		SELECT project_id, COUNT(*) FROM versions
+		WHERE project_id IN (%s)
+		GROUP BY project_id`, strings.Join(placeholders, ","))
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	counts := make(map[string]int, len(items))
+	for rows.Next() {
+		var pid string
+		var n int
+		if err := rows.Scan(&pid, &n); err != nil {
+			return err
+		}
+		counts[pid] = n
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].VersionCount = counts[items[i].ID]
+	}
+	return nil
+}
+
+func (s *SQLiteStore) CountVersions(ctx context.Context, projectID string) (int, error) {
+	return withRetry(func() (int, error) {
+		row := s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM versions WHERE project_id = ?`, projectID)
+		var n int
+		err := row.Scan(&n)
+		return n, err
+	})
+}
+
+func (s *SQLiteStore) CreateVersion(ctx context.Context, in CreateVersionInput) (*Version, error) {
+	now := time.Now().UTC()
+	v := &Version{
+		ID:              in.ID,
+		ProjectID:       in.ProjectID,
+		ParentVersionID: in.ParentVersionID,
+		GitRef:          in.GitRef,
+		GitSHA:          in.GitSHA,
+		ArtifactURI:     in.ArtifactURI,
+		ArtifactDigest:  in.ArtifactDigest,
+		PreviewURL:      in.PreviewURL,
+		Status:          StatusPending,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	err := withRetryErr(func() error {
+		_, err := s.db.ExecContext(ctx, `
+			INSERT INTO versions (id, project_id, parent_version_id, git_ref, git_sha, artifact_uri,
+				artifact_digest, preview_url, status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.ID, in.ProjectID, nullStr(in.ParentVersionID), in.GitRef, in.GitSHA,
+			in.ArtifactURI, in.ArtifactDigest, in.PreviewURL, StatusPending,
+			now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (s *SQLiteStore) GetVersion(ctx context.Context, projectID, versionID string) (*Version, error) {
+	return withRetry(func() (*Version, error) {
+		row := s.db.QueryRowContext(ctx, `
+			SELECT id, project_id, parent_version_id, git_ref, git_sha, artifact_uri, artifact_digest,
+				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at
+			FROM versions WHERE project_id = ? AND id = ?`, projectID, versionID)
+		return scanVersion(row)
+	})
+}
+
+func (s *SQLiteStore) ListVersions(ctx context.Context, projectID string, opts ListVersionsOpts) (*ListVersionsPage, error) {
+	return withRetry(func() (*ListVersionsPage, error) {
+		limit := normalizePageLimit(opts.Limit)
+		fetch := limit + 1
+
+		query := `
+			SELECT id, project_id, parent_version_id, git_ref, git_sha, artifact_uri, artifact_digest,
+				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at
+			FROM versions
+			WHERE project_id = ?`
+		args := []interface{}{projectID}
+
+		if opts.Status != "" {
+			query += ` AND status = ?`
+			args = append(args, opts.Status)
+		}
+		if opts.Since != nil {
+			query += ` AND created_at >= ?`
+			args = append(args, opts.Since.UTC().Format(time.RFC3339Nano))
+		}
+		if opts.Cursor != "" {
+			cursorAt, cursorID, err := DecodeCursor(opts.Cursor)
+			if err != nil {
+				return nil, err
+			}
+			cursorStr := cursorAt.UTC().Format(time.RFC3339Nano)
+			query += ` AND (created_at < ? OR (created_at = ? AND id < ?))`
+			args = append(args, cursorStr, cursorStr, cursorID)
+		}
+		query += ` ORDER BY created_at DESC, id DESC LIMIT ?`
+		args = append(args, fetch)
+
+		rows, err := s.db.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		var versions []Version
+		for rows.Next() {
+			v, err := scanVersionRows(rows)
+			if err != nil {
+				return nil, err
+			}
+			versions = append(versions, *v)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+
+		page := &ListVersionsPage{Versions: versions}
+		if len(versions) > limit {
+			last := versions[limit-1]
+			page.NextCursor = EncodeCursor(last.CreatedAt, last.ID)
+			page.Versions = versions[:limit]
+		}
+		return page, nil
+	})
+}
+
+func (s *SQLiteStore) UpdateVersionStatus(ctx context.Context, projectID, versionID, status string, errMsg *string) error {
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		var readyAt interface{}
+		if status == StatusReady {
+			readyAt = now
+		}
+		_, err := s.db.ExecContext(ctx, `
+			UPDATE versions SET status = ?, error = ?, updated_at = ?,
+				ready_at = COALESCE(?, ready_at),
+				data_branch = COALESCE(data_branch, ?)
+			WHERE project_id = ? AND id = ?`,
+			status, nullStr(errMsg), now, readyAt,
+			fmt.Sprintf("%s/%s", projectID, versionID),
+			projectID, versionID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) CountReadyVersions(ctx context.Context, projectID string) (int, error) {
+	return withRetry(func() (int, error) {
+		row := s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM versions WHERE project_id = ? AND status = ?`, projectID, StatusReady)
+		var n int
+		err := row.Scan(&n)
+		return n, err
+	})
+}
+
+func (s *SQLiteStore) SetRoute(ctx context.Context, route Route) error {
+	return withRetryErr(func() error {
+		active := 0
+		if route.Active {
+			active = 1
+		}
+		_, err := s.db.ExecContext(ctx, `
+			INSERT INTO routes (project_id, version_id, active, upstream_host, upstream_port)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(project_id, version_id) DO UPDATE SET
+				active = excluded.active,
+				upstream_host = excluded.upstream_host,
+				upstream_port = excluded.upstream_port`,
+			route.ProjectID, route.VersionID, active, route.UpstreamHost, route.UpstreamPort)
+		return err
+	})
+}
+
+func (s *SQLiteStore) SetRouteActive(ctx context.Context, projectID, versionID string, active bool) error {
+	return withRetryErr(func() error {
+		activeInt := 0
+		if active {
+			activeInt = 1
+		}
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE routes SET active = ? WHERE project_id = ? AND version_id = ?`,
+			activeInt, projectID, versionID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) GetRoute(ctx context.Context, projectID, versionID string) (*Route, error) {
+	return withRetry(func() (*Route, error) {
+		row := s.db.QueryRowContext(ctx,
+			`SELECT project_id, version_id, active, upstream_host, upstream_port FROM routes
+			 WHERE project_id = ? AND version_id = ?`, projectID, versionID)
+		var r Route
+		var active int
+		if err := row.Scan(&r.ProjectID, &r.VersionID, &active, &r.UpstreamHost, &r.UpstreamPort); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		r.Active = active == 1
+		return &r, nil
+	})
+}
+
+func (s *SQLiteStore) ListActiveRoutes(ctx context.Context, projectID string) ([]Route, error) {
+	return withRetry(func() ([]Route, error) {
+		rows, err := s.db.QueryContext(ctx,
+			`SELECT project_id, version_id, active, upstream_host, upstream_port FROM routes
+			 WHERE project_id = ? AND active = 1`, projectID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []Route
+		for rows.Next() {
+			var r Route
+			var active int
+			if err := rows.Scan(&r.ProjectID, &r.VersionID, &active, &r.UpstreamHost, &r.UpstreamPort); err != nil {
+				return nil, err
+			}
+			r.Active = active == 1
+			out = append(out, r)
+		}
+		return out, rows.Err()
+	})
+}
+
+func (s *SQLiteStore) DeleteRoute(ctx context.Context, projectID, versionID string) error {
+	return withRetryErr(func() error {
+		_, err := s.db.ExecContext(ctx,
+			`DELETE FROM routes WHERE project_id = ? AND version_id = ?`, projectID, versionID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) SetProdVersion(ctx context.Context, projectID, versionID string) error {
+	return withRetryErr(func() error {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE projects SET prod_version_id = ? WHERE id = ?`, versionID, projectID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) SetProdVersionCAS(ctx context.Context, projectID, expected, new string) error {
+	return withRetryErr(func() error {
+		res, err := s.db.ExecContext(ctx, `
+			UPDATE projects SET prod_version_id = ?
+			WHERE id = ? AND (prod_version_id = ? OR (prod_version_id IS NULL AND ? = ''))`,
+			new, projectID, nullIfEmpty(expected), expected)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("CAS prod_version failed: expected %q", expected)
+		}
+		return nil
+	})
+}
+
+func (s *SQLiteStore) EnqueueJob(ctx context.Context, projectID, versionID, step string) (*Job, error) {
+	return withRetry(func() (*Job, error) {
+		now := time.Now().UTC()
+		j := &Job{
+			ID:        uuid.NewString(),
+			ProjectID: projectID,
+			VersionID: versionID,
+			Step:      step,
+			Status:    "pending",
+			UpdatedAt: now,
+		}
+		_, err := s.db.ExecContext(ctx, `
+			INSERT INTO jobs (id, project_id, version_id, step, status, lease_until, updated_at)
+			VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+			j.ID, projectID, versionID, step, j.Status, now.Format(time.RFC3339Nano))
+		if err != nil {
+			return nil, err
+		}
+		return j, nil
+	})
+}
+
+func (s *SQLiteStore) CountPendingJobs(ctx context.Context) (int, error) {
+	return withRetry(func() (int, error) {
+		row := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM jobs WHERE status = 'pending'`)
+		var n int
+		err := row.Scan(&n)
+		return n, err
+	})
+}
+
+func (s *SQLiteStore) ClaimJob(ctx context.Context, workerID string, lease time.Duration) (*Job, error) {
+	_ = workerID
+	return withRetry(func() (*Job, error) {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		now := time.Now().UTC()
+		nowStr := now.Format(time.RFC3339Nano)
+		row := tx.QueryRowContext(ctx, `
+			SELECT id, project_id, version_id, step, status, lease_until, updated_at
+			FROM jobs
+			WHERE status = 'pending'
+			   OR (status = 'claimed' AND lease_until < ?)
+			ORDER BY updated_at LIMIT 1`, nowStr)
+		var j Job
+		var leaseUntil sql.NullString
+		var updated string
+		if err := row.Scan(&j.ID, &j.ProjectID, &j.VersionID, &j.Step, &j.Status, &leaseUntil, &updated); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, nil
+			}
+			return nil, err
+		}
+
+		until := now.Add(lease)
+		_, err = tx.ExecContext(ctx, `
+			UPDATE jobs SET status = 'claimed', lease_until = ?, updated_at = ? WHERE id = ?`,
+			until.Format(time.RFC3339Nano), nowStr, j.ID)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		j.Status = "claimed"
+		j.LeaseUntil = &until
+		j.UpdatedAt, _ = time.Parse(time.RFC3339Nano, nowStr)
+		return &j, nil
+	})
+}
+
+func (s *SQLiteStore) CompleteJob(ctx context.Context, jobID string) error {
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE jobs SET status = 'completed', lease_until = NULL, updated_at = ? WHERE id = ?`,
+			now, jobID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) UpdateJobStep(ctx context.Context, jobID, step string) error {
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE jobs SET step = ?, updated_at = ? WHERE id = ?`, step, now, jobID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) FailJob(ctx context.Context, jobID string) error {
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE jobs SET status = 'failed', lease_until = NULL, updated_at = ? WHERE id = ?`,
+			now, jobID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) PurgeCompletedJobs(ctx context.Context, olderThan time.Time) (int64, error) {
+	return withRetry(func() (int64, error) {
+		cutoff := olderThan.UTC().Format(time.RFC3339Nano)
+		res, err := s.db.ExecContext(ctx, `
+			DELETE FROM jobs
+			WHERE status IN ('completed', 'failed')
+			  AND updated_at < ?`, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		return res.RowsAffected()
+	})
+}
+
+func (s *SQLiteStore) PurgeDestroyedVersions(ctx context.Context, olderThan time.Time) (int64, error) {
+	return withRetry(func() (int64, error) {
+		cutoff := olderThan.UTC().Format(time.RFC3339Nano)
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, err
+		}
+		defer tx.Rollback()
+
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM routes
+			WHERE active = 0
+			  AND EXISTS (
+			    SELECT 1 FROM versions v
+			    WHERE v.project_id = routes.project_id
+			      AND v.id = routes.version_id
+			      AND v.status = ?
+			      AND v.updated_at < ?
+			      AND NOT EXISTS (
+			        SELECT 1 FROM projects p
+			        WHERE p.id = v.project_id AND p.prod_version_id = v.id
+			      )
+			  )`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+
+		res, err := tx.ExecContext(ctx, `
+			DELETE FROM versions
+			WHERE status = ?
+			  AND updated_at < ?
+			  AND NOT EXISTS (
+			    SELECT 1 FROM routes r
+			    WHERE r.project_id = versions.project_id
+			      AND r.version_id = versions.id
+			      AND r.active = 1
+			  )
+			  AND NOT EXISTS (
+			    SELECT 1 FROM projects p
+			    WHERE p.id = versions.project_id AND p.prod_version_id = versions.id
+			  )`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, err
+		}
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+		return n, nil
+	})
+}
+
+func scanVersion(row *sql.Row) (*Version, error) {
+	var v Version
+	var parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString
+	if err := row.Scan(&v.ID, &v.ProjectID, &parent, &v.GitRef, &v.GitSHA, &artifactURI, &digest,
+		&branch, &preview, &status, &errMsg, &ttl, &created, &updated, &ready); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	fillVersion(&v, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready)
+	return &v, nil
+}
+
+func scanVersionRows(rows *sql.Rows) (*Version, error) {
+	var v Version
+	var parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString
+	if err := rows.Scan(&v.ID, &v.ProjectID, &parent, &v.GitRef, &v.GitSHA, &artifactURI, &digest,
+		&branch, &preview, &status, &errMsg, &ttl, &created, &updated, &ready); err != nil {
+		return nil, err
+	}
+	fillVersion(&v, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready)
+	return &v, nil
+}
+
+func fillVersion(v *Version, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString) {
+	if parent.Valid {
+		v.ParentVersionID = &parent.String
+	}
+	if artifactURI.Valid {
+		v.ArtifactURI = artifactURI.String
+	}
+	if digest.Valid {
+		v.ArtifactDigest = digest.String
+	}
+	if branch.Valid {
+		v.DataBranch = branch.String
+	}
+	if preview.Valid {
+		v.PreviewURL = preview.String
+	}
+	if status.Valid {
+		v.Status = status.String
+	}
+	if errMsg.Valid {
+		v.Error = &errMsg.String
+	}
+	if ttl.Valid {
+		t, _ := time.Parse(time.RFC3339Nano, ttl.String)
+		v.TTL = &t
+	}
+	if created.Valid {
+		v.CreatedAt, _ = time.Parse(time.RFC3339Nano, created.String)
+	}
+	if updated.Valid {
+		v.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated.String)
+	}
+	if ready.Valid {
+		t, _ := time.Parse(time.RFC3339Nano, ready.String)
+		v.ReadyAt = &t
+	}
+}
+
+func nullStr(s *string) interface{} {
+	if s == nil {
+		return nil
+	}
+	return *s
+}
+
+func nullIfEmpty(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}

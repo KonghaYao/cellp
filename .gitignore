@@ -1,0 +1,78 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# --- dependencies (any package root) ---
+**/node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# --- frontend build (Vite SPA) ---
+**/.next/
+**/dist/
+/out/
+/build
+
+# --- Playwright / test output ---
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+
+# --- testing coverage ---
+/coverage
+
+# --- misc ---
+.DS_Store
+*.pem
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# --- debug logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- env (never commit secrets) ---
+.env*
+!.env.example
+!**/.env.example
+!dev/.env.example
+
+# --- local dev runtime state ---
+/dev/data/
+/dev/.env
+
+# --- cellp build artifacts ---
+cellp/cellpd
+cellp/cellpd.exe
+dev/bin/
+*.exe
+
+# --- SQLite registry (runtime) ---
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# --- test / stress evidence (generated; keep templates only) ---
+docs/evidence/*.log
+docs/evidence/*.out
+docs/evidence/*.db
+docs/evidence/stress-metrics.jsonl
+docs/evidence/stress-run-all*.log
+docs/evidence/stress-report.md
+!docs/evidence/.gitkeep
+!docs/evidence/v0c-skip.md
+!docs/evidence/v0b-deferred.md
+!docs/evidence/stress-env.json
+
+# --- research clones / agent scratch ---
+/offshoot-research/
+/agent-tools/
+
+# --- vercel ---
+.vercel
