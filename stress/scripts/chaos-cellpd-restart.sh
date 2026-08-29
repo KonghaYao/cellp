@@ -44,6 +44,11 @@ if [[ -n "$platform_pid" ]]; then
     stress_api_health && break
     sleep 1
   done
+  deep="$(curl -sf "${PLATFORM_URL}/v1/health/deep" 2>/dev/null || echo '{}')"
+  unhealthy="$(echo "$deep" | jq -r '.checks.runtimes.unhealthy // 0')"
+  if [[ "$unhealthy" != "0" && "$unhealthy" != "null" ]]; then
+    stress_log "WARN: deep health unhealthy routes=$unhealthy after restart"
+  fi
 else
   stress_log "WARN: platform pid not found"
 fi

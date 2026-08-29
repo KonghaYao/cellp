@@ -62,6 +62,7 @@ func Handler() http.Handler {
 		fmt.Fprintf(w, "# HELP cellp_celld_unhealthy Unhealthy celld upstreams.\n")
 		fmt.Fprintf(w, "# TYPE cellp_celld_unhealthy gauge\n")
 		fmt.Fprintf(w, "cellp_celld_unhealthy %d\n", celldUnhealthy.Load())
+		writeGatewayMetrics(w)
 	})
 }
 

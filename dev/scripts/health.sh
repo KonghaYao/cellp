@@ -15,6 +15,13 @@ bad() { echo "FAIL $1"; FAIL=1; }
 
 if curl -sf "${GATEWAY_URL}/health" >/dev/null; then ok "gateway ${GATEWAY_URL}"; else bad "gateway ${GATEWAY_URL}"; fi
 
+GW_DEEP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' "${GATEWAY_URL}/health/deep" 2>/dev/null || echo "000")
+if [[ "$GW_DEEP_CODE" == "200" || "$GW_DEEP_CODE" == "503" ]]; then
+  ok "gateway deep health (http=${GW_DEEP_CODE})"
+else
+  bad "gateway deep health (http=${GW_DEEP_CODE})"
+fi
+
 if curl -sf "${PLATFORM_URL}/v1/health" >/dev/null; then ok "platform ${PLATFORM_URL}"; else bad "platform ${PLATFORM_URL}"; fi
 
 if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then

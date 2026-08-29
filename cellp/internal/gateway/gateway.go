@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/cellp/cellp/internal/metrics"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/go-chi/chi/v5"
 )
@@ -57,7 +58,7 @@ func (g *Gateway) RouteCacheForTest() *RouteCache {
 }
 
 func (g *Gateway) Handler() http.Handler {
-	return g.router
+	return MetricsMiddleware(g.router)
 }
 
 func (g *Gateway) routes() {
@@ -65,6 +66,7 @@ func (g *Gateway) routes() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("gateway ok"))
 	})
+	g.router.Get("/health/deep", g.handleHealthDeep)
 
 	// Version-specific route: /{project}/{version}/*
 	g.router.Handle("/{project}/{version}/*", http.HandlerFunc(g.handleVersionRoute))
@@ -181,7 +183,12 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, host string, por
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	r.URL.Path = path
 	r.Host = target.Host
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		metrics.RecordGatewayUpstream(resp.StatusCode)
+		return nil
+	}
 	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, e error) {
+		metrics.RecordGatewayUpstream(http.StatusBadGateway)
 		http.Error(rw, "bad gateway", http.StatusBadGateway)
 	}
 	proxy.ServeHTTP(w, r)
