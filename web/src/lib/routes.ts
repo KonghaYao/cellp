@@ -37,6 +37,10 @@ export function settingsHref(projectId: string): string {
   return `/projects/${projectId}/settings`;
 }
 
+export function platformHref(): string {
+  return "/platform";
+}
+
 export function versionHref(projectId: string, versionId: string): string {
   return `/projects/${projectId}/versions/${versionId}`;
 }

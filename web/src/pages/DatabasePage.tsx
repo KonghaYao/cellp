@@ -11,14 +11,13 @@ import {
   type DatabaseUnavailableReason,
   type Version,
 } from "@/lib/cellp-api";
-import { storageBrowserHref, storageHref, versionHref } from "@/lib/routes";
+import { storageBrowserHref, versionHref } from "@/lib/routes";
 import { BranchList } from "@/components/database/branch-list";
 import { BranchTree } from "@/components/database/branch-tree";
 import { CreateBranchDialog } from "@/components/database/create-branch-dialog";
 import { SchemaBrowser } from "@/components/database/schema-browser";
 import { SqlEditor } from "@/components/database/sql-editor";
 import { TableDataViewer } from "@/components/database/table-data-viewer";
-import { VersionSwitcher } from "@/components/database/version-switcher";
 import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,31 +204,12 @@ export function DatabasePage() {
 
   return (
     <div className="space-y-6">
-      <div className="text-label-13 text-muted-foreground">
-        <Link to={storageHref(id)} className="hover:text-foreground">
-          Storage
-        </Link>
-        <span className="mx-2">/</span>
-        <span className="font-mono text-foreground">{database?.database_name ?? "main"}</span>
-        <span className="mx-2">/</span>
-        <span>Browser</span>
-      </div>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Database className="size-5 text-muted-foreground" />
-            <h1 className="text-heading-24 font-semibold tracking-tight">
-              {database?.database_name ?? "Database"}
-            </h1>
-            {isProd && <Badge variant="prod">Production</Badge>}
-          </div>
-          <p className="mt-1 text-copy-14 text-muted-foreground">
-            Deployment <span className="font-mono">{vid}</span>
-            {version?.git_ref ? ` · ${version.git_ref}` : ""}
-          </p>
-        </div>
-        <VersionSwitcher projectId={id} versionId={vid} />
+      <div className="flex flex-wrap items-center gap-3">
+        <Database className="size-5 text-muted-foreground" />
+        <h2 className="text-heading-20 font-semibold tracking-tight">
+          {database?.database_name ?? "Database"}
+        </h2>
+        {isProd && <Badge variant="prod">Production</Badge>}
       </div>
 
       {loading && (

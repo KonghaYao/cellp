@@ -3,6 +3,8 @@
  * Generated from DESIGN.md §9 + mock-platform contract.
  */
 
+import { gatewayBase } from "@/lib/format";
+
 const DEFAULT_API_URL = "http://127.0.0.1:8790";
 
 export class CellpApiError extends Error {
@@ -891,4 +893,74 @@ export async function createVersion(
     },
     deployToken(),
   );
+}
+
+export interface DeepHealth {
+  status: string;
+  registry?: string;
+  checks?: Record<string, unknown>;
+}
+
+export interface RuntimeRouteRow {
+  project_id: string;
+  version_id: string;
+  active: boolean;
+  upstream: string;
+  version_status?: string;
+  celld_health: string;
+}
+
+export interface RuntimeRoutesResponse {
+  summary: {
+    active_routes: number;
+    healthy: number;
+    unhealthy: number;
+  };
+  routes: RuntimeRouteRow[];
+}
+
+export async function getHealthDeep(): Promise<DeepHealth> {
+  return request<DeepHealth>("/v1/health/deep");
+}
+
+export async function getRuntimeRoutes(): Promise<RuntimeRoutesResponse> {
+  return request<RuntimeRoutesResponse>("/v1/runtime/routes");
+}
+
+/** Parse simple Prometheus gauge lines into a map. */
+export function parsePrometheusGauges(text: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const line of text.split("\n")) {
+    if (!line || line.startsWith("#")) continue;
+    const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)\s+(-?\d+(?:\.\d+)?)/);
+    if (match) out[match[1]] = Number(match[2]);
+  }
+  return out;
+}
+
+export async function fetchMetricsGauges(): Promise<Record<string, number>> {
+  const res = await fetch(`${apiBase()}/metrics`, { cache: "no-store" });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new CellpApiError(`metrics ${res.status}`, res.status, text);
+  }
+  return parsePrometheusGauges(text);
+}
+
+export async function getGatewayHealthDeep(): Promise<DeepHealth> {
+  const base = gatewayBase();
+  const res = await fetch(`${base}/health/deep`, { cache: "no-store" });
+  const text = await res.text();
+  let body: unknown = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+  }
+  if (!res.ok) {
+    throw new CellpApiError(`gateway health ${res.status}`, res.status, body);
+  }
+  return body as DeepHealth;
 }

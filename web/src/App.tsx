@@ -4,6 +4,7 @@ import { ProjectLayout } from "@/components/layout/project-layout";
 import { DatabasePage } from "@/pages/DatabasePage";
 import { DeploymentsPage } from "@/pages/DeploymentsPage";
 import { KvPage } from "@/pages/KvPage";
+import { PlatformPage } from "@/pages/PlatformPage";
 import { ProjectOverviewPage } from "@/pages/ProjectOverviewPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { QueuesPage } from "@/pages/QueuesPage";
@@ -12,6 +13,7 @@ import { StoragePage } from "@/pages/StoragePage";
 import { VersionPage } from "@/pages/VersionPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { bindingsHref, storageBrowserHref } from "@/lib/routes";
+import { StorageVersionLayout } from "@/components/layout/storage-version-layout";
 
 function LegacyDatabaseRedirect() {
   const path = window.location.pathname;
@@ -35,15 +37,19 @@ export default function App() {
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<ProjectsPage />} />
+          <Route path="/platform" element={<PlatformPage />} />
           <Route path="/projects/:id" element={<ProjectLayout />}>
             <Route index element={<ProjectOverviewPage />} />
             <Route path="deployments" element={<DeploymentsPage />} />
             <Route path="bindings" element={<BindingsRedirect />} />
             <Route path="storage" element={<StoragePage />} />
-            <Route path="storage/:vid/browser" element={<DatabasePage />} />
-            <Route path="storage/:vid/kv" element={<KvPage />} />
-            <Route path="storage/:vid/queues" element={<QueuesPage />} />
-            <Route path="storage/:vid/workflows" element={<WorkflowsPage />} />
+            <Route path="storage/:vid" element={<StorageVersionLayout />}>
+              <Route index element={<Navigate to="browser" replace />} />
+              <Route path="browser" element={<DatabasePage />} />
+              <Route path="kv" element={<KvPage />} />
+              <Route path="queues" element={<QueuesPage />} />
+              <Route path="workflows" element={<WorkflowsPage />} />
+            </Route>
             <Route path="settings" element={<SettingsPage />} />
             <Route path="versions/:vid" element={<VersionPage />} />
             <Route

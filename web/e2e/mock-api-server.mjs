@@ -566,12 +566,66 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { status: "ok" });
   }
 
+  if (req.method === "GET" && url.pathname === "/v1/health/deep") {
+    return json(res, 200, {
+      status: "ok",
+      checks: {
+        registry: { status: "ok", latency_ms: 1 },
+        rustfs: { status: "ok", latency_ms: 2 },
+        celld: { status: "ok", detail: "installed" },
+        runtimes: { active_routes: 2, healthy: 2, unhealthy: 0 },
+        queue: { pending_jobs: 0, queue_max: 10000 },
+      },
+    });
+  }
+
+  if (req.method === "GET" && url.pathname === "/metrics") {
+    res.writeHead(200, {
+      "content-type": "text/plain; version=0.0.4",
+      "access-control-allow-origin": "*",
+    });
+    res.end(
+      [
+        "cellp_pending_jobs 0",
+        "cellp_routes_active 2",
+        "cellp_celld_healthy 2",
+        "cellp_celld_unhealthy 0",
+        "cellp_gateway_requests_total 42",
+      ].join("\n"),
+    );
+    return;
+  }
+
   if (parts[0] !== "v1") {
     return json(res, 404, { error: "not found" });
   }
 
   if (!auth(req)) {
     return json(res, 401, { error: "unauthorized" });
+  }
+
+  if (req.method === "GET" && parts[1] === "runtime" && parts[2] === "routes") {
+    return json(res, 200, {
+      summary: { active_routes: 2, healthy: 2, unhealthy: 0 },
+      routes: [
+        {
+          project_id: "demo-app",
+          version_id: "v1",
+          active: true,
+          upstream: "127.0.0.1:8803",
+          version_status: "ready",
+          celld_health: "ok",
+        },
+        {
+          project_id: "demo-app",
+          version_id: "v2",
+          active: true,
+          upstream: "127.0.0.1:8804",
+          version_status: "ready",
+          celld_health: "ok",
+        },
+      ],
+    });
   }
 
   if (parts[1] === "projects" && parts.length === 2 && req.method === "GET") {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Boxes, ChevronRight, LayoutGrid, Menu, X } from "lucide-react";
-import { ProjectSidebar } from "@/components/layout/project-sidebar";
+import { Link, Outlet, useLocation } from "react-router-dom";
+import { Boxes, ChevronRight, Menu, X } from "lucide-react";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -114,56 +114,13 @@ function SidebarChrome({
         </Link>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-2">
-        {!inProject || !projectId ? (
-          <ul className="space-y-0.5">
-            <SidebarLink
-              to="/"
-              icon={<LayoutGrid className="size-4" />}
-              label="Projects"
-              end
-            />
-          </ul>
-        ) : (
-          <ProjectSidebar projectId={projectId} />
-        )}
+      <nav className="flex-1 overflow-y-auto">
+        <AppSidebar projectId={inProject ? projectId : undefined} />
       </nav>
 
       <div className="border-t border-border p-3">
         <p className="text-xs text-muted-foreground">Control plane</p>
       </div>
     </>
-  );
-}
-
-function SidebarLink({
-  to,
-  icon,
-  label,
-  end,
-}: {
-  to: string;
-  icon: React.ReactNode;
-  label: string;
-  end?: boolean;
-}) {
-  return (
-    <li>
-      <NavLink
-        to={to}
-        end={end}
-        className={({ isActive }) =>
-          cn(
-            "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-            isActive
-              ? "bg-accent font-medium text-foreground"
-              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-          )
-        }
-      >
-        {icon}
-        {label}
-      </NavLink>
-    </li>
   );
 }

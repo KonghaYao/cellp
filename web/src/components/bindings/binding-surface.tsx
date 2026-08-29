@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { VersionSwitcher } from "@/components/database/version-switcher";
 import { Ad7Banner } from "@/components/bindings/ad7-banner";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,12 +29,8 @@ export function OperatorNotReadyState({
 }
 
 export function BindingSurfaceLayout({
-  projectId,
-  versionId,
   title,
-  crumb,
   icon,
-  versionHref,
   isProd,
   isPreview,
   gitRef,
@@ -45,9 +40,9 @@ export function BindingSurfaceLayout({
   projectId: string;
   versionId: string;
   title: string;
-  crumb: string;
+  crumb?: string;
   icon: ReactNode;
-  versionHref: (projectId: string, versionId: string) => string;
+  versionHref?: (projectId: string, versionId: string) => string;
   isProd: boolean;
   isPreview: boolean;
   gitRef?: string;
@@ -56,33 +51,19 @@ export function BindingSurfaceLayout({
 }) {
   return (
     <div className="space-y-6">
-      <div className="text-label-13 text-muted-foreground">
-        <Link to={storageHref(projectId)} className="hover:text-foreground">
-          Storage
-        </Link>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">{crumb}</span>
-      </div>
-
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
             {icon}
-            <h1 className="text-heading-24 font-semibold tracking-tight">
+            <h2 className="text-heading-20 font-semibold tracking-tight">
               {title}
-            </h1>
+            </h2>
             {isProd && <Badge variant="prod">Production</Badge>}
           </div>
-          <p className="mt-1 text-copy-14 text-muted-foreground">
-            Deployment <span className="font-mono">{versionId}</span>
-            {gitRef ? ` · ${gitRef}` : ""}
-          </p>
+          {gitRef ? (
+            <p className="mt-1 text-copy-14 text-muted-foreground">{gitRef}</p>
+          ) : null}
         </div>
-        <VersionSwitcher
-          projectId={projectId}
-          versionId={versionId}
-          versionHref={versionHref}
-        />
       </div>
 
       {isPreview && <Ad7Banner />}

@@ -58,7 +58,7 @@ func (g *Gateway) RouteCacheForTest() *RouteCache {
 }
 
 func (g *Gateway) Handler() http.Handler {
-	return MetricsMiddleware(g.router)
+	return corsMiddleware(MetricsMiddleware(g.router))
 }
 
 func (g *Gateway) routes() {
