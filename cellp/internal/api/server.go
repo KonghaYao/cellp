@@ -11,6 +11,7 @@ import (
 	"github.com/cellp/cellp/internal/artifact"
 	"github.com/cellp/cellp/internal/config"
 	"github.com/cellp/cellp/internal/job"
+	"github.com/cellp/cellp/internal/metrics"
 	"github.com/cellp/cellp/internal/orch"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
@@ -59,6 +60,7 @@ func (s *Server) routes() {
 
 	s.router.Get("/v1/health", s.handleHealth)
 	s.router.Get("/v1/health/deep", s.handleHealthDeep)
+	s.router.Handle("/metrics", metrics.Handler())
 	s.router.Get("/v1/runtime/routes", s.requireAdmin(s.handleRuntimeRoutes))
 
 	s.router.Route("/v1/projects", func(r chi.Router) {

@@ -89,10 +89,47 @@ func (m *Manager) AllocatePort(project, version string) int {
 	return port
 }
 
+// SeedPort registers a known upstream port for a version (fleet reconcile).
+// Returns an error when port collides with a different project/version.
+func (m *Manager) SeedPort(project, version string, port int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k := m.key(project, version)
+	if existing, ok := m.ports[k]; ok {
+		if existing == port {
+			return nil
+		}
+		return fmt.Errorf("port already allocated for %s: %d", k, existing)
+	}
+	for otherK, p := range m.ports {
+		if p == port && otherK != k {
+			return fmt.Errorf("port %d already in use by %s", port, otherK)
+		}
+	}
+	m.ports[k] = port
+	n := port - m.basePort - 10
+	if n > m.nextN {
+		m.nextN = n
+	}
+	return nil
+}
+
+// routeManaged reports whether a live celld subprocess is tracked for this route.
+func (m *Manager) routeManaged(project, version string, port int) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.processes[m.key(project, version)]
+	return ok && p != nil && p.port == port && p.cmd != nil && p.cmd.Process != nil
+}
+
 // Start launches celld on 127.0.0.1:port for the version.
 func (m *Manager) Start(ctx context.Context, project, version string) (string, int, error) {
 	port := m.AllocatePort(project, version)
-	host := "127.0.0.1"
+	return m.StartOnPort(ctx, project, version, "127.0.0.1", port)
+}
+
+// StartOnPort launches celld on host:port for the version.
+func (m *Manager) StartOnPort(ctx context.Context, project, version, host string, port int) (string, int, error) {
 	k := m.key(project, version)
 
 	m.mu.Lock()
@@ -118,7 +155,7 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 		"--bucket", bucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
-		"--listen", fmt.Sprintf("127.0.0.1:%d", port),
+		"--listen", fmt.Sprintf("%s:%d", host, port),
 	}
 	cmd := exec.CommandContext(ctx, "celld", args...)
 	watch, err := m.allocateWatchDir(project, version)
@@ -522,6 +559,7 @@ func (m *Manager) Health(ctx context.Context, host string, port int) bool {
 	if !CelldInstalled() {
 		return true
 	}
+	// Probe celld health on the well-known path used by production runners.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("http://%s:%d/.well-known/celld/health", host, port), nil)
 	if err != nil {

@@ -42,6 +42,13 @@ paths:
       responses:
         "200":
           description: OK
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Prometheus text exposition
   /projects:
     get:
       summary: List projects (cursor-paginated)

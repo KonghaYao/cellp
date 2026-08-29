@@ -16,6 +16,7 @@ import (
 	"github.com/cellp/cellp/internal/gateway"
 	"github.com/cellp/cellp/internal/gc"
 	"github.com/cellp/cellp/internal/job"
+	"github.com/cellp/cellp/internal/metrics"
 	"github.com/cellp/cellp/internal/orch"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
@@ -52,6 +53,17 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	reconcileCfg := runtime.LoadReconcileConfig()
+	if started, skipped, err := runtime.ReconcileFleet(ctx, store, rm); err != nil {
+		log.Printf("reconcile: boot fleet reconcile failed: %v", err)
+	} else if started > 0 || skipped > 0 {
+		log.Printf("reconcile: boot started=%d skipped=%d", started, skipped)
+	}
+	runtime.StartReconciler(ctx, store, rm, reconcileCfg)
+	metrics.StartCollector(ctx, store, rm, reconcileCfg.Interval)
+	_ = metrics.Collect(ctx, store, rm)
+
 	go o.Run(ctx)
 	gc.Start(ctx, store, gc.LoadConfig())
 

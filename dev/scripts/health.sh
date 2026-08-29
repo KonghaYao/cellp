@@ -51,6 +51,13 @@ else
   bad "platform runtime routes (http=${ROUTES_CODE})"
 fi
 
+METRICS_CODE=$(curl -sS -o /dev/null -w '%{http_code}' "${PLATFORM_URL}/metrics" 2>/dev/null || echo "000")
+if [[ "$METRICS_CODE" == "200" ]]; then
+  ok "platform prometheus /metrics"
+else
+  bad "platform prometheus /metrics (http=${METRICS_CODE})"
+fi
+
 if [[ -f dev/data/registry.json ]] || [[ -f dev/data/platform-registry.sqlite ]] || [[ -f dev/data/cellp-registry.sqlite ]] || [[ -f "${REGISTRY_DB:-dev/data/cellp-registry.sqlite}" ]]; then
   ok "registry file"
 else
