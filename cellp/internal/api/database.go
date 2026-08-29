@@ -123,7 +123,7 @@ func (s *Server) handleListDatabaseTables(w http.ResponseWriter, r *http.Request
 	for _, row := range result.Rows {
 		name, _ := row["name"].(string)
 		typ, _ := row["type"].(string)
-		if name == "" {
+		if name == "" || !isUserVisibleTable(name) {
 			continue
 		}
 		count, err := s.tableRowCount(r, ctx, name)
@@ -356,6 +356,9 @@ func validateSQLIdentifier(name string) error {
 	if name == "" || len(name) > 128 {
 		return fmt.Errorf("invalid identifier")
 	}
+	if !isUserVisibleTable(name) {
+		return fmt.Errorf("invalid identifier")
+	}
 	for _, r := range name {
 		if r == '"' {
 			return fmt.Errorf("invalid identifier")
@@ -365,6 +368,18 @@ func validateSQLIdentifier(name string) error {
 		}
 	}
 	return nil
+}
+
+// isUserVisibleTable reports whether a sqlite object should appear in the Dashboard schema/data browser.
+// celld internal tables (_cf_*, _litestream_*) are not queryable via d1 execute.
+func isUserVisibleTable(name string) bool {
+	if strings.HasPrefix(name, "sqlite_") {
+		return false
+	}
+	if strings.HasPrefix(name, "_cf") || strings.HasPrefix(name, "_litestream") {
+		return false
+	}
+	return true
 }
 
 func escapeSQLIdentifier(name string) string {

@@ -43,6 +43,7 @@ if [ "$1" = "d1" ] && [ "$2" = "execute" ]; then
   done
   case "$SQL" in
     *sqlite_master*)
+      echo '{"name":"_cf_KV","type":"table"}'
       echo '{"name":"users","type":"table"}'
       echo '{"name":"posts","type":"table"}'
       ;;

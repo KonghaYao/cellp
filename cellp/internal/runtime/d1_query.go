@@ -33,6 +33,15 @@ type D1SQLResult struct {
 
 var executeNoteRE = regexp.MustCompile(`Executed (\d+) statement\(s\) in (?:(\d+)ms|([\d.]+) sec)`)
 
+// ensureSQLSemicolon appends ';' when missing — celld d1 execute requires terminated statements.
+func ensureSQLSemicolon(sql string) string {
+	sql = strings.TrimSpace(sql)
+	if sql == "" || strings.HasSuffix(sql, ";") {
+		return sql
+	}
+	return sql + ";"
+}
+
 // D1ExecuteSQL runs arbitrary SQL against a version's D1 database.
 func (m *Manager) D1ExecuteSQL(ctx context.Context, project, version, projectDir, sql string) (*D1SQLResult, error) {
 	if _, err := exec.LookPath("celld"); err != nil {
@@ -46,6 +55,7 @@ func (m *Manager) D1ExecuteSQL(ctx context.Context, project, version, projectDir
 		return nil, fmt.Errorf("no d1 database configured")
 	}
 
+	sql = ensureSQLSemicolon(sql)
 	bucket := m.versionBucket(project, version)
 	args := []string{
 		"d1", "execute", database,

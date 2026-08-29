@@ -45,3 +45,18 @@ func TestInferColumnType(t *testing.T) {
 		t.Fatal("expected TEXT")
 	}
 }
+
+func TestEnsureSQLSemicolon(t *testing.T) {
+	if got := ensureSQLSemicolon("SELECT 1"); got != "SELECT 1;" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ensureSQLSemicolon("SELECT 1;"); got != "SELECT 1;" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ensureSQLSemicolon("  SELECT 1  "); got != "SELECT 1;" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ensureSQLSemicolon(""); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
