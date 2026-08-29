@@ -67,7 +67,6 @@ docs/evidence/stress-run-all*.log
 docs/evidence/stress-report.md
 !docs/evidence/.gitkeep
 !docs/evidence/v0c-skip.md
-!docs/evidence/v0b-deferred.md
 !docs/evidence/stress-env.json
 
 # --- research clones / agent scratch ---

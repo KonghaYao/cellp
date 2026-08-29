@@ -37,6 +37,12 @@ SCALE_SEED_PROJECTS=10 SCALE_SEED_VERSIONS=1000 ./stress/phase6/seed-versions.sh
 
 # 4. Sustained cursor pagination load
 ./stress/phase6/list-api-load.sh
+
+# 5. Registry size snapshot (SQLite bytes + row counts)
+./stress/phase6/registry-size-report.sh
+
+# 6. Dev gateway load baseline (NOT 100k RPS gate)
+./stress/phase6/gateway-scale.sh -short
 ```
 
 ### Full 10k project ladder
@@ -60,6 +66,8 @@ SCALE_LOAD_RPS=200 SCALE_LOAD_DURATION=120 ./stress/phase6/list-api-load.sh
 | `offshoot-branch-scale.sh` | TP-OB / TP-V0b-L | Single-project large SQLite CoW branches (local offshoot) |
 | `offshoot-branch-scale-rustfs.sh` | TP-OB-R | Same ladder on `s3://cellp-offshoot` (RustFS) |
 | `list-api-load.sh` | TP6-A5 | vegeta or curl cursor loop |
+| `registry-size-report.sh` | TP6-A5-report | SQLite file size + row counts (+ optional EXPLAIN) |
+| `gateway-scale.sh` | TP6-A5-gateway | Dev cached-route GET load; `-short` for CI |
 
 ## Environment variables
 
@@ -75,6 +83,12 @@ SCALE_LOAD_RPS=200 SCALE_LOAD_DURATION=120 ./stress/phase6/list-api-load.sh
 | `SCALE_LOAD_RPS` | `100` | list-api-load target RPS |
 | `SCALE_LOAD_DURATION` | `60` | list-api-load duration (seconds) |
 | `SCALE_LOAD_TARGET` | `projects` | `projects` \| `versions` \| `both` |
+| `SCALE_EXPLAIN` | `0` | `registry-size-report.sh`: run ListProjects EXPLAIN QUERY PLAN |
+| `SCALE_GATEWAY_DEV_RPS` | `500` / `50` (`-short`) | `gateway-scale.sh` target RPS |
+| `SCALE_GATEWAY_DEV_DURATION` | `120` / `60` (`-short`) | `gateway-scale.sh` duration (seconds) |
+| `SCALE_GATEWAY_PROJECT` | — | Reuse existing cached route (with `SCALE_GATEWAY_VERSION`) |
+| `SCALE_GATEWAY_VERSION` | — | Version for cached route fixture |
+| `SCALE_GATEWAY_FIXTURE` | `1` | Deploy scale-seed fixture if no active route |
 | `STRESS_PROJECT_PREFIX` | `scale-seed` | **Do not change** unless cleaning up |
 | `STRESS_RUN_ID` | timestamp | Unique suffix per run |
 | `D1_IMPORT_SIZE_MB` | `100` / `8` | Seed size for `d1-import-scale.sh` / `d1-branch-scale.sh` |
@@ -107,7 +121,7 @@ Thresholds load from `docs/evidence/scale-env.json` → `thresholds.*`.
 
 | Tool | Used by |
 |------|---------|
-| `vegeta` | `list-api-load.sh` (falls back to curl loop) |
+| `vegeta` | `list-api-load.sh`, `gateway-scale.sh` (falls back to curl loop) |
 
 Install vegeta: `go install github.com/tsenart/vegeta@latest`
 
@@ -117,6 +131,6 @@ Install vegeta: `go install github.com/tsenart/vegeta@latest`
 |-------|------|
 | 10k projects | `ListProjects` cursor p99 **<200ms** |
 | 100k versions/project (10×10k) | pagination p99 **<100ms** |
-| 100k Gateway RPS (cached) | error rate **<0.1%** |
+| 100k Gateway RPS (cached) | error rate **<0.1%** (prod gate — use `gateway-scale.sh` for dev baseline only) |
 
-Gateway scale (`gateway-scale.sh`) and deploy storm scripts are planned for 6E/6C tracks.
+`deploy-storm.sh` and `seed-orgs.sh` are planned for 6C/6B tracks.

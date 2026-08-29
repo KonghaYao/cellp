@@ -5,11 +5,11 @@
 
 ## Exit Criteria
 
-- [ ] `e2e/scripts/v0a-celld-diagnose.sh` exit 0
-- [ ] `e2e/scripts/v0d-offshoot-attach.sh` exit 0
-- [ ] V0b：`v0b-offshoot-rustfs.sh` exit 0 **或** `docs/evidence/v0b-deferred.md`
-- [ ] V0c：通过或 `docs/evidence/v0c-skip.md`
-- [ ] `docs/evidence/.gitkeep` 存在
+- [x] `e2e/scripts/v0a-celld-diagnose.sh` exit 0
+- [x] `e2e/scripts/v0d-offshoot-attach.sh` exit 0
+- [x] V0b：`v0b-offshoot-rustfs.sh` exit 0（[v0b-pass-report.md](../evidence/v0b-pass-report.md) · 2026-08-29）
+- [x] V0c：通过或 `docs/evidence/v0c-skip.md`
+- [x] `docs/evidence/.gitkeep` 存在
 
 ## Parallel Tracks
 
@@ -51,14 +51,7 @@ export OFFSHOOT_STORE=s3://cellp-offshoot
 
 **依赖 P0-T2。** 序列见 test-plan TP-V0b。可选 TP-V0b-L 大库路径。
 
-**Deferred 模板 `docs/evidence/v0b-deferred.md`：**
-
-```markdown
-# V0b Deferred
-Date: …
-Reason: …
-Impact: offshoot prod uses local; RustFS for celld+artifacts only.
-```
+**✅ PASS（2026-08-29）：** `v0d-offshoot-attach.sh` → `v0b-offshoot-rustfs.sh` exit 0；证据 [v0b-pass-report.md](../evidence/v0b-pass-report.md)。`v0b-deferred.md` 已删除；失败时不再 soft-pass。
 
 ## P0-T4 — V0c（可选）
 

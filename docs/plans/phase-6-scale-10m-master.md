@@ -1,8 +1,9 @@
 # Phase 6 — 千万级全量扩展超级计划（Master Plan）
 
 > **代号：** SCALE-10M  
-> **状态：** 6A COMPLETE (SQLite scope) · 2026-08-29  
-> **范围约束（2026-08-29）：** **不做 PostgreSQL、不做多租户/RBAC**。Phase 6 仅执行 **6A**（SQLite 分页 + Gateway 缓存 + GC + Dashboard + 压测基线）。6B–6F 标记为 **OUT OF SCOPE**。
+> **状态：** 6A **IMPLEMENTATION COMPLETE** (SQLite scope) · 2026-08-29  
+> **收尾计划：** [v1-v0b-phase6-plan.md](./v1-v0b-phase6-plan.md)  
+> **范围约束（2026-08-29）：** **不做 PostgreSQL、不做多租户/RBAC**。Phase 6 仅执行 **6A**（SQLite 分页 + Gateway 缓存 + GC + Dashboard + 压测基线）。6B–6F 标记为 **OUT OF SCOPE**。TP6-A5 ListProjects @10k p99 ~238–262ms：**SQLite waiver**（gate 200ms 未过）。**不宣称** 6F / 千万 sign-off。
 > **前置：** Phase 0–5 完成（M3 压测 sign-off）  
 > **上位文档：** [DESIGN.md](../../DESIGN.md) · [test-plan-phase2.md](../test-plan-phase2.md)  
 > **本文定位：** 从「单节点私有化 PaaS」演进到「千万级用户可承载平台」的**全量级**路线图 — 含目标定义、数据模型、架构、压测、迁移、门禁。

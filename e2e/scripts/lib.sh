@@ -197,7 +197,7 @@ rustfs_s3_env() {
 offshoot_rustfs_env() {
   rustfs_s3_env
   export OFFSHOOT_STORE="${OFFSHOOT_RUSTFS_STORE:-s3://cellp-offshoot/e2e}"
-  export OFFSHOOT_S3_ENDPOINT="${S3_ENDPOINT:-http://127.0.0.1:9000}"
+  export OFFSHOOT_S3_ENDPOINT="${S3_ENDPOINT:-http://127.0.0.1:${S3_PORT:-19000}}"
   export OFFSHOOT_S3_PATH_STYLE="${OFFSHOOT_S3_PATH_STYLE:-1}"
   export OFFSHOOT_CHECKOUTS="${OFFSHOOT_CHECKOUTS:-./dev/data/offshoot-checkouts-rustfs}"
   mkdir -p "$OFFSHOOT_CHECKOUTS"

@@ -11,7 +11,6 @@ import {
 import { deriveProdUrl, formatRelativeTime } from "@/lib/format";
 import { deploymentsHref, storageBrowserHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
-import { CopyButton } from "@/components/copy-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 

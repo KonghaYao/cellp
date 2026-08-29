@@ -158,3 +158,9 @@
 {"ts":"2026-08-29T05:07:11Z","test":"TP-D1-BRANCH","metric":"b5_blob_rows","value":8,"extra":{"expected":8}}
 {"ts":"2026-08-29T05:07:11Z","test":"TP-D1-BRANCH","metric":"child_min_txid_one_post_b5","value":0,"extra":{}}
 {"ts":"2026-08-29T05:07:11Z","test":"TP-D1-BRANCH","metric":"child_prefix_bytes","value":3412,"extra":{"phase":"post-b5"}}
+{"ts":"2026-08-29T08:18:13Z","test":"TP6-A5-report","metric":"registry_snapshot","value":5320704,"extra":{"db_mb":5.07,"projects":11202,"versions":10026,"jobs":26,"routes":21,"routes_active":21}}
+{"ts":"2026-08-29T08:18:42Z","test":"TP6-A5-report","metric":"registry_snapshot","value":5320704,"extra":{"db_mb":5.07,"projects":11202,"versions":10026,"jobs":26,"routes":21,"routes_active":21}}
+{"ts":"2026-08-29T08:19:48Z","test":"TP6-A5","metric":"list_projects_p99_ms","value":7,"extra":{"p50":4,"p95":6,"samples":200,"limit":50}}
+{"ts":"2026-08-29T08:19:55Z","test":"TP6-A5","metric":"list_versions_p99_ms","value":8,"extra":{"p50":5,"p95":8,"samples":200,"project":"scale-seed-20260829-064040-00001","limit":50}}
+{"ts":"2026-08-29T08:20:42Z","test":"TP6-A5-gateway","metric":"gateway_p99_ms","value":105,"extra":{"rps":50,"duration":60,"error_rate":0,"total":2850,"short":1,"fixture":"cellp-dashboard/v-ui2","fixture_source":"registry"}}
+{"ts":"2026-08-29T08:20:42Z","test":"TP6-A5-gateway","metric":"gateway_rps_cached","value":50,"extra":{"p99_ms":105,"error_rate":0,"total":2850,"short":1}}

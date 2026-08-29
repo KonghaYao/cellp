@@ -33,8 +33,8 @@
 | offshoot → D1 import | ✅ | `v1-d1-seed.sh` |
 | D1 branch（子 version 共享父 LTX） | ✅ | `v1-d1-branch.sh` |
 | Dashboard（项目 · 部署 · 存储 · D1 管理） | ✅ | `cd web && npm run test:e2e` |
-| offshoot prod × RustFS（V0b） | ⏸ deferred | [v0b-deferred.md](./docs/evidence/v0b-deferred.md) |
-| Phase 6 千万扩展 | 🔲 后续 | [test-plan-phase6.md](./docs/test-plan-phase6.md) |
+| offshoot prod × RustFS（V0b） | ✅ | `e2e/scripts/v0b-offshoot-rustfs.sh` · [v0b-pass-report.md](./docs/evidence/v0b-pass-report.md) |
+| Phase 6 扩展（6A · SQLite scope） | ✅ 6A 实现完成 | [test-plan-phase6.md](./docs/test-plan-phase6.md) · [v1-v0b-phase6-plan.md](./docs/plans/v1-v0b-phase6-plan.md)（6B–6F OUT OF SCOPE） |
 
 ## 快速开始
 

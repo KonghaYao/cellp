@@ -17,6 +17,7 @@ deferred_pass() {
 }
 
 require_offshoot
+need sqlite3
 offshoot_rustfs_env
 
 LOG="${EVIDENCE_DIR}/v0b-$(date +%Y%m%d-%H%M%S).log"

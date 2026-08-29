@@ -59,7 +59,7 @@ SQLite 表 `jobs` + lease；cellpd 重启可恢复 pending job。Phase 1 schema 
 | Tier | offshoot store | 门禁 |
 |------|----------------|------|
 | **Dev / 功能验收** | local dir | `test-plan` 可全绿（M2） |
-| **Prod 数据面** | RustFS `s3://cellp-offshoot` | **TP-V0b 必须**（当前 **deferred**，见 [evidence/v0b-deferred.md](./evidence/v0b-deferred.md)） |
+| **Prod 数据面** | RustFS `s3://cellp-offshoot` | **TP-V0b 必须**（✅ 2026-08-29，见 [evidence/v0b-pass-report.md](./evidence/v0b-pass-report.md)） |
 
 **注意：** M2 全绿 ≠ prod offshoot 已上 RustFS。压测报告须注明 `offshoot_tier`。
 
@@ -148,7 +148,7 @@ flowchart LR
 | 探针 | 命令 | 状态 |
 |------|------|------|
 | **V0a** celld × RustFS 条件写 | `e2e/scripts/v0a-celld-diagnose.sh` | ✅ |
-| **V0b** offshoot branch × RustFS 全序列 | `e2e/scripts/v0b-offshoot-rustfs.sh` | ⏸ deferred（[v0b-deferred.md](./evidence/v0b-deferred.md)） |
+| **V0b** offshoot branch × RustFS 全序列 | `e2e/scripts/v0b-offshoot-rustfs.sh` | ✅（[v0b-pass-report.md](./evidence/v0b-pass-report.md) · 2026-08-29） |
 | **V0b-L** 大库 fork | `stress/phase6/offshoot-branch-scale.sh` | ✅ local tier |
 | **V0c** 多节点条件写 | 单一 VIP 可跳过 | ✅ skip 文档 |
 | **V0d** offshoot attach | `e2e/scripts/v0d-offshoot-attach.sh` | ✅ |

@@ -46,13 +46,19 @@
 
 | Phase | 文件 | Gate | 状态 |
 |-------|------|------|------|
-| 0 | [phase-0-storage-gates.md](./plans/phase-0-storage-gates.md) | RustFS 探针 | V0a✅ V0b⏸ |
+| 0 | [phase-0-storage-gates.md](./plans/phase-0-storage-gates.md) | RustFS 探针 | V0a✅ V0b✅ |
 | 1 | [phase-1-backend-core.md](./plans/phase-1-backend-core.md) | schema freeze | ✅ |
 | 2 | [phase-2-orchestrator.md](./plans/phase-2-orchestrator.md) | AD-1 spike | ✅ |
 | 3 | [phase-3-e2e.md](./plans/phase-3-e2e.md) | run-all | ✅ |
 | 4 | [phase-4-dashboard.md](./plans/phase-4-dashboard.md) | M1 TP-VE-ALL | ✅ |
 | 5 | [phase-5-stress.md](./plans/phase-5-stress.md) | M2 | 见 phase2 压测 |
-| 6 | [phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) | M3 / 6A | 进行中 |
+| 6 | [phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) | M3 / 6A | **6A 实现完成**（SQLite scope；6B–6F OUT OF SCOPE） |
+
+### v1 收尾（2026-08-29）
+
+| 文件 | 说明 |
+|------|------|
+| [plans/v1-v0b-phase6-plan.md](./plans/v1-v0b-phase6-plan.md) | V0b PASS + Phase 6A 诚实交付范围 |
 
 ### D1 数据面（已完成 · 2026-08-29）
 
@@ -72,7 +78,7 @@
 |------|--------|------|
 | [test-plan.md](./test-plan.md) | **M1**（VE 门禁）· **M2**（全功能） | 一期主验收 |
 | [test-plan-phase2.md](./test-plan-phase2.md) | **M3** | 生产压测 |
-| [test-plan-phase6.md](./test-plan-phase6.md) | M6–M7 | 千万扩展 |
+| [test-plan-phase6.md](./test-plan-phase6.md) | M6–M7 | 6A 完成（SQLite）；6B–6F OUT OF SCOPE |
 | [test-plan-offshoot-branch-scale.md](./test-plan-offshoot-branch-scale.md) | TP-OB | offshoot 大库 CoW |
 
 ---
@@ -96,9 +102,11 @@
 | 证据 | 说明 |
 |------|------|
 | [celld-multi-fleet-spike.md](./evidence/celld-multi-fleet-spike.md) | AD-1 多 upstream |
-| [v0b-deferred.md](./evidence/v0b-deferred.md) | V0b RustFS offshoot 暂缓 |
+| [v0b-pass-report.md](./evidence/v0b-pass-report.md) | V0b offshoot × RustFS 全序列 PASS（2026-08-29） |
 | [v0c-skip.md](./evidence/v0c-skip.md) | 多节点探针跳过 |
 | [offshoot-branch-scale-report.md](./evidence/offshoot-branch-scale-report.md) | 大库 CoW（local） |
+| [scale-report-6A.md](./evidence/scale-report-6A.md) | Phase 6A SQLite 基线 |
+| [scale-env.json](./evidence/scale-env.json) | 压测环境拓扑 |
 
 ### 指标（append-only JSONL）
 
@@ -119,7 +127,7 @@
 | **M1** | 后端 + TP-VE-ALL | Dashboard 开工 |
 | **M2** | test-plan 全绿 | 压测 |
 | **M3** | test-plan-phase2 全绿 | 生产 sign-off |
-| **M6–M7** | phase6 Gateway / 千万 | 见 test-plan-phase6 |
+| **M6–M7** | phase6 Gateway / 千万 | 6A 完成（SQLite）；6F **未 sign-off** |
 
 ```mermaid
 flowchart LR

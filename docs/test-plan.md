@@ -35,9 +35,10 @@
 
 ### [x] TP-V0b — offshoot branch × RustFS S3 全序列
 
-| 命令 | `e2e/scripts/v0b-offshoot-rustfs.sh` |
+| 命令 | `e2e/scripts/v0d-offshoot-attach.sh` → `e2e/scripts/v0b-offshoot-rustfs.sh` |
 | 通过 | 全序列 exit 0；并行 fork 无 CAS 冲突 |
-| 阻塞 | **prod offshoot 使用 RustFS**（Dev tier 可 deferred，见 `docs/evidence/v0b-deferred.md`） |
+| 证据 | [v0b-pass-report.md](./evidence/v0b-pass-report.md)（2026-08-29 PASS） |
+| 阻塞 | **prod offshoot 使用 RustFS**（AD-4 prod tier） |
 
 ### [x] TP-V0b-L — 大库物化 fork
 

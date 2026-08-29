@@ -74,7 +74,7 @@ compensate: 任一步失败按逆序 idempotent 回滚
 - [x] celld 多进程/多 bucket 资源占用与启动时序 → `docs/evidence/celld-multi-fleet-spike.md`
 - [x] D1 binary import → `docs/evidence/d1-import-scale-report.md` · 契约 `D1-IMPORT-RPC.md`
 - [x] D1 branch（子 version 共享父 LTX）→ `docs/evidence/d1-branch-e2e-report.md` · 契约 `D1-BRANCH-RPC.md`
-- [ ] V0b RustFS offshoot prod 路径 → **deferred**（`docs/evidence/v0b-deferred.md`）；Dev tier 仍用 local offshoot
+- [x] V0b RustFS offshoot prod 路径 → **PASS**（`docs/evidence/v0b-pass-report.md` · 2026-08-29）；`v0b-deferred.md` 已删除
 
 ## 派发前检查（每次开 subagent 前）
 
