@@ -27,7 +27,7 @@
 
 ## 核心决策（摘要）
 
-- **AD-1：** 每个 ready version = 独立 celld 进程 + 独立 bucket + 独立 watch 目录
+- **AD-1：** 每个 ready version = 独立 celld 进程 + 独立 bucket；**本地 `CELPD_WATCH` 为临时页缓存，Stop 后删除；S3 为唯一持久层**
 - **AD-4：** Dev 可用 local offshoot；prod offshoot RustFS 需 V0b（当前 **deferred**）
 - **D1 import：** 根 version；`celld d1 import --file`；契约 [D1-IMPORT-RPC.md](./docs/plans/D1-IMPORT-RPC.md)
 - **D1 branch：** 子 version（`parent_version_id`）；`celld d1 branch --parent-bucket`；契约 [D1-BRANCH-RPC.md](./docs/plans/D1-BRANCH-RPC.md)

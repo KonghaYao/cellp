@@ -50,7 +50,7 @@ need jq
 cleanup_e2e_versions() {
   local project="${1:-$DEV_PROJECT}"
   local ids
-  ids=$(api_get "/v1/projects/${project}" "$ADMIN_TOKEN" 2>/dev/null \
+  ids=$(api_get "/v1/projects/${project}/versions" "$ADMIN_TOKEN" 2>/dev/null \
     | jq -r '.versions[]? | select(.id|startswith("v-e2e-")) | select(.status=="ready" or .status=="failed") | .id' 2>/dev/null || true)
   for vid in $ids; do
     [[ -z "$vid" ]] && continue

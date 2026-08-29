@@ -30,8 +30,9 @@ type Manager struct {
 }
 
 type celldProc struct {
-	cmd  *exec.Cmd
-	port int
+	cmd      *exec.Cmd
+	port     int
+	watchDir string
 }
 
 // New creates a runtime manager.
@@ -118,11 +119,10 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 		"--listen", fmt.Sprintf("127.0.0.1:%d", port),
 	}
 	cmd := exec.CommandContext(ctx, "celld", args...)
-	watch := filepath.Join("dev", "data", "celld-watch", project, version)
-	if abs, err := filepath.Abs(watch); err == nil {
-		watch = abs
+	watch, err := m.allocateWatchDir(project, version)
+	if err != nil {
+		return "", 0, fmt.Errorf("allocate watch dir: %w", err)
 	}
-	_ = os.MkdirAll(watch, 0o755)
 	gateMs := os.Getenv("CELLD_READY_FLEET_GATE_MS")
 	if gateMs == "" {
 		// Per-version bucket is a one-node fleet. The 120s default withholds
@@ -149,7 +149,7 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 	}
 
 	m.mu.Lock()
-	m.processes[k] = &celldProc{cmd: cmd, port: port}
+	m.processes[k] = &celldProc{cmd: cmd, port: port, watchDir: watch}
 	m.mu.Unlock()
 
 	for i := 0; i < 60; i++ {
@@ -464,25 +464,81 @@ func (m *Manager) Health(ctx context.Context, host string, port int) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+// allocateWatchDir returns a working directory for celld SQLite/LTX.
+// Default: ephemeral temp dir removed on Stop (S3/RustFS is durable store).
+// Set CELLP_CELLD_WATCH_PERSIST=1 for legacy persistent dev/data/celld-watch paths.
+func (m *Manager) allocateWatchDir(project, version string) (string, error) {
+	if os.Getenv("CELLP_CELLD_WATCH_PERSIST") == "1" {
+		watch := filepath.Join("dev", "data", "celld-watch", project, version)
+		if abs, err := filepath.Abs(watch); err == nil {
+			watch = abs
+		}
+		if err := os.MkdirAll(watch, 0o755); err != nil {
+			return "", err
+		}
+		return watch, nil
+	}
+	root := os.Getenv("CELLP_CELLD_WATCH_TMP")
+	if root == "" {
+		root = os.TempDir()
+	}
+	prefix := fmt.Sprintf("cellp-celld-%s-%s-", sanitizeWatchToken(project), sanitizeWatchToken(version))
+	return os.MkdirTemp(root, prefix)
+}
+
+func sanitizeWatchToken(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return "x"
+	}
+	return out
+}
+
+func removeEphemeralWatch(watchDir string) {
+	if watchDir == "" || os.Getenv("CELLP_CELLD_WATCH_PERSIST") == "1" {
+		return
+	}
+	_ = os.RemoveAll(watchDir)
+}
+
 // Stop tears down a celld instance for a version.
 func (m *Manager) Stop(ctx context.Context, project, version string) error {
 	_ = ctx
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	k := m.key(project, version)
 	p, ok := m.processes[k]
-	if !ok || p == nil || p.cmd == nil || p.cmd.Process == nil {
+	if !ok || p == nil {
 		delete(m.processes, k)
+		m.mu.Unlock()
 		return nil
 	}
-	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	watchDir := p.watchDir
+	cmd := p.cmd
+	delete(m.processes, k)
+	m.mu.Unlock()
+
+	if cmd == nil || cmd.Process == nil {
+		removeEphemeralWatch(watchDir)
+		return nil
+	}
+	_ = cmd.Process.Signal(syscall.SIGTERM)
 	done := make(chan error, 1)
-	go func() { done <- p.cmd.Wait() }()
+	go func() { done <- cmd.Wait() }()
 	select {
 	case <-time.After(10 * time.Second):
-		_ = p.cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 	case <-done:
 	}
-	delete(m.processes, k)
+	removeEphemeralWatch(watchDir)
 	return nil
 }

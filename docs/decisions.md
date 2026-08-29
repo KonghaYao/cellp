@@ -32,11 +32,12 @@
 | bucket | `s3://cellp-celld/{project}/{version}` 每 version 隔离 |
 | Registry `routes` | 每 version 记录 `upstream_host` + `upstream_port` |
 | Gateway | `/{project}/{version}/*` → 查 route → reverse proxy |
-| 本地 watch | 每 version 独立 `CELLD_WATCH` 目录；**仍会物化完整 `db.sqlite`** |
+| 本地 watch | **默认临时目录**（`$TMPDIR/cellp-celld-*`）；进程 `Stop` 后删除。**S3/RustFS 为唯一持久层** |
+| 调试 | `CELLP_CELLD_WATCH_PERSIST=1` 恢复 `dev/data/celld-watch/{project}/{version}` 持久路径 |
 
-**证据：** `docs/evidence/celld-multi-fleet-spike.md` · `e2e/scripts/v3-dual-route.sh`
+**证据：** `docs/evidence/celld-multi-fleet-spike.md` · `e2e/scripts/v3-dual-route.sh` · `e2e/scripts/v1-d1-branch.sh`（B5 S3-only restore）
 
-**D1 branch 含义：** 优化的是 **S3/RustFS 对象体积**（子 bucket 存 `base.json` + 增量 LTX），**不是**合并 celld 进程或消除本地 watch 副本。
+**D1 branch 含义：** 优化的是 **S3/RustFS 对象体积**（子 bucket 存 `base.json` + 增量 LTX）。本地 watch 仅为 SQLite 执行时的**可丢弃页缓存**；branch 不再依赖本地副本做隔离或恢复。
 
 ---
 

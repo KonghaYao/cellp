@@ -12,6 +12,8 @@ need sqlite3
 need python3
 
 rustfs_s3_env
+# This gate measures local watch footprint; default runtime uses ephemeral watch (S3 durable).
+export CELLP_CELLD_WATCH_PERSIST=1
 export S3_ENDPOINT="${S3_ENDPOINT:-http://127.0.0.1:19000}"
 export D1_ENDPOINT="$S3_ENDPOINT"
 

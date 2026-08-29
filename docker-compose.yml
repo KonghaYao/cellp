@@ -1,0 +1,114 @@
+# cellp single-machine stack (RustFS + cellpd control plane).
+# Per-version celld processes are spawned by cellpd at runtime — not separate compose services.
+#
+# Quick start: docker compose up -d
+# See docker/README.md for env vars and GHCR image reference.
+
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.0-rc.1
+    command: /data
+    ports:
+      - "${S3_PORT:-19000}:9000"
+      - "${S3_CONSOLE_PORT:-9001}:9001"
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      RUSTFS_UNSAFE_BYPASS_DISK_CHECK: "true"
+    volumes:
+      - rustfs-data:/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -fsS http://127.0.0.1:9000/health && curl -fsS http://127.0.0.1:9001/rustfs/console/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  s3-init:
+    image: minio/mc:latest
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://rustfs:9000 $${RUSTFS_ACCESS_KEY} $${RUSTFS_SECRET_KEY};
+      mc mb -p local/cellp-celld || true;
+      mc mb -p local/cellp-offshoot || true;
+      mc mb -p local/cellp-artifacts || true;
+      exit 0;
+      "
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+
+  valkey:
+    image: valkey/valkey:8.0-alpine
+    ports:
+      - "${VALKEY_PORT:-6379}:6379"
+    command: valkey-server --save "" --appendonly no
+    profiles:
+      - valkey
+
+  cellpd:
+    image: ${CELLP_IMAGE:-ghcr.io/konghayo/cellp:latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      rustfs:
+        condition: service_healthy
+      s3-init:
+        condition: service_completed_successfully
+    ports:
+      - "${GATEWAY_PORT:-8787}:8787"
+      - "${PLATFORM_PORT:-8790}:8790"
+    environment:
+      GATEWAY_PORT: "8787"
+      PLATFORM_PORT: "8790"
+      CELLD_PORT: "${CELLD_PORT:-8792}"
+      GATEWAY_URL: ${GATEWAY_URL:-http://127.0.0.1:8787}
+      PLATFORM_URL: ${PLATFORM_URL:-http://127.0.0.1:8790}
+
+      CELLP_REGISTRY_DB: /data/registry/cellp-registry.sqlite
+      CELLP_DEPLOY_TOKEN: ${CELLP_DEPLOY_TOKEN:-dev-local-token}
+      CELLP_ADMIN_TOKEN: ${CELLP_ADMIN_TOKEN:-dev-local-token}
+      CELLP_MAX_READY_VERSIONS: ${CELLP_MAX_READY_VERSIONS:-20}
+
+      S3_ENDPOINT: http://rustfs:9000
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+
+      CELLD_BUCKET: ${CELLD_BUCKET:-s3://cellp-celld/demo-app}
+      CELLP_ARTIFACTS_BUCKET: ${CELLP_ARTIFACTS_BUCKET:-cellp-artifacts}
+      ARTIFACTS_DIR: /data/artifacts
+
+      OFFSHOOT_STORE: ${OFFSHOOT_STORE:-s3://cellp-offshoot}
+      OFFSHOOT_S3_ENDPOINT: http://rustfs:9000
+      OFFSHOOT_S3_PATH_STYLE: "1"
+      OFFSHOOT_CHECKOUTS: /data/offshoot-checkouts
+
+      VALKEY_URL: ${VALKEY_URL:-redis://valkey:6379/0}
+    volumes:
+      - cellp-registry:/data/registry
+      - cellp-artifacts:/data/artifacts
+      - cellp-offshoot-checkouts:/data/offshoot-checkouts
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8790/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 25s
+    restart: unless-stopped
+
+volumes:
+  rustfs-data:
+  cellp-registry:
+  cellp-artifacts:
+  cellp-offshoot-checkouts:

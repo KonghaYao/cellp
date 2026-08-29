@@ -1,0 +1,34 @@
+# git
+.git
+.gitmodules
+
+# local dev runtime
+dev/data/
+dev/.env
+
+# frontend
+**/node_modules/
+web/dist/
+**/test-results/
+**/playwright-report/
+
+# build artifacts
+cellp/cellpd
+cellp/cellpd.exe
+celld/target/
+**/*.sqlite
+**/*.sqlite-wal
+**/*.sqlite-shm
+
+# docs evidence (generated)
+docs/evidence/*.log
+docs/evidence/*.out
+docs/evidence/*.db
+
+# misc
+.DS_Store
+*.pem
+.env*
+!dev/.env.example
+offshoot-research/
+agent-tools/

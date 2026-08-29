@@ -57,17 +57,17 @@ func main() {
 
 	apiSrv := api.NewServer(store, queue, o, rm, cfg)
 
-	apiServer := &http.Server{Addr: "127.0.0.1:" + itoa(cfg.APIPort), Handler: apiSrv.Handler()}
-	gwServer := &http.Server{Addr: "127.0.0.1:" + itoa(cfg.GatewayPort), Handler: gw.Handler()}
+	apiServer := &http.Server{Addr: cfg.APIAddr(), Handler: apiSrv.Handler()}
+	gwServer := &http.Server{Addr: cfg.GatewayAddr(), Handler: gw.Handler()}
 
 	go func() {
-		log.Printf("cellpd API listening on http://127.0.0.1:%d", cfg.APIPort)
+		log.Printf("cellpd API listening on http://0.0.0.0:%d", cfg.APIPort)
 		if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
 	}()
 	go func() {
-		log.Printf("cellpd Gateway listening on http://127.0.0.1:%d", cfg.GatewayPort)
+		log.Printf("cellpd Gateway listening on http://0.0.0.0:%d", cfg.GatewayPort)
 		if err := gwServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
@@ -80,18 +80,4 @@ func main() {
 	cancel()
 	_ = apiServer.Shutdown(context.Background())
 	_ = gwServer.Shutdown(context.Background())
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [12]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
 }

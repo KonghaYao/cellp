@@ -58,6 +58,16 @@ curl -sf http://127.0.0.1:8787/demo-app/v-dev1/
 前置：Docker（RustFS）· Node 20+ · Go · `celld` · `offshoot` · `jq` · `esbuild`  
 详见 **[dev/README.md](./dev/README.md)**。
 
+### Docker Compose（单机部署）
+
+```bash
+git submodule update --init celld
+docker compose up -d --build
+curl -sf http://127.0.0.1:8790/v1/health
+```
+
+镜像：`ghcr.io/konghayo/cellp:latest` · 详见 **[docker/README.md](./docker/README.md)**。
+
 ### 构建 celld
 
 ```bash

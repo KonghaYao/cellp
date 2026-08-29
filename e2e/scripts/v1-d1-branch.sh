@@ -154,8 +154,7 @@ if [[ "$PARENT_AFTER" != "$EXPECTED" ]]; then
 fi
 log "parent isolation OK count=${PARENT_AFTER}"
 
-# B5: kill child celld, wipe CELLD_WATCH, start a new process on the same port.
-# Warm restart / wiping files under a live process does not prove bucket restore.
+# B5: kill child celld, start fresh ephemeral watch, restore from S3 only.
 REGISTRY_DB="${CELLP_REGISTRY_DB:-${E2E_ROOT}/dev/data/cellp-registry.sqlite}"
 if [[ "$REGISTRY_DB" != /* ]]; then
   REGISTRY_DB="${E2E_ROOT}/${REGISTRY_DB#./}"
@@ -165,8 +164,8 @@ CHILD_PORT=$(sqlite3 "$REGISTRY_DB" \
 if [[ -z "$CHILD_PORT" || "$CHILD_PORT" == "0" ]]; then
   fail "B5: no upstream_port in registry for ${PROJECT}/${CHILD}"
 fi
-WATCH="${E2E_ROOT}/dev/data/celld-watch/${PROJECT}/${CHILD}"
-log "B5 kill child celld :${CHILD_PORT} then wipe ${WATCH}"
+WATCH="$(mktemp -d "${TMPDIR:-/tmp}/cellp-b5-watch.XXXXXX")"
+log "B5 kill child celld :${CHILD_PORT} then fresh watch ${WATCH} (S3 restore)"
 if command -v lsof >/dev/null 2>&1; then
   extra="$(lsof -tiTCP:"${CHILD_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
   if [[ -n "$extra" ]]; then
@@ -180,11 +179,6 @@ if command -v lsof >/dev/null 2>&1; then
       sleep 1
     fi
   fi
-fi
-if [[ -d "$WATCH" ]]; then
-  find "$WATCH" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-else
-  mkdir -p "$WATCH"
 fi
 export CELLD_WATCH="$WATCH"
 export CELLD_VAR_PROJECT_ID="$PROJECT"
@@ -204,13 +198,13 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 if [[ "$healthy" != "1" ]]; then
-  fail "B5 new celld not healthy on :${CHILD_PORT} after watch wipe (pid ${B5_PID})"
+  fail "B5 new celld not healthy on :${CHILD_PORT} after S3-only restore (pid ${B5_PID})"
 fi
 wait_http_200 "$CHILD_URL" 90
 B5_COUNT=$(curl -sf "$CHILD_URL" | jq -r '.count // empty')
 if [[ "$B5_COUNT" != "$CHILD_AFTER" ]]; then
   fail "B5 restore count=${B5_COUNT:-?} expected ${CHILD_AFTER}"
 fi
-log "B5 wipe-watch restore OK count=${B5_COUNT}"
+log "B5 S3-only restore OK count=${B5_COUNT}"
 
 pass "D1 branch parent=${EXPECTED} child=${CHILD_COUNT} isolation OK"

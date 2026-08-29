@@ -327,3 +327,37 @@ func TestD1ExecuteSQLFileUsesExecuteSubcommand(t *testing.T) {
 		t.Fatalf("expected d1 execute guestbook, got %q", lines)
 	}
 }
+
+func TestEphemeralWatchDirDefault(t *testing.T) {
+	t.Setenv("CELLP_CELLD_WATCH_PERSIST", "")
+	m := New(8792, "http://127.0.0.1:9000", "us-east-1", "s3://cellp-celld/demo", "k", "s")
+	dir, err := m.allocateWatchDir("demo-app", "v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("watch dir missing: %v", err)
+	}
+	if strings.Contains(dir, filepath.Join("dev", "data", "celld-watch")) {
+		t.Fatalf("expected ephemeral temp watch, got %q", dir)
+	}
+	removeEphemeralWatch(dir)
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("ephemeral watch should be removed, stat err=%v", err)
+	}
+}
+
+func TestPersistentWatchDirOptIn(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	t.Setenv("CELLP_CELLD_WATCH_PERSIST", "1")
+	m := New(8792, "http://127.0.0.1:9000", "us-east-1", "s3://cellp-celld/demo", "k", "s")
+	dir, err := m.allocateWatchDir("demo", "v-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSuffix := filepath.Join("dev", "data", "celld-watch", "demo", "v-test")
+	if !strings.HasSuffix(dir, wantSuffix) {
+		t.Fatalf("unexpected persist path %q want suffix %q", dir, wantSuffix)
+	}
+}
