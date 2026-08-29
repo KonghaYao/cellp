@@ -88,6 +88,13 @@ const state = {
         v1: version("v1", "extra-app", {
           created_at: "2026-01-02T00:30:00.000Z",
         }),
+        "v-pending": version("v-pending", "extra-app", {
+          parent_version_id: "v1",
+          status: "pending",
+          ready_at: null,
+          git_ref: "feature/pending",
+          created_at: "2026-01-02T00:45:00.000Z",
+        }),
       },
     },
     "third-app": {
@@ -100,14 +107,27 @@ const state = {
   },
 };
 
-function json(res, status, body) {
-  res.writeHead(status, {
+function corsHeaders() {
+  return {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+    "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "access-control-allow-headers": "Authorization, Content-Type",
+  };
+}
+
+function json(res, status, body) {
+  res.writeHead(status, corsHeaders());
+  res.end(JSON.stringify(body, null, 2));
+}
+
+function noContent(res) {
+  res.writeHead(204, {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
     "access-control-allow-headers": "Authorization, Content-Type",
   });
-  res.end(JSON.stringify(body, null, 2));
+  res.end();
 }
 
 function auth(req) {
@@ -285,6 +305,152 @@ function databaseMetadata(projectId, versionId, version) {
   };
 }
 
+function bindingsManifest(projectId, versionId) {
+  return {
+    d1: [
+      {
+        binding: "DB",
+        database_name: "main",
+        database_id: `db-${projectId}-${versionId}`,
+      },
+    ],
+    kv: [
+      {
+        binding: "CACHE",
+        id: `${projectId}-cache`,
+      },
+    ],
+    queues: [
+      {
+        name: "tasks",
+        binding: "TASKS",
+        consumer: false,
+      },
+    ],
+    workflows: [
+      {
+        binding: "REPORTS",
+        name: "report-builder",
+        class_name: "ReportBuilder",
+      },
+    ],
+    r2: [
+      {
+        binding: "FILES",
+        bucket_name: `${projectId}-files`,
+      },
+    ],
+    crons: versionId === "v1" ? ["0 * * * *"] : [],
+  };
+}
+
+/** Per-version KV maps. Sibling versions never share keys (AD-7). */
+const kvStores = {};
+const queueStores = {};
+const workflowStores = {};
+
+function kvStoreId(projectId, versionId, ns) {
+  return `${projectId}::${versionId}::${ns}`;
+}
+
+function queueStoreId(projectId, versionId, name) {
+  return `${projectId}::${versionId}::${name}`;
+}
+
+function workflowStoreId(projectId, versionId, name) {
+  return `${projectId}::${versionId}::${name}`;
+}
+
+function seedKvMap(projectId, versionId, ns) {
+  const expectedNs = `${projectId}-cache`;
+  const map = new Map();
+  if (ns !== expectedNs) return map;
+  if (projectId === "demo-app" && versionId === "v1") {
+    map.set("greeting", { value: "hello-prod", encoding: "utf-8" });
+    map.set("item-1", { value: "one", encoding: "utf-8" });
+    map.set("item-2", { value: "two", encoding: "utf-8" });
+  }
+  if (projectId === "demo-app" && versionId === "v3") {
+    map.set("preview-v3", { value: "isolated-v3", encoding: "utf-8" });
+  }
+  return map;
+}
+
+function getKvMap(projectId, versionId, ns) {
+  const id = kvStoreId(projectId, versionId, ns);
+  if (!kvStores[id]) {
+    kvStores[id] = seedKvMap(projectId, versionId, ns);
+  }
+  return kvStores[id];
+}
+
+function declaredKvIds(projectId) {
+  return [`${projectId}-cache`];
+}
+
+function seedQueue(projectId, versionId, name) {
+  const messages =
+    projectId === "demo-app" && versionId === "v1" && name === "tasks"
+      ? [
+          {
+            id: "msg-1",
+            bodyBase64: Buffer.from("hello-queue").toString("base64"),
+            contentType: "text/plain",
+          },
+        ]
+      : [];
+  return { paused: false, messages };
+}
+
+function getQueueState(projectId, versionId, name) {
+  const id = queueStoreId(projectId, versionId, name);
+  if (!queueStores[id]) {
+    queueStores[id] = seedQueue(projectId, versionId, name);
+  }
+  return queueStores[id];
+}
+
+function declaredQueueNames() {
+  return ["tasks"];
+}
+
+function findWorkflow(projectId, versionId, name) {
+  const declared = bindingsManifest(projectId, versionId).workflows;
+  return (
+    declared.find((w) => w.name === name) ||
+    declared.find((w) => w.binding === name) ||
+    null
+  );
+}
+
+const WORKFLOW_FILTER_LIMITATION =
+  "celld `cell list` 只给出 `__Workflow.{script}:<64-hex>`；实例内部名 `{workflow_name}/{instance_id}` 被哈希，无法按 workflow 名精确过滤。本响应返回该 version / 该 script 下全部 Workflow cell，并附 wrangler 声明的 workflow 名。精确归属需等 `celld workflow`.";
+
+function seedWorkflowInstances(projectId, versionId, wf) {
+  if (projectId === "demo-app" && versionId === "v1") {
+    return [
+      {
+        scope: `__Workflow.${projectId}:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+        class: `__Workflow.${projectId}`,
+        id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        reserved: true,
+        status: "running",
+        created_at: "2026-01-01T01:00:00.000Z",
+        updated_at: "2026-01-01T01:05:00.000Z",
+      },
+    ];
+  }
+  return [];
+}
+
+function getWorkflowInstances(projectId, versionId, wf) {
+  const id = workflowStoreId(projectId, versionId, wf.name);
+  if (!workflowStores[id]) {
+    workflowStores[id] = seedWorkflowInstances(projectId, versionId, wf);
+  }
+  return workflowStores[id];
+}
+
 function requireReadyVersion(project, versionId) {
   const v = project?.versions?.[versionId];
   if (!v) return { error: "version_not_found", status: 404 };
@@ -386,7 +552,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
       "access-control-allow-headers": "Authorization, Content-Type",
     });
     res.end();
@@ -411,7 +577,12 @@ const server = http.createServer(async (req, res) => {
   if (parts[1] === "projects" && parts.length === 2 && req.method === "GET") {
     const limit = Number(url.searchParams.get("limit")) || DEFAULT_LIMIT;
     const cursor = url.searchParams.get("cursor");
-    const { page, next_cursor } = paginate(projectSummaries(), cursor, limit);
+    const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+    let items = projectSummaries();
+    if (q) {
+      items = items.filter((p) => p.id.toLowerCase().includes(q));
+    }
+    const { page, next_cursor } = paginate(items, cursor, limit);
     return json(res, 200, { projects: page, next_cursor });
   }
 
@@ -538,6 +709,317 @@ const server = http.createServer(async (req, res) => {
       v.status = "destroyed";
     }, 100);
     return json(res, 202, { status: "draining" });
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/bindings
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "bindings" &&
+    parts.length === 6 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    return json(res, 200, bindingsManifest(projectId, versionId));
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/kv
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "kv" &&
+    parts.length === 6 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const namespaces = bindingsManifest(projectId, versionId).kv.map((k) => ({
+      id: k.id,
+      binding: k.binding,
+    }));
+    return json(res, 200, { namespaces });
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/kv/{ns}
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "kv" &&
+    parts.length === 7 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const ns = decodeURIComponent(parts[6]);
+    if (!declaredKvIds(projectId).includes(ns)) {
+      return json(res, 404, { error: "kv_namespace_not_found" });
+    }
+    const map = getKvMap(projectId, versionId, ns);
+    let bytes = 0;
+    for (const entry of map.values()) {
+      bytes += Buffer.byteLength(entry.value, "utf8");
+    }
+    return json(res, 200, {
+      keys: map.size,
+      live: map.size,
+      bytes,
+      stored: map.size,
+    });
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/kv/{ns}/keys
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "kv" &&
+    parts[7] === "keys" &&
+    parts.length === 8 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const ns = decodeURIComponent(parts[6]);
+    if (!declaredKvIds(projectId).includes(ns)) {
+      return json(res, 404, { error: "kv_namespace_not_found" });
+    }
+    const map = getKvMap(projectId, versionId, ns);
+    const prefix = url.searchParams.get("prefix") || "";
+    const limit = Number(url.searchParams.get("limit")) || 1000;
+    const cursor = url.searchParams.get("cursor");
+    let names = [...map.keys()].sort();
+    if (prefix) names = names.filter((n) => n.startsWith(prefix));
+    const offset = cursor ? Number.parseInt(cursor, 10) : 0;
+    const safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
+    const page = names.slice(safeOffset, safeOffset + limit);
+    const nextOffset = safeOffset + limit;
+    const nextCursor = nextOffset < names.length ? String(nextOffset) : undefined;
+    const body = {
+      keys: page.map((name) => ({ name })),
+    };
+    if (nextCursor) body.cursor = nextCursor;
+    return json(res, 200, body);
+  }
+
+  // GET|PUT|DELETE /v1/projects/{projectId}/versions/{versionId}/kv/{ns}/keys/{key}
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "kv" &&
+    parts[7] === "keys" &&
+    parts.length >= 9
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const ns = decodeURIComponent(parts[6]);
+    if (!declaredKvIds(projectId).includes(ns)) {
+      return json(res, 404, { error: "kv_namespace_not_found" });
+    }
+    const key = parts.slice(8).map((p) => decodeURIComponent(p)).join("/");
+    if (!key) return json(res, 400, { error: "key_required" });
+    const map = getKvMap(projectId, versionId, ns);
+
+    if (req.method === "GET") {
+      const entry = map.get(key);
+      if (!entry) return json(res, 404, { error: "key_not_found" });
+      return json(res, 200, {
+        key,
+        value: entry.value,
+        encoding: entry.encoding || "utf-8",
+      });
+    }
+
+    if (req.method === "PUT") {
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch {
+        return json(res, 400, { error: "invalid_json" });
+      }
+      if (body.value === undefined || body.value === null) {
+        return json(res, 400, { error: "value_required" });
+      }
+      map.set(key, {
+        value: String(body.value),
+        encoding: body.base64 || body.binary ? "base64" : "utf-8",
+      });
+      return noContent(res);
+    }
+
+    if (req.method === "DELETE") {
+      map.delete(key);
+      return noContent(res);
+    }
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/queues
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "queues" &&
+    parts.length === 6 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    return json(res, 200, {
+      queues: declaredQueueNames().map((name) => ({ name })),
+    });
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/queues/{name}
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "queues" &&
+    parts.length === 7 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const name = decodeURIComponent(parts[6]);
+    if (!declaredQueueNames().includes(name)) {
+      return json(res, 404, { error: "queue_not_found" });
+    }
+    const q = getQueueState(projectId, versionId, name);
+    const backlogCount = q.messages.length;
+    const backlogBytes = q.messages.reduce((sum, m) => {
+      if (typeof m.bodyBase64 !== "string") return sum;
+      return sum + Buffer.from(m.bodyBase64, "base64").length;
+    }, 0);
+    return json(res, 200, {
+      name,
+      paused: q.paused,
+      pending: backlogCount,
+      backlogCount,
+      backlogBytes,
+      stored: backlogCount,
+    });
+  }
+
+  // GET peek / POST pause|resume|redrive|purge
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "queues" &&
+    parts.length === 8
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const name = decodeURIComponent(parts[6]);
+    if (!declaredQueueNames().includes(name)) {
+      return json(res, 404, { error: "queue_not_found" });
+    }
+    const action = parts[7];
+    const q = getQueueState(projectId, versionId, name);
+
+    if (action === "peek" && req.method === "GET") {
+      const rawLimit = url.searchParams.get("limit");
+      const limit = rawLimit ? Number(rawLimit) : 10;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+        return json(res, 400, { error: "invalid_limit" });
+      }
+      return json(res, 200, { messages: q.messages.slice(0, limit) });
+    }
+
+    if (action === "pause" && req.method === "POST") {
+      q.paused = true;
+      return json(res, 200, { ok: true, paused: true });
+    }
+
+    if (action === "resume" && req.method === "POST") {
+      q.paused = false;
+      return json(res, 200, { ok: true, paused: false });
+    }
+
+    if (action === "redrive" && req.method === "POST") {
+      const rawLimit = url.searchParams.get("limit");
+      const limit = rawLimit ? Number(rawLimit) : 100;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+        return json(res, 400, { error: "invalid_limit" });
+      }
+      return json(res, 200, { redriven: 0 });
+    }
+
+    if (action === "purge" && req.method === "POST") {
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch {
+        return json(res, 400, { error: "force_required" });
+      }
+      if (body.force !== true) {
+        return json(res, 400, { error: "force_required" });
+      }
+      q.messages = [];
+      return json(res, 200, { ok: true, purged: true });
+    }
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/workflows
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "workflows" &&
+    parts.length === 6 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const items = bindingsManifest(projectId, versionId).workflows.map((w) => ({
+      binding: w.binding,
+      workflow_name: w.name,
+      class_name: w.class_name,
+    }));
+    return json(res, 200, { workflows: items });
+  }
+
+  // GET /v1/projects/{projectId}/versions/{versionId}/workflows/{name}/instances
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "workflows" &&
+    parts[7] === "instances" &&
+    parts.length === 8 &&
+    req.method === "GET"
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const check = requireReadyVersion(project, versionId);
+    if (check.error) return json(res, check.status, { error: check.error });
+    const name = decodeURIComponent(parts[6]);
+    const wf = findWorkflow(projectId, versionId, name);
+    if (!wf) return json(res, 404, { error: "workflow_not_found" });
+    const instances = getWorkflowInstances(projectId, versionId, wf);
+    const declared = bindingsManifest(projectId, versionId).workflows;
+    const multi = declared.length >= 2 || versionId === "v2";
+    return json(res, 200, {
+      workflow_name: wf.name,
+      binding: wf.binding,
+      script_name: projectId,
+      filter: multi ? "script" : "workflow",
+      limitation: multi ? WORKFLOW_FILTER_LIMITATION : null,
+      wrangler_workflows: declared.map((w) => w.name),
+      instances,
+    });
+  }
+
+  // Workflows are read-only — any POST is outside the contract.
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "workflows" &&
+    req.method === "POST"
+  ) {
+    return json(res, 404, { error: "not found" });
   }
 
   // GET /v1/projects/{projectId}/versions/{versionId}/database

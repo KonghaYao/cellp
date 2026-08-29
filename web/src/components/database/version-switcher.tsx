@@ -17,6 +17,10 @@ interface VersionSwitcherProps {
   projectId: string;
   versionId: string;
   onVersionChange?: (versionId: string) => void;
+  versionHref?: (projectId: string, versionId: string) => string;
+  /** When set, skips internal version list fetch (parent already loaded). */
+  versions?: Version[] | null;
+  prodVersionId?: string | null;
   className?: string;
 }
 
@@ -26,17 +30,32 @@ export function VersionSwitcher({
   projectId,
   versionId,
   onVersionChange,
+  versionHref = storageBrowserHref,
+  versions: versionsProp,
+  prodVersionId: prodVersionIdProp,
   className,
 }: VersionSwitcherProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(versionsProp == null);
   const [error, setError] = useState<string | null>(null);
-  const [versions, setVersions] = useState<Version[]>([]);
-  const [prodVersionId, setProdVersionId] = useState<string | null>(null);
+  const [versions, setVersions] = useState<Version[]>(versionsProp ?? []);
+  const [prodVersionId, setProdVersionId] = useState<string | null>(
+    prodVersionIdProp ?? null,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (versionsProp != null) {
+      setVersions(versionsProp);
+      setProdVersionId(prodVersionIdProp ?? null);
+      setLoading(false);
+      setError(null);
+    }
+  }, [versionsProp, prodVersionIdProp]);
+
+  useEffect(() => {
+    if (versionsProp != null) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -69,7 +88,7 @@ export function VersionSwitcher({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, versionsProp]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -104,7 +123,7 @@ export function VersionSwitcher({
       return;
     }
     onVersionChange?.(nextId);
-    navigate(storageBrowserHref(projectId, nextId));
+    navigate(versionHref(projectId, nextId));
     setOpen(false);
   }
 

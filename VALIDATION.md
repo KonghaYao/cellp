@@ -18,7 +18,8 @@
 | 文档阶段 | 范围 |
 |----------|------|
 | **验证门禁 + V1–V7 + VE** | **一期** — CD · Branch · 后端 · 端口 E2E |
-| **V8 及以后** | **二期** — KV · Queue · Cron · 弹性 |
+| **V8 及以后弹性** | **二期** — scale-to-zero · 多节点 cellpd |
+| **V9–V11** | **Bindings 本期** — celld 原生 KV / Queue / Workflow+Cron |
 | **V20 及以后** | **三期占位** — 可观测 · 性能统计（暂不计划） |
 
 ---
@@ -127,7 +128,7 @@
 |------|------|------|
 | `:8790` | cellpd API | `GET /v1/health` · `POST/GET /versions` · promote · destroy |
 | `:8787` | cellpd Gateway（内置） | `GET /{project}/{version}/` → 200 · 路由切换 |
-| `:8792` | celld | `GET /__celld/health` |
+| `:8792` | celld | `GET /.well-known/celld/health` |
 | `:9000` | RustFS | S3 探针已由 V0a 覆盖 |
 
 | 场景 | 步骤 |
@@ -144,17 +145,46 @@
 
 ---
 
-## 二期 — KV · Queue · Cron · 弹性
+## Bindings（本期 · celld 0.4.0）— KV · Queue · Workflow · Cron
 
-> 一期 **不做** 以下项；Worker 内 celld 原生 cron 仍可由 celld 执行，但 cellp 不编排。
+> Worker 绑定 **沿用 celld**（AD-6）。**无 branch 则空起步**（AD-7）。
+
+### [ ] V9 — celld KV operator
+
+**目的：** ready version 的 `kv_namespaces` 可经 cellpd 列出 / 读写，且子 version 看不到父 KV。
+
+| 项 | 内容 |
+|----|------|
+| 前置 | celld ≥ 0.4.0；example `celld/examples/kv` 可 deploy |
+| 通过 | `GET /bindings` 含 kv；`kv list/get/put/delete/info` 经 `:8790` 成功；父子 version key 空间隔离 |
+| 失败 | 不得在 Dashboard 开放 KV 写 |
+| 不做 | bulk · inherit（AD-7） |
+
+### [ ] V10 — celld Queues operator
+
+**目的：** `queues.producers/consumers` deploy 后可 info / peek / pause / resume / redrive / purge。
+
+| 项 | 内容 |
+|----|------|
+| 通过 | bindings 含 queue；pause 后 peek 仍可见积压；purge 无 `force` 返回 400 |
+| 不做 | pull consumer；跨 version 共享 queue |
+
+### [ ] V11 — Workflow 只读 + Cron 清单
+
+**目的：** wrangler `workflows` / `triggers.crons` 出现在 bindings；Workflow 实例可经 `cell list` 列出。
+
+| 项 | 内容 |
+|----|------|
+| 通过 | `GET /bindings` 含 workflows 与 crons；`GET /workflows/{name}/instances` 不 500 |
+| 不做 | pause/resume/restart；R2 对象浏览器；Cron 平台调度 |
+
+---
+
+## 二期 — 弹性
+
+> Worker 内 celld 原生 cron 仍由 **该 version 的 celld** 执行（V11 只做可见性）。
 
 ### [ ] V8 — scale-to-zero 唤醒（Gateway → celld hibernate）
-
-### [ ] V9 — Valkey KV（prefix · `inherit_kv` · ACL）
-
-### [ ] V10 — Queues（CD 路径接入，方案待定）
-
-### [ ] V11 — Cron 平台化（注册 · 多 version · 可观测）
 
 ### [ ] V12 — 多节点 cellpd + Orchestrator 队列
 
@@ -185,7 +215,8 @@
 | **V1–V3** | 数据管道 · fork 一致性 · 路由 | **一期** | CD 闭环 |
 | **V4–V7** | cutover · saga · migrate · 外部 CI/API E2E | **一期** | 一期验收 |
 | **VE** | 端口级 E2E（无 UI） | **一期 P0** | **前端开工门禁** |
-| **V8–V12** | wake · KV · Queue · Cron · 多节点 | **二期** | 二期验收 |
+| **V8 · V12** | wake · 多节点 | **二期弹性** | 二期验收 |
+| **V9–V11** | celld KV · Queue · Workflow/Cron | **Bindings 本期** | Dashboard 绑定页 |
 | **V20+** | OTEL · 统计 · 图表 | **三期占位** | 暂不计划 |
 
 ---

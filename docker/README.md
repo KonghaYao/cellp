@@ -14,12 +14,6 @@ curl -sf http://127.0.0.1:8790/v1/health
 curl -sf http://127.0.0.1:8787/health
 ```
 
-Optional Valkey (not required by cellpd today):
-
-```bash
-docker compose --profile valkey up -d
-```
-
 ## GHCR image
 
 Published from `main` and version tags (`v*`):

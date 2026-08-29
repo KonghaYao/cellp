@@ -37,7 +37,7 @@ optional() {
 echo "==> docker compose up"
 docker compose -f dev/docker-compose.yml --env-file dev/.env up -d
 
-echo "==> wait for RustFS + Valkey"
+echo "==> wait for RustFS"
 for i in $(seq 1 30); do
   if curl -sf "http://127.0.0.1:${S3_PORT:-9000}/health" >/dev/null 2>&1; then
     break
@@ -58,20 +58,28 @@ stop_platform() {
 }
 
 CELLPD_BIN=""
+CELLPD_BUILT=0
+if [[ -d "${ROOT}/cellp/cmd/cellpd" ]]; then
+  if [[ ! -x "${ROOT}/dev/data/cellpd" ]] || find "${ROOT}/cellp" -name '*.go' -newer "${ROOT}/dev/data/cellpd" 2>/dev/null | grep -q .; then
+    echo "==> build cellpd"
+    if "$ROOT/dev/scripts/build-cellpd.sh"; then
+      CELLPD_BUILT=1
+    else
+      echo "WARN: cellpd build failed" >&2
+    fi
+  fi
+fi
 if [[ -x "${ROOT}/dev/data/cellpd" ]]; then
   CELLPD_BIN="${ROOT}/dev/data/cellpd"
-elif [[ -d "${ROOT}/cellp/cmd/cellpd" ]]; then
-  echo "==> build cellpd"
-  if "$ROOT/dev/scripts/build-cellpd.sh"; then
-    CELLPD_BIN="${ROOT}/dev/data/cellpd"
-  else
-    echo "WARN: cellpd build failed" >&2
-  fi
 fi
 
 PLATFORM_MODE="none"
 if [[ -n "$CELLPD_BIN" ]]; then
   PLATFORM_MODE="cellpd"
+  if platform_running && [[ "$CELLPD_BUILT" -eq 1 ]]; then
+    echo "==> restart cellpd (new binary)"
+    stop_platform
+  fi
   if platform_running; then
     echo "==> cellpd already running (pid $(cat dev/data/pids/platform.pid))"
   else
@@ -81,7 +89,7 @@ if [[ -n "$CELLPD_BIN" ]]; then
     export CELLP_DEPLOY_TOKEN="${CELLP_DEPLOY_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
     export CELLP_ADMIN_TOKEN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
     export S3_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION RUSTFS_ACCESS_KEY RUSTFS_SECRET_KEY OFFSHOOT_STORE
-    "$CELLPD_BIN" >>dev/data/logs/cellpd.log 2>&1 &
+    nohup "$CELLPD_BIN" >>dev/data/logs/cellpd.log 2>&1 &
     echo $! > dev/data/pids/platform.pid
   fi
 elif [[ "${CELLP_USE_MOCK:-0}" == "1" ]]; then
@@ -90,7 +98,7 @@ elif [[ "${CELLP_USE_MOCK:-0}" == "1" ]]; then
     echo "==> mock platform already running (pid $(cat dev/data/pids/platform.pid))"
   else
     echo "==> start mock platform (API + Gateway) :${PLATFORM_PORT} / :${GATEWAY_PORT:-8787}"
-    node dev/mock-platform/server.mjs >>dev/data/logs/platform.log 2>&1 &
+    nohup node dev/mock-platform/server.mjs >>dev/data/logs/platform.log 2>&1 &
     echo $! > dev/data/pids/platform.pid
   fi
 else
@@ -122,11 +130,11 @@ if optional celld "curl -fsSL https://celld.dev/install.sh | sh"; then
       echo "WARN: celld diagnose failed — see dev/data/logs/celld-diagnose.log (RustFS conditional writes)"
     fi
     echo "==> start celld :${CELLD_PORT}"
-    celld --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
+    nohup celld --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
       --listen "127.0.0.1:${CELLD_PORT}" >>dev/data/logs/celld.log 2>&1 &
     echo $! > dev/data/pids/celld.pid
     for i in $(seq 1 60); do
-      if curl -sf "http://127.0.0.1:${CELLD_PORT}/__celld/health" >/dev/null 2>&1; then
+      if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
         break
       fi
       sleep 1
@@ -156,4 +164,4 @@ elif [[ "$PLATFORM_MODE" == "mock" ]]; then
 else
   echo "  Platform: (not started — build cellpd or CELLP_USE_MOCK=1 ./dev/scripts/up.sh)"
 fi
-echo "  Next:     ./dev/scripts/health.sh && ./dev/scripts/simulate-cd.sh ${DEV_PROJECT:-demo-app} v-dev1"
+echo "  Next:     ./dev/scripts/health.sh && ./dev/scripts/seed-demo.sh"

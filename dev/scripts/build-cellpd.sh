@@ -3,6 +3,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT/cellp"
-GOTOOLCHAIN=local go mod tidy
+# go build only — avoid `go mod tidy` network fetch on every up.sh
 GOTOOLCHAIN=local go build -o "$ROOT/dev/data/cellpd" ./cmd/cellpd
 echo "Built $ROOT/dev/data/cellpd"

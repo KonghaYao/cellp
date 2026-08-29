@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Clock,
@@ -7,9 +8,13 @@ import {
   Globe,
   Layers,
 } from "lucide-react";
-import type { Version } from "@/lib/cellp-api";
 import {
-  deriveProdUrl,
+  checkDatabaseAvailability,
+  type DatabaseAvailability,
+  type Version,
+} from "@/lib/cellp-api";
+import {
+  resolveProdUrl,
   formatDateTime,
   formatDuration,
   formatRelativeTime,
@@ -34,6 +39,7 @@ interface VersionDetailViewProps {
   versionId: string;
   initialVersion: Version;
   prodVersionId: string | null;
+  prodUrl?: string | null;
   onRefresh?: () => void | Promise<void>;
 }
 
@@ -42,6 +48,7 @@ export function VersionDetailView({
   versionId,
   initialVersion,
   prodVersionId,
+  prodUrl: projectProdUrl,
   onRefresh,
 }: VersionDetailViewProps) {
   return (
@@ -56,6 +63,7 @@ export function VersionDetailView({
           projectId={projectId}
           version={version}
           prodVersionId={prodVersionId}
+          projectProdUrl={projectProdUrl}
           onRefresh={onRefresh}
         />
       )}
@@ -67,15 +75,34 @@ function VersionDetailContent({
   projectId,
   version,
   prodVersionId,
+  projectProdUrl,
   onRefresh,
 }: {
   projectId: string;
   version: Version;
   prodVersionId: string | null;
+  projectProdUrl?: string | null;
   onRefresh?: () => void | Promise<void>;
 }) {
   const isProd = prodVersionId === version.id;
-  const prodUrl = deriveProdUrl(projectId, version.preview_url);
+  const prodUrl = resolveProdUrl(projectId, projectProdUrl, version.preview_url);
+  const [databaseAvailability, setDatabaseAvailability] =
+    useState<DatabaseAvailability | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (version.status !== "ready") {
+      setDatabaseAvailability(null);
+      return;
+    }
+    (async () => {
+      const result = await checkDatabaseAvailability(projectId, version.id);
+      if (!cancelled) setDatabaseAvailability(result);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, version.id, version.status]);
 
   return (
     <div className="space-y-8">
@@ -138,15 +165,23 @@ function VersionDetailContent({
               <span className="font-mono text-xs">
                 {version.data_branch || "—"}
               </span>
-              {version.status === "ready" && (
-                <Link
-                  to={storageBrowserHref(projectId, version.id)}
-                  className="inline-flex items-center gap-1 text-xs text-foreground hover:underline"
-                >
-                  <Database className="size-3" />
-                  Open
-                </Link>
-              )}
+              {version.status === "ready" &&
+                databaseAvailability?.available === true && (
+                  <Link
+                    to={storageBrowserHref(projectId, version.id)}
+                    className="inline-flex items-center gap-1 text-xs text-foreground hover:underline"
+                  >
+                    <Database className="size-3" />
+                    Open
+                  </Link>
+                )}
+              {version.status === "ready" &&
+                databaseAvailability &&
+                !databaseAvailability.available && (
+                  <span className="text-xs text-muted-foreground">
+                    {databaseAvailability.message}
+                  </span>
+                )}
             </div>
           </MetadataRow>
           {version.artifact_digest && (

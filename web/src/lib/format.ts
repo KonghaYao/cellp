@@ -19,18 +19,34 @@ export function deriveProdUrl(
   return `${gatewayBase()}/${projectId}/prod/`;
 }
 
+/** Prefer API-provided prod_url; fall back to derivation from preview/gateway. */
+export function resolveProdUrl(
+  projectId: string,
+  prodUrl?: string | null,
+  previewUrl?: string | null,
+): string {
+  if (prodUrl) return prodUrl;
+  return deriveProdUrl(projectId, previewUrl);
+}
+
 export function truncateSha(sha: string, length = 7): string {
   if (!sha) return "—";
   return sha.length <= length ? sha : sha.slice(0, length);
 }
 
+function isReasonableDate(date: Date): boolean {
+  const year = date.getFullYear();
+  return year >= 1970 && year <= 2100;
+}
+
 export function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime()) || !isReasonableDate(date)) return "Unknown";
 
   const now = Date.now();
   const diffMs = now - date.getTime();
+  if (diffMs < 0) return "Unknown";
   const diffSec = Math.round(diffMs / 1000);
 
   if (diffSec < 5) return "just now";

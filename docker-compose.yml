@@ -45,14 +45,6 @@ services:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
 
-  valkey:
-    image: valkey/valkey:8.0-alpine
-    ports:
-      - "${VALKEY_PORT:-6379}:6379"
-    command: valkey-server --save "" --appendonly no
-    profiles:
-      - valkey
-
   cellpd:
     image: ${CELLP_IMAGE:-ghcr.io/konghayo/cellp:latest}
     build:
@@ -93,8 +85,6 @@ services:
       OFFSHOOT_S3_ENDPOINT: http://rustfs:9000
       OFFSHOOT_S3_PATH_STYLE: "1"
       OFFSHOOT_CHECKOUTS: /data/offshoot-checkouts
-
-      VALKEY_URL: ${VALKEY_URL:-redis://valkey:6379/0}
     volumes:
       - cellp-registry:/data/registry
       - cellp-artifacts:/data/artifacts

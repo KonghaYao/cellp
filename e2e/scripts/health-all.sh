@@ -18,6 +18,13 @@ check() {
 log "health-all"
 check "platform API" "${PLATFORM_URL}/v1/health"
 check "gateway" "${GATEWAY_URL}/health"
-check "celld" "http://127.0.0.1:${CELLD_PORT}/__celld/health"
+check "celld" "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health"
+
+{
+  echo "TP-VE-1 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "celld GET http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health"
+  curl -sS -w "\nhttp_code=%{http_code}\n" \
+    "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" || true
+} >"${EVIDENCE_DIR}/v11-health-path.log" 2>&1 || true
 
 exit $FAIL

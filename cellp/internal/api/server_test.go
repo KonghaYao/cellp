@@ -125,7 +125,7 @@ func TestCreateVersion202(t *testing.T) {
 }
 
 func TestAuthSeparation(t *testing.T) {
-	srv, store := testAPI(t, "deploy-token", "admin-token")
+	srv, store, _ := testAPI(t, "deploy-token", "admin-token")
 	defer store.Close()
 
 	// wrong token → 401
@@ -274,6 +274,33 @@ func TestListProjectsPaginationAPI(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &page2)
 	if len(page2.Projects) != 1 {
 		t.Fatalf("page2: %+v", page2)
+	}
+}
+
+func TestListProjectsQueryAPI(t *testing.T) {
+	srv, store, _ := testAPI(t, "deploy", "admin")
+	defer store.Close()
+	ctx := context.Background()
+	for _, id := range []string{"alpha-app", "beta-app", "cellp-dashboard", "demo-app"} {
+		_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: id})
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/projects?q=cellp", nil)
+	req.Header.Set("Authorization", "Bearer admin")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Projects []map[string]interface{} `json:"projects"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp.Projects) != 1 {
+		t.Fatalf("expected 1 match, got %+v", resp.Projects)
+	}
+	if resp.Projects[0]["id"] != "cellp-dashboard" {
+		t.Fatalf("unexpected id: %+v", resp.Projects[0])
 	}
 }
 

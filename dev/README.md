@@ -3,9 +3,9 @@
 ```bash
 cp dev/.env.example dev/.env
 ./dev/scripts/up.sh
-./dev/scripts/simulate-cd.sh demo-app v-dev1
+./dev/scripts/seed-demo.sh    # demo-app v1/v2 + bindings 假数据
 ./dev/scripts/health.sh
-curl http://127.0.0.1:8787/demo-app/v-dev1/
+curl http://127.0.0.1:8787/demo-app/v1/
 ```
 
 完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策见 **[docs/decisions.md](../docs/decisions.md)** · 验证项见 **[docs/test-plan.md](../docs/test-plan.md)**。
@@ -16,8 +16,7 @@ curl http://127.0.0.1:8787/demo-app/v-dev1/
 |---|---|---|
 | **cellpd Gateway** | 8787 | 内置 reverse proxy（dev 由 mock 模拟） |
 | **cellpd API** | 8790 | REST · Registry |
-| celld | 8792 | Workers 运行时 |
-| Valkey | 6379 | **二期**；dev compose 可选启 |
+| celld | 8792 | Workers 运行时（含 Workers KV） |
 | RustFS S3 | 9000 | 对象存储 |
 | RustFS Console | 9001 | 管理 UI |
 
@@ -31,7 +30,7 @@ curl http://127.0.0.1:8787/demo-app/v-dev1/
 
 ## 前置
 
-- Docker（仅 RustFS + Valkey compose；Gateway/API 跑在宿主机）
+- Docker（仅 RustFS compose；Gateway/API 跑在宿主机）
 - Node 20+
 - `celld` — 本仓库 submodule [`celld/`](https://github.com/KonghaYao/celld)（`git submodule update --init` 后 `cargo build -p celld --profile lab`）
 - `esbuild` — `npm i -g esbuild`
@@ -47,6 +46,7 @@ curl http://127.0.0.1:8787/demo-app/v-dev1/
 | `health.sh` | 探活（agent CI 用） |
 | `reset.sh` | 清空 `dev/data/` |
 | `simulate-cd.sh` | 本地 CD：`simulate-cd.sh <project> <version>` |
+| `seed-demo.sh` | **验收用**：`demo-app` v1/v2，D1/KV/Queue/Workflow 假数据 + Dashboard 链接 |
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
 

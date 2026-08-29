@@ -202,28 +202,39 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 		limit := normalizePageLimit(opts.Limit)
 		fetch := limit + 1
 
+		queryFilter := ""
+		var queryArgs []any
+		if q := strings.TrimSpace(opts.Query); q != "" {
+			queryFilter = " AND instr(LOWER(p.id), LOWER(?)) > 0"
+			queryArgs = append(queryArgs, q)
+		}
+
 		var (
 			rows *sql.Rows
 			err  error
 		)
 		if opts.Cursor == "" {
+			args := append(queryArgs, fetch)
 			rows, err = s.db.QueryContext(ctx, `
 				SELECT p.id, p.git_remote, p.prod_version_id, p.created_at
 				FROM projects p
+				WHERE 1=1`+queryFilter+`
 				ORDER BY p.created_at ASC, p.id ASC
-				LIMIT ?`, fetch)
+				LIMIT ?`, args...)
 		} else {
 			cursorAt, cursorID, err := DecodeCursor(opts.Cursor)
 			if err != nil {
 				return nil, err
 			}
 			cursorStr := cursorAt.UTC().Format(time.RFC3339Nano)
+			args := append([]any{cursorStr, cursorStr, cursorID}, queryArgs...)
+			args = append(args, fetch)
 			rows, err = s.db.QueryContext(ctx, `
 				SELECT p.id, p.git_remote, p.prod_version_id, p.created_at
 				FROM projects p
-				WHERE p.created_at > ? OR (p.created_at = ? AND p.id > ?)
+				WHERE (p.created_at > ? OR (p.created_at = ? AND p.id > ?))`+queryFilter+`
 				ORDER BY p.created_at ASC, p.id ASC
-				LIMIT ?`, cursorStr, cursorStr, cursorID, fetch)
+				LIMIT ?`, args...)
 		}
 		if err != nil {
 			return nil, err

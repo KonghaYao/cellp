@@ -125,6 +125,45 @@ func TestListVersionsPaginationAndFilters(t *testing.T) {
 	}
 }
 
+func TestListProjectsQueryFilter(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "query.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+
+	for _, id := range []string{"alpha-app", "beta-app", "cellp-dashboard", "demo-app"} {
+		if _, err := s.CreateProject(ctx, CreateProjectInput{ID: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	matches, err := s.ListProjects(ctx, ListProjectsOpts{Limit: 10, Query: "cellp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches.Projects) != 1 || matches.Projects[0].ID != "cellp-dashboard" {
+		t.Fatalf("query filter: %+v", matches.Projects)
+	}
+
+	paged, err := s.ListProjects(ctx, ListProjectsOpts{Limit: 1, Query: "app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paged.Projects) != 1 || paged.NextCursor == "" {
+		t.Fatalf("paged query: %+v", paged)
+	}
+
+	page2, err := s.ListProjects(ctx, ListProjectsOpts{Limit: 1, Query: "app", Cursor: paged.NextCursor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page2.Projects) != 1 {
+		t.Fatalf("page2 query: %+v", page2)
+	}
+}
+
 func TestListProjectsVersionCount(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "counts.sqlite"))
 	if err != nil {

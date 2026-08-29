@@ -317,6 +317,11 @@ func (m *Manager) D1Execute(ctx context.Context, project, version, projectDir, s
 		return nil
 	}
 	sqlite := isSQLiteFile(seedPath)
+	if sqlite {
+		if err := removeSQLiteSidecars(seedPath); err != nil {
+			return fmt.Errorf("prepare sqlite seed: %w", err)
+		}
+	}
 	bucket := m.versionBucket(project, version)
 	var args []string
 	if sqlite {
@@ -402,7 +407,7 @@ func readWranglerConfigFile(projectDir string) (string, []byte, error) {
 			return "", nil, err
 		}
 	}
-	return "", nil, fmt.Errorf("no wrangler.jsonc or wrangler.json in %s", projectDir)
+	return "", nil, fmt.Errorf("%w: no wrangler.jsonc or wrangler.json in %s", ErrNoWrangler, projectDir)
 }
 
 func stripJSONC(src string) string {
@@ -429,6 +434,16 @@ func stripJSONC(src string) string {
 		i++
 	}
 	return out.String()
+}
+
+// removeSQLiteSidecars deletes -wal/-shm siblings so celld d1 import accepts the file.
+func removeSQLiteSidecars(dbPath string) error {
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := os.Remove(dbPath + suffix); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func isSQLiteFile(path string) bool {

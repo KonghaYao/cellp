@@ -51,7 +51,7 @@ jobs:
             --arg ref "${{ needs.ci.outputs.git_ref }}" \
             --arg sha "${{ needs.ci.outputs.git_sha }}" \
             --arg digest "${{ needs.ci.outputs.artifact_digest }}" \
-            '{id:$id, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}, inherit_kv:true}')
+            '{id:$id, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}}')
           RESP=$(curl -sf -X POST "${{ env.CELLP_URL }}/projects/${{ env.PROJECT_ID }}/versions" \
             -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" \
             -H "Content-Type: application/json" -d "$BODY")

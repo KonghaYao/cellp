@@ -37,7 +37,7 @@ BODY=$(jq -n \
   --arg ref "e2e-ci" \
   --arg sha "local" \
   --arg digest "$DIGEST" \
-  '{id:$id, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}, inherit_kv:true}')
+  '{id:$id, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}}')
 
 RESP=$(api_post "/v1/projects/${PROJECT}/versions" "$BODY")
 echo "$RESP" | jq .

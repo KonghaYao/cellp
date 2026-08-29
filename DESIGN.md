@@ -17,7 +17,8 @@
 | 阶段 | 范围 | 能力 |
 |------|------|------|
 | **一期** | 核心 Serverless 平台 | **CD 全流程**（外部 CI → artifact → `POST /versions` → preview URL）· **Branch + Version**（App+Data）· **线上稳定**（promote · quiesce · saga · health gate） |
-| **二期** | 扩展运行时绑定 | **KV**（Valkey）· **Queues** · **Cron**（平台化）· scale-to-zero 唤醒 · 多节点 cellpd |
+| **Bindings（本期）** | celld 0.4.0 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld 运行时 + operator CLI；R2 **清单可见**；**无 branch 的数据面不做 inherit** |
+| **二期** | 弹性 | scale-to-zero 唤醒 · 多节点 cellpd · Gateway 路由缓存（未实现） |
 | **三期** | 可观测 · 性能/统计 | **OTEL / 日志 / 指标** · 用量与性能统计 · （**暂不计划实施**，仅文档占位） |
 
 | 阶段 | 能力 | 底层 |
@@ -25,14 +26,20 @@
 | **一期** | 部署 App + CD | celld + cellpd |
 | **一期** | Branch + Version | offshoot |
 | **一期** | Promote / 线上 cutover | cellpd Orchestrator |
-| **二期** | KV | Valkey |
-| **二期** | Queues | celld / 自研（待定） |
-| **二期** | Cron | celld `triggers.crons` + 平台治理 |
+| **一期** | D1 import / branch | celld `d1 import` · `d1 branch` |
+| **Bindings** | Workers KV | celld `kv_namespaces` + `celld kv` |
+| **Bindings** | Queues | celld `queues` + `celld queue` |
+| **Bindings** | Workflows | celld `workflows`；实例只读（`celld cell list`） |
+| **Bindings** | Cron 可见性 | celld `triggers.crons`（celld 自己触发；cellp 只展示） |
+| **Bindings** | R2 | celld `r2_buckets` 随 deploy 生效；**无 `celld r2` → 无对象浏览器** |
 | **二期** | Scale to zero | celld cell hibernate + Gateway wake |
+| **二期** | Gateway 路由缓存 | 未实现（进程内 LRU 已够用） |
 
 **不做：** DNS / CDN / WAF / DDoS / Zero Trust / **Git 托管 / CI 引擎**（外部系统负责；cellp 只收 artifact + API 调用）。
 
-**一期诚实范围：** 单节点（或 VIP 单入口）preview/prod 平面，≤5 concurrent ready versions / project；**不含** KV / Queue / Cron 平台能力。
+**一期诚实范围：** 单节点（或 VIP 单入口）preview/prod 平面，≤5 concurrent ready versions / project。
+
+**Bindings 诚实范围：** 沿用 celld 已有 CLI 与 wrangler key；**D1 是唯一有 branch 的绑定**。KV / R2 / Queue / Workflow 在 celld 提供 branch 之前，子 version **空起步**，cellp 不发明 copy / inherit / 共享桶。
 
 ---
 
@@ -56,13 +63,12 @@ flowchart TB
   end
 
   subgraph runtime ["运行时层"]
-    CLD["celld<br/>Workers + DO + D1"]
+    CLD["celld<br/>Workers + DO + D1 + KV + Queue + Workflow + R2"]
   end
 
   subgraph data ["数据层"]
     OS["offshoot<br/>SQLite CoW 分支"]
-    OBJ["RustFS<br/>artifact · offshoot · celld"]
-    KV["Valkey<br/>二期"]
+    OBJ["RustFS<br/>artifact · offshoot · celld（含 KV 大 value · R2 前缀 · Queue cell）"]
   end
 
   Dev --> CI
@@ -72,14 +78,12 @@ flowchart TB
   ORCH --> OS
   ORCH --> CLD
   ORCH --> OBJ
-  ORCH --> KV
   ORCH --> GW
   DASH --> API
   Dev -->|"Preview"| GW
   GW --> CLD
   OS -->|"export → D1 seed"| CLD
   CLD --> OBJ
-  CLD --> KV
 ```
 
 ### 2.2 确认技术栈（私有化 · 官方依据）
@@ -197,13 +201,12 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 | **Orchestrator** | 驱动 pending→ready 状态机；失败补偿；fork/deploy 编排 | **Go** · 内置 worker pool | cellp 自研 |
 | **Registry** | project/version 树、prod 指针、路由表 | **SQLite** | **权威存储**；WAL 模式 |
 | **Gateway** | `/{project}/{version}/*` → celld upstream | **Go**（cellpd 内置 reverse proxy） | 非 Caddy；TLS 由外部 LB |
-| **Dashboard** | 项目 · 部署 · 存储 · D1 管理 | **Vite + React SPA** | M1 后；仅 API |
+| **Dashboard** | 项目 · 部署 · 存储（D1）· Bindings（KV / Queue / Workflow / Cron） | **Vite + React SPA** | 仅 API；不直连 celld |
 | **Branch Manager** | offshoot checkpoint/fork/export/promote | **offshoot** · RustFS / local | V0b 前 offshoot 可 local |
 | **Runtime Manager** | celld deploy/start/health | **celld** · RustFS · esbuild | `celld diagnose` 门禁 |
 | **Artifact Store** | CI bundle；digest 校验 | **RustFS** `cellp-artifacts` | 外部 CI 写入 |
 | **celld State Store** | cell SQLite 复制 | **RustFS** `cellp-celld` | 条件写探针 |
 | **offshoot Store** | SQLite CoW 分支对象 | RustFS / **local** | 与 celld 分逻辑卷 |
-| **Valkey** | KV prefix 隔离 | **Valkey 8** | **二期** |
 | **Dev Harness** | 本地栈 · simulate-cd | RustFS · mock→cellpd | 见 §11 |
 
 ### 2.4 CD 时序
@@ -231,7 +234,7 @@ sequenceDiagram
   Orch->>CLD: d1 execute --file seed.sql
   Orch->>CLD: celld deploy bundle
   Orch->>GW: register /{project}/{version} route
-  Orch->>CLD: health check /__celld/health
+  Orch->>CLD: health check /.well-known/celld/health
   Orch-->>CI: status=ready, preview_url
 
   Dev->>GW: GET /{project}/{version}/
@@ -303,7 +306,7 @@ cellp 的护城河不在「包一层 celld」，而在下面 **6 项必须自研
 | offshoot pre-1.0 | 存储 layout 可能变 | preview-only；pin SHA；不用于 prod 数据 |
 | RustFS 条件写探针失败 | celld 双主 / fleet 无法启动 | 部署前 `celld diagnose`；Phase 0 锁定 RustFS 版本；探针失败则不上线 |
 
-**二期再攻（一期明确不做）：** KV · Queues · Cron 平台化 · Gateway wake · 多节点 Orchestrator 队列 · offshoot↔celld 运行时双向 sync。
+**Bindings 本期攻：** 沿用 celld 0.4.0 的 KV / Queue / Workflow / Cron（见 §8）。**仍延期：** KV/R2/Queue/Workflow **branch/inherit**（celld 尚无）· R2 对象浏览器（无 `celld r2`）· Workflow 实例控制（无 `celld workflow`）· Gateway wake · 多节点 Orchestrator · offshoot↔celld 运行时双向 sync。
 
 **三期（暂不计划，仅文档）：** OTEL / 指标 / 集中日志 · 性能与用量统计 · Dashboard 图表。
 
@@ -336,7 +339,7 @@ erDiagram
 | `id` · `git_remote`（可选元数据）· `prod_version_id` | `id` · `parent_version_id` · `git_ref/sha` |
 | | `artifact_uri/digest` · `data_branch` |
 | | `preview_url` · `status` · `ttl` |
-| | `kv_prefix`（**二期**；一期 Version 模型预留字段可不填） |
+| | Worker KV **不是** Registry 字段：命名空间在 wrangler `kv_namespaces[].id`，数据在该 version 的 celld bucket |
 
 ---
 
@@ -392,21 +395,140 @@ celld:    d1 execute --file seed.sql → deploy → Worker 用 D1/DO
 
 ---
 
-## 8. KV / Queue / Cron（二期）
+## 8. Bindings — celld 0.4.0 原生绑定（本期）
 
-一期 **不提供** 平台级 KV、Queue、Cron 绑定与治理；Worker 若使用 celld 原生 **D1 / DO / `triggers.crons`**，由 celld 自身承载，cellp 不额外编排。
+> **决策：** [docs/decisions.md](./docs/decisions.md) **AD-6 · AD-7**  
+> **celld 依据：** [celld/docs/cloudflare-compat.md](./celld/docs/cloudflare-compat.md) · [v0.4.0 release](https://github.com/denoland/celld/releases/tag/v0.4.0)
 
-### KV（Valkey）— 二期
+celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Workflows · R2**，并继续支持 **D1 · Durable Objects · Cron · Assets**。cellp **沿用这些运行时能力**，控制面只做三件事：解析清单、包装已有 operator CLI、在 Dashboard 展示。Worker KV 数据在 celld fleet bucket（RustFS）。
 
-Key：`{project}:{version}:{key}` · prod CD 默认 `inherit_kv: true` · Valkey ACL 按前缀。
+### 8.1 原则
 
-### Queues — 二期
+| # | 原则 | 含义 |
+|---|---|---|
+| **P1 沿用 celld** | 运行时以 `celld deploy` 为准 | wrangler 已声明的 `kv_namespaces` / `queues` / `workflows` / `r2_buckets` / `triggers` **原样进入 deploy**；cellp 不剥 key、不改 binding |
+| **P2 包 CLI，不发明协议** | 与 D1 同一模式 | Dashboard → cellpd `:8790` → `celld <noun> … --bucket s3://cellp-celld/{project}/{version}`；**禁止** Dashboard 直连 `:8792` / S3 |
+| **P3 无 branch 就等** | 不发明 inherit | **只有 D1** 有 `celld d1 branch`。KV / R2 / Queue / Workflow 在 celld 提供等价 branch 之前：**子 version 空起步**（AD-1 独立 bucket 已经隔离）。不做 copy、不做挂父桶 |
+| **P4 没有 CLI 就没有管理面** | 诚实缺口 | 无 `celld r2` → R2 只出现在 bindings 清单；无 `celld workflow` → Workflow 实例只读（`celld cell list`），不做 pause/resume/restart 控制台 |
 
-celld roadmap 有 DO 形态 Queues；cellp 一期不接 CD 路径。
+### 8.2 能力矩阵
 
-### Cron — 二期
+| 绑定 | wrangler | 运行时（deploy 后） | celld operator | cellp 本期 | Dashboard 本期 | 延期 |
+|---|---|---|---|---|---|---|
+| **D1** | `d1_databases` | 已接 | `celld d1` | import / branch / SQL | Storage browser | — |
+| **KV** | `kv_namespaces` | 透传即生效 | `get/put/delete/list/info` + bulk | 包装 CLI | KV browser | branch / inherit；bulk 可第二轮 |
+| **Queues** | `queues.producers` / `consumers` | 透传即生效 | `info/peek/purge/pause/resume/redrive` | 包装 CLI | Queue 控制台 | branch；pull consumer；HTTP API |
+| **Workflows** | `workflows` | 透传即生效 | **无** `celld workflow`；实例是 reserved cell `__Workflow` | `celld cell list` 只读 | 实例列表 | pause/resume/restart；delete |
+| **R2** | `r2_buckets` | 对象在本 version bucket 的 `r2/<bucket_name>/` | **无** `celld r2` | 清单可见 | 仅徽章 / 空态 | 对象浏览器；branch |
+| **Cron** | `triggers.crons` | celld 按 fleet 触发 | 无独立 CLI | 从 wrangler 只读 | 表达式列表 | 平台调度器；跨 version 策略 |
+| **Durable Objects** | `durable_objects` | 已随 Worker 跑 | `celld cell list` | 本期不做独立页 | — | DO 浏览器 |
 
-celld 已支持 `triggers.crons`；二期再做平台侧注册、多 version 隔离与可观测。
+**celld 已知限制（原样暴露，不在 cellp 里「修」）：**
+
+- KV：无 edge cache；`cacheTtl` 无效；大 value（>1 MiB）走 fleet bucket；一 namespace 一 writer
+- Queue：一 queue 一 writer；**一个 consumer script，且 consumer 不能再 export `fetch()`**；消息保留 4 天不可配；无 pull / HTTP API
+- Workflow：无 `delete` / rollback；step / event / params 各 1 MiB
+- R2：绑定使用本 fleet bucket 前缀；multipart 不能跨节点恢复
+- Cron：fleet 内每 occurrence 跑一次；downtime 后只补最近一次 missed
+
+### 8.3 Version 数据面（为何空起步）
+
+每个 ready version 已是独立 celld fleet（AD-1）：
+
+```
+s3://cellp-celld/{project}/{version}/
+  deploy/          # wrangler bundle
+  cells/           # DO · D1 · KV namespace · Queue broker · Workflow 实例
+  r2/<bucket>/     # R2 对象（同一桶前缀）
+```
+
+| 数据 | 子 version（有 `parent_version_id`） |
+|---|---|
+| **D1** | `celld d1 branch`：共享父 LTX 到 `fork_txid`，再写子增量 |
+| **KV / R2 / Queue / Workflow** | **空**。父 version 的 key / object / backlog / 实例 **不可见** |
+
+这不是缺陷，是 AD-1 隔离 + celld 尚无这些资源的 branch。产品文案必须写清：「Preview 的 KV/Queue 是新的，不会带上 prod 数据。」等 celld 提供 branch 后再开 inherit 专项（新 ADR）。
+
+### 8.4 控制面 API（`:8790/v1` · ADMIN_TOKEN）
+
+一律挂在 **ready version** 上。version 未 ready → `404`（与 D1 相同）。从该 version 的 wrangler 解析 binding；operator 命令带上该 version 的 `--bucket`。
+
+#### 清单（所有绑定的入口）
+
+| 方法 | 路径 | 作用 |
+|---|---|---|
+| GET | `/projects/{id}/versions/{vid}/bindings` | 只读：从 wrangler 抽出 `d1[] / kv[] / queues[] / workflows[] / r2[] / crons[]` |
+
+`queues[]` 含 producer binding 名、queue 名、是否本 script consumer、`dead_letter_queue`。空数组表示「未声明」，不是错误。
+
+#### KV（包装 `celld kv`）
+
+| 方法 | 路径 | celld |
+|---|---|---|
+| GET | `.../kv` | 该 version 的 namespace 列表（来自 wrangler；可附 `celld kv info`） |
+| GET | `.../kv/{ns}/keys?prefix=&cursor=&limit=` | `kv list` |
+| GET | `.../kv/{ns}/keys/{key}` | `kv get`（value 用 base64 或 UTF-8 标记） |
+| PUT | `.../kv/{ns}/keys/{key}` | `kv put`（body：value · ttl · metadata） |
+| DELETE | `.../kv/{ns}/keys/{key}` | `kv delete` |
+| GET | `.../kv/{ns}` | `kv info`（live / bytes / stored） |
+
+`{ns}` 是 wrangler `kv_namespaces[].id`（verbatim）。本期 **不做 bulk**（第二轮）。value 上限跟随 celld（小 value 进 cell；>1 MiB 进 bucket）。
+
+#### Queues（包装 `celld queue`）
+
+| 方法 | 路径 | celld |
+|---|---|---|
+| GET | `.../queues` | wrangler 声明的 queue 列表 |
+| GET | `.../queues/{name}` | `queue info` |
+| GET | `.../queues/{name}/peek?limit=` | `queue peek`（1–100；body base64） |
+| POST | `.../queues/{name}/pause` | `queue pause` |
+| POST | `.../queues/{name}/resume` | `queue resume` |
+| POST | `.../queues/{name}/redrive` | `queue redrive`（可选 limit） |
+| POST | `.../queues/{name}/purge` | `queue purge`；body 必须 `{ "force": true }` |
+
+`{name}` 是 wrangler `queues.*.queue`。purge 无 `force` → `400`。
+
+#### Workflows（只读）
+
+| 方法 | 路径 | celld |
+|---|---|---|
+| GET | `.../workflows` | wrangler `workflows[]` |
+| GET | `.../workflows/{name}/instances` | `celld cell list` 过滤 reserved `__Workflow` 且匹配该 workflow |
+
+**不做：** pause / resume / restart / delete（celld 无 operator CLI）。
+
+#### R2 / Cron
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| （含在 bindings） | `r2[]` · `crons[]` | 只读清单。无对象 API、无「触发一次」API |
+
+### 8.5 Dashboard
+
+Storage 升级为 **Bindings hub**（仍按 version 切换，沿用现有 D1 browser 的 version switcher）：
+
+| 路径 | 页面 |
+|---|---|
+| `/projects/{id}/storage` | 各 ready version 的绑定总览（D1 / KV / Queue / Workflow / R2 / Cron 徽章） |
+| `/projects/{id}/storage/{vid}/browser` | **现有** D1 Schema · Data · Query · Branches（路径不改） |
+| `/projects/{id}/storage/{vid}/kv` | KV browser |
+| `/projects/{id}/storage/{vid}/queues` | Queue 控制台 |
+| `/projects/{id}/storage/{vid}/workflows` | Workflow 实例列表（只读） |
+
+侧栏仍叫 **Storage**。R2 / Cron 只在总览出现，不进独立浏览器。
+
+### 8.6 健康检查
+
+celld 0.4.0 公共健康路径是 **`/.well-known/celld/health`**（不再是 `/__celld/health`）。Runtime Manager 已用新路径；dev / e2e 脚本凡仍打旧路径的必须改掉。
+
+### 8.7 明确不做（本期）
+
+- 父子 KV/R2/Queue 共享或复制（见 AD-7）
+- R2 对象 list/get/put（等 `celld r2` 或单独契约）
+- Workflow 控制动作
+- Queue pull consumer、手动 attach consumer、R2 event notification
+- Cron 平台级「只让 prod 跑 / 多 version 选举」
+- Dashboard 直连 celld 或 RustFS
 
 ---
 
@@ -421,6 +543,11 @@ Token：**DEPLOY_TOKEN**（POST versions）· **ADMIN_TOKEN**（promote/destroy�
 | GET | `/projects/{id}/versions/{vid}` | 轮询 status |
 | POST | `.../versions/{vid}/promote` | cutover prod |
 | DELETE | `.../versions/{vid}` | destroy |
+| GET | `.../versions/{vid}/database` | D1 元数据（已有） |
+| GET | `.../versions/{vid}/bindings` | 绑定清单（§8.4） |
+| * | `.../versions/{vid}/kv/…` | KV operator（§8.4） |
+| * | `.../versions/{vid}/queues/…` | Queue operator（§8.4） |
+| GET | `.../versions/{vid}/workflows/…` | Workflow 只读（§8.4） |
 
 artifact URL **服务端构造**（防 SSRF）。status：`pending` → … → `ready` | `failed`。
 
@@ -437,10 +564,14 @@ artifact URL **服务端构造**（防 SSRF）。status：`pending` → … → 
 | `/` | Project 列表 |
 | `/projects/{id}` | 项目概览 |
 | `/projects/{id}/deployments` | Version 列表 + status |
+| `/projects/{id}/storage` | 绑定总览（D1 / KV / Queue / Workflow / R2 / Cron） |
 | `/projects/{id}/storage/{vid}/browser` | D1 Schema · Data · Query · Branches |
+| `/projects/{id}/storage/{vid}/kv` | KV browser |
+| `/projects/{id}/storage/{vid}/queues` | Queue 控制台 |
+| `/projects/{id}/storage/{vid}/workflows` | Workflow 实例（只读） |
 | `/projects/{id}/versions/{vid}` | Promote · Destroy |
 
-**一期不做：** 实时图表 · 用量统计 · 复杂 SSE 面板（轮询即可）。
+**一期不做：** 实时图表 · 用量统计 · 复杂 SSE 面板（轮询即可）· R2 对象浏览器 · Workflow 控制按钮。
 
 可观测与性能统计 → **三期**（暂不实施）。
 
@@ -460,8 +591,7 @@ curl http://127.0.0.1:8787/demo-app/v-dev1/
 |---|---|
 | 8787 | cellpd Gateway（内置） |
 | 8790 | cellpd API |
-| 8792 | celld |
-| 6379 | Valkey（**二期**；dev 可启） |
+| 8792 | celld（含 Workers KV） |
 | 9000 | RustFS S3 |
 | 9001 | RustFS Console |
 
@@ -517,7 +647,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 | 存储/集成 | V0a–V0d · V1–V7 |
 | 后端门禁 | **VE** — 各端口 HTTP 全链路，无 UI |
 
-**一期不做：** Valkey · Queues · Cron 平台化 · scale-to-zero · 多节点 · **复杂 Dashboard** · **PostgreSQL Registry** · **多租户/RBAC**。
+**一期不做：** KV/R2/Queue branch · R2 浏览器 · Workflow 控制 · scale-to-zero · 多节点 · **PostgreSQL Registry** · **多租户/RBAC**。
 
 ### Phase 6 扩展基线（SQLite 止血 · 2026-08-29）
 
@@ -528,21 +658,33 @@ web/                            # Dashboard（Vite SPA · web/src/）
 |------|-------------|----------|
 | Registry | SQLite + 游标分页 | PostgreSQL（**明确不做**） |
 | Project 规模 | ~10k 实测，List p99 ~260ms | 100万需 PG |
-| Gateway | 路由进程内缓存 | Valkey + 水平扩展（二期+） |
+| Gateway | 路由进程内缓存 | 水平扩展 + 外部路由缓存（二期+，未实现） |
 | 租户 | 单 token | Org/RBAC（**明确不做**） |
 
 **诚实结论：** 在 **SQLite + 单 token** 约束下，6A 分页/GC/缓存已落地；10k project 列表 p99 无法稳定 <200ms，此为存储引擎上限而非实现 bug。
 
-### 二期 — KV / Queue / Cron / 弹性
+### Bindings（本期 · celld 0.4.0）
 
 | 模块 | 交付物 |
 |------|--------|
-| KV | Valkey 绑定 · prefix · `inherit_kv` |
-| Queues | CD 路径接入（方案待定） |
-| Cron | 平台注册 + 多 version 策略 |
-| 弹性 | Gateway wake · 多节点 cellpd |
+| 清单 | `GET …/bindings`；Dashboard Storage 总览 |
+| KV | 包装 `celld kv`；KV browser |
+| Queues | 包装 `celld queue`；pause / peek / redrive / purge |
+| Workflows | `cell list` 只读实例表 |
+| Cron | wrangler 表达式只读 |
+| R2 | 清单徽章 only |
 
-**验证：** [VALIDATION.md](./VALIDATION.md) V8–V12
+**验证：** [VALIDATION.md](./VALIDATION.md) V9–V11（celld 原生 KV / Queue / Workflow）
+
+### 二期 — 弹性（仍延期）
+
+| 模块 | 交付物 |
+|------|--------|
+| 弹性 | Gateway wake · 多节点 cellpd |
+| 路由缓存 | 实现待定（非 Worker KV） |
+| 数据 inherit | **等 celld 提供** KV/R2/Queue/Workflow branch 再立项 |
+
+**验证：** VALIDATION.md V8 · V12
 
 ### 三期 — 可观测 · 性能/统计（暂不计划）
 
@@ -573,4 +715,4 @@ cellp **不包含** Git 托管或 CI 引擎。任意 CI 在构建完成后：
 
 ---
 
-*cellp · 私有化部署 · Project + Version · RustFS 统一对象层 · 2026-08-27*
+*cellp · 私有化部署 · Project + Version · RustFS 统一对象层 · 2026-08-29*

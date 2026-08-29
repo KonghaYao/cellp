@@ -93,7 +93,7 @@
 
 ### [ ] TP6-D1 — 冷热分离与热表稳定
 
-| 交付 | Version 冷归档 worker · Valkey 路由缓存 · RustFS 多节点 |
+| 交付 | Version 冷归档 worker · 路由缓存 · RustFS 多节点 |
 | Track | 6D-T1–T4 |
 | 通过 | **1 亿** version manifest；热表 stable **<10GB** |
 

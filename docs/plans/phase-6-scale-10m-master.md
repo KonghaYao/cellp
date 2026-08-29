@@ -104,7 +104,7 @@ flowchart TB
 
   subgraph gw ["L2 Gateway 层（无状态）"]
     GW1["cellpd-gateway × N"]
-    RC["路由缓存 Redis/Valkey"]
+    RC["路由缓存"]
   end
 
   subgraph cp ["L3 控制面（有状态 metadata）"]
@@ -146,7 +146,7 @@ flowchart TB
 1. **控制面与数据面分离** — Gateway 热路径 **禁止** 同步查 PG/SQLite  
 2. **Cell 化** — 按 `tenant_id` 或 `project_id hash` 分 cell（独立 cellpd 单元）  
 3. **热冷分离** — Version 30 天热表 + S3/Parquet 冷归档  
-4. **私有化不变** — RustFS · 自建 PG · Valkey · 无公有云绑定  
+4. **私有化不变** — RustFS · 自建 PG · 无公有云绑定  
 5. **可降级** — 单 cell 故障不影响全局（bulkhead）
 
 ---
@@ -215,7 +215,7 @@ CREATE TABLE versions_cold_manifest (
 | 层 | 结构 | 读路径 |
 |----|------|--------|
 | **L1** | Gateway 进程内 LRU（prod + 热点 preview） | <1ms |
-| **L2** | Valkey `route:{project}:{version}` → host:port | <5ms |
+| **L2** | 路由缓存 `route:{project}:{version}` → host:port | <5ms |
 | **L3** | PG `routes` 权威 | 写时更新 L1/L2 |
 
 Gateway 读：**L1 → L2 → L3**，写：**PG 事务提交 → pub/sub invalidate**
@@ -226,7 +226,7 @@ Gateway 读：**L1 → L2 → L3**，写：**PG 事务提交 → pub/sub invalid
 |------|------|------|
 | 现况 | SQLite `jobs` + 单 claim | ~10/min 可靠 |
 | 6C | PG `FOR UPDATE SKIP LOCKED` + N workers | ~500/min |
-| 6D | 可选 NATS/Redis Stream（私有化部署） | ~5k/min |
+| 6D | 可选 NATS 消息流（私有化部署） | ~5k/min |
 
 ---
 
@@ -292,7 +292,7 @@ gantt
     多cellpd API          :2027-02, 6w
     section 6D 数据面
     Version冷热归档       :2027-03, 6w
-    Valkey路由层          :2027-04, 4w
+    路由缓存层          :2027-04, 4w
     section 6E 运行时联邦
     celld fleet调度       :2027-05, 8w
     Gateway水平扩展       :2027-06, 6w
@@ -352,7 +352,7 @@ gantt
 |-------|------|
 | **6D-T1** | Version 冷归档 worker（S3 parquet/jsonl） |
 | **6D-T2** | `GET /versions?include=cold` 按需拉冷 |
-| **6D-T3** | Valkey 路由权威缓存 + pub/sub |
+| **6D-T3** | 路由权威缓存 + pub/sub |
 | **6D-T4** | RustFS 多节点 + list 性能调优 |
 
 **Gate TP6-D1：** 1 亿 version manifest；热表 stable <10GB。
@@ -392,7 +392,7 @@ gantt
 | GET | `/v1/projects/{id}/versions?cursor&limit&status&since` | 分页部署 |
 | GET | `/v1/projects/{id}/versions/{vid}/events` | 部署事件流（可选 SSE） |
 | POST | `/v1/projects/{id}/versions/{vid}/retry` | 失败重试 |
-| GET | `/v1/health/deep` | 依赖探针（PG/Valkey/RustFS） |
+| GET | `/v1/health/deep` | 依赖探针（PG/RustFS） |
 
 ### 7.2 必须修改
 
@@ -407,7 +407,7 @@ gantt
 
 | 事件 | 机制 |
 |------|------|
-| Route 变更 | PG trigger → NOTIFY → Valkey SET + Gateway LRU purge |
+| Route 变更 | PG trigger → NOTIFY → 路由缓存 SET + Gateway LRU purge |
 | Prod 指针变更 | 同上 + 原子 swap key `prod:{project}` |
 
 ---
@@ -504,7 +504,7 @@ flowchart LR
 | Workstream | Owner 角色 | 6A | 6B | 6C | 6D | 6E | 6F |
 |------------|-----------|----|----|----|----|----|-----|
 | **Registry/DB** | Backend | 分页 | PG | pool | 归档 | — | 验 |
-| **Gateway** | Backend | cache | — | LB | Valkey | 50k+ | 500k |
+| **Gateway** | Backend | cache | — | LB | 路由缓存 | 50k+ | 500k |
 | **Orchestrator** | Backend | GC | 迁移 | pool | — | 调度 | 风暴 |
 | **Runtime** | Systems | — | — | — | — | fleet | 混沌 |
 | **Dashboard** | Frontend | 分页UI | Auth | SSE | 搜索 | — | E2E |
@@ -577,7 +577,7 @@ flowchart LR
 | 平台 | 控制面 | 运行时 | 启示 |
 |------|--------|--------|------|
 | Vercel | 分布式 metadata + Edge Config | Serverless 多区域 | 路由必须 edge-cache |
-| 自建 PaaS | PG + Redis | 单/多 host | 控制面可水平扩展 |
+| 自建 PaaS | PG + 路由缓存 | 单/多 host | 控制面可水平扩展 |
 | K8s+Knative | etcd | Pod 调度 | cellp 6E 方向 |
 
 ---

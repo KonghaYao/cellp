@@ -7,7 +7,7 @@ import {
   type ProjectDetail,
   type Version,
 } from "@/lib/cellp-api";
-import { deriveProdUrl } from "@/lib/format";
+import { resolveProdUrl } from "@/lib/format";
 import { DeploymentsTable } from "@/components/deployments-table";
 import { DeploymentsFilterBar } from "@/components/deployments-filter-bar";
 import { EmptyState } from "@/components/empty-state";
@@ -109,6 +109,13 @@ export function DeploymentsPage() {
     [versions],
   );
 
+  const hasActiveFilters =
+    Boolean(branchFilter) || Boolean(statusFilter) || !hideDestroyed;
+
+  function clearFilters() {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }
+
   if (notFound) {
     return (
       <div className="space-y-4 py-16 text-center">
@@ -123,7 +130,11 @@ export function DeploymentsPage() {
   }
 
   const prodVersion = versions.find((v) => v.id === project?.prod_version_id);
-  const prodUrl = deriveProdUrl(id, prodVersion?.preview_url);
+  const prodUrl = resolveProdUrl(
+    id,
+    project?.prod_url,
+    prodVersion?.preview_url,
+  );
 
   return (
     <div className="space-y-6">
@@ -167,11 +178,27 @@ export function DeploymentsPage() {
         </div>
       )}
 
-      {!loading && !error && filtered.length === 0 && (
+      {!loading && !error && filtered.length === 0 && versions.length === 0 && (
         <EmptyState
-          title="No deployments match filters"
-          description="Adjust filters or create a version with POST /v1/projects/{id}/versions."
+          title="No deployments yet"
+          description="Deploy a version with the cellp CLI or your CI pipeline to see it here."
         />
+      )}
+
+      {!loading && !error && filtered.length === 0 && versions.length > 0 && (
+        <div className="space-y-4">
+          <EmptyState
+            title="No deployments match your filters"
+            description="Try adjusting branch or status filters, or show destroyed deployments."
+          />
+          {hasActiveFilters && (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {!loading && !error && filtered.length > 0 && project && (

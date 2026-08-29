@@ -27,6 +27,9 @@ e2e/scripts/
   v1-d1-branch-multi-100mb.sh  # 100 MB parent + 3 sibling branches (manual; heavy)
   ve-cd-loop.sh              # POST version → poll ready → curl gateway
   ve-promote.sh              # promote → 验证 prod 切换
+  v9-kv.sh                   # KV put/get + sibling isolation (:8790)
+  v10-queue.sh               # Queue info/peek/purge (producer-only)
+  v11-workflow-cron.sh       # Workflow instances ≠ 500 + cron bindings
 ```
 
 ### TP-V1 — D1 binary import (`v1-d1-seed.sh`)
@@ -55,5 +58,24 @@ D1_BRANCH_MULTI_SIZE_MB=100 D1_BRANCH_MULTI_COUNT=3 \
 ```
 
 证据：`docs/evidence/d1-branch-multi-100mb.json`。压测档见 `stress/phase6/d1-branch-scale.sh`。
+
+### Bindings — TP-V9 / TP-V10 / TP-V11
+
+端口级 curl，**不**用浏览器（Dashboard 是 T4 / TP-UI-7..12）。`run-all.sh` 在 `v7-external-ci.sh` 之后执行这三条（见 `e2e/scripts/MANIFEST`）。
+
+| ID | 脚本 | 通过 |
+|----|------|------|
+| **TP-V9** | `e2e/scripts/v9-kv.sh` | `celld/examples/kv` deploy；`:8790` PUT/GET；子 version 同 key **404** |
+| **TP-V10** | `e2e/scripts/v10-queue.sh` | `dev/examples/queue` producer-only（celld：consumer 不能 `export fetch`）；info/peek；purge 无 `force` → 400 |
+| **TP-V11** | `e2e/scripts/v11-workflow-cron.sh` | bindings 含 workflow + cron；`GET …/workflows/{name}/instances` **不 500** |
+
+```bash
+./e2e/scripts/v9-kv.sh
+./e2e/scripts/v10-queue.sh
+./e2e/scripts/v11-workflow-cron.sh
+RUN_GATES=0 ./e2e/scripts/run-all.sh
+```
+
+栈未起来时脚本 **SKIP**（exit 0 + 说明）。健康路径：`/.well-known/celld/health`（`health-all.sh`）。
 
 验收标准见 [VALIDATION.md](../VALIDATION.md#ve--端口级-e2e后端-p0-完成门禁--前端开工前必过)。

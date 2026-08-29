@@ -214,6 +214,53 @@ func TestD1ExecutePassesDatabaseName(t *testing.T) {
 	}
 }
 
+func TestD1ExecuteRemovesWalSidecar(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	celld := filepath.Join(bin, "celld")
+	if err := os.WriteFile(celld, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	projectDir := filepath.Join(root, "project")
+	if err := os.Mkdir(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wrangler := `{
+  "d1_databases": [
+    { "database_name": "guestbook", "database_id": "00000000-0000-0000-0000-000000000000" }
+  ]
+}`
+	if err := os.WriteFile(filepath.Join(projectDir, "wrangler.jsonc"), []byte(wrangler), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	seedPath := filepath.Join(root, "seed.db")
+	if err := os.WriteFile(seedPath, []byte("SQLite format 3\x00"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(seedPath+"-wal", []byte("wal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(seedPath+"-shm", []byte("shm"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := New(8792, "http://127.0.0.1:9000", "us-east-1", "s3://cellp-celld/demo", "k", "s")
+	if err := m.D1Execute(context.Background(), "demo", "v1", projectDir, seedPath); err != nil {
+		t.Fatalf("D1Execute: %v", err)
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, err := os.Stat(seedPath + suffix); !os.IsNotExist(err) {
+			t.Fatalf("expected %s removed, err=%v", seedPath+suffix, err)
+		}
+	}
+}
+
 func TestD1ExecuteRejectsMultipleD1Databases(t *testing.T) {
 	root := t.TempDir()
 	bin := filepath.Join(root, "bin")

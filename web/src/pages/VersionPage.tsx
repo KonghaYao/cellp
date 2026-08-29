@@ -14,6 +14,7 @@ export function VersionPage() {
   const { id = "", vid = "" } = useParams<{ id: string; vid: string }>();
   const [version, setVersion] = useState<Version | null>(null);
   const [prodVersionId, setProdVersionId] = useState<string | null>(null);
+  const [prodUrl, setProdUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -25,6 +26,7 @@ export function VersionPage() {
     ]);
     setVersion(v);
     setProdVersionId(project.prod_version_id);
+    setProdUrl(project.prod_url ?? null);
     setError(null);
     setNotFound(false);
   }, [id, vid]);
@@ -41,6 +43,7 @@ export function VersionPage() {
         if (!cancelled) {
           setVersion(v);
           setProdVersionId(project.prod_version_id);
+          setProdUrl(project.prod_url ?? null);
           setError(null);
           setNotFound(false);
         }
@@ -115,6 +118,7 @@ export function VersionPage() {
           versionId={vid}
           initialVersion={version}
           prodVersionId={prodVersionId}
+          prodUrl={prodUrl}
           onRefresh={handleRefresh}
         />
       )}

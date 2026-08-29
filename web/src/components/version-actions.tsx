@@ -30,7 +30,9 @@ export function VersionActions({
 
   const isProdNow = isProd || promoted;
   const canPromote = status === "ready" && !isProdNow;
-  const canDestroy = status !== "destroyed" && status !== "draining";
+  const canDestroy =
+    status !== "destroyed" && status !== "draining" && !isProdNow;
+  const destroyBlockedByProd = isProdNow && status !== "destroyed" && status !== "draining";
 
   function showFeedback(message: string) {
     setFeedback(message);
@@ -88,6 +90,11 @@ export function VersionActions({
           <Rocket className="size-3.5" />
           Promote to prod
         </Button>
+      )}
+      {destroyBlockedByProd && (
+        <span className="text-sm text-muted-foreground">
+          Demote or promote another version first
+        </span>
       )}
       {canDestroy && (
         <Button

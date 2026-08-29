@@ -1,0 +1,30 @@
+{
+  "name": "bindings-demo",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "guestbook",
+      "database_id": "00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "demo-app-cache"
+    }
+  ],
+  "queues": {
+    "producers": [{ "binding": "TASKS", "queue": "tasks" }]
+  },
+  "workflows": [
+    {
+      "binding": "REPORTS",
+      "name": "report-builder",
+      "class_name": "ReportBuilder"
+    }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "demo-assets" }],
+  "triggers": { "crons": ["0 * * * *"] }
+}

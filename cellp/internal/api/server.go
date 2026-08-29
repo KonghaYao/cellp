@@ -44,7 +44,7 @@ func (s *Server) Handler() http.Handler {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -76,11 +76,37 @@ func (s *Server) routes() {
 					r.Post("/promote", s.requireAdmin(s.handlePromote))
 					r.Delete("/", s.requireAdmin(s.handleDestroy))
 
+					r.Get("/bindings", s.requireAdmin(s.handleGetBindings))
+					r.Get("/workflows", s.requireAdmin(s.handleListWorkflows))
+					r.Get("/workflows/{name}/instances", s.requireAdmin(s.handleListWorkflowInstances))
+
 					r.Route("/database", func(r chi.Router) {
 						r.Get("/", s.requireAdmin(s.handleGetDatabase))
 						r.Get("/tables", s.requireAdmin(s.handleListDatabaseTables))
 						r.Get("/tables/{tableName}/rows", s.requireAdmin(s.handleGetDatabaseTableRows))
 						r.Post("/query", s.requireAdmin(s.handleDatabaseQuery))
+					})
+
+					r.Route("/kv", func(r chi.Router) {
+						r.Get("/", s.requireAdmin(s.handleListKVNamespaces))
+						r.Route("/{ns}", func(r chi.Router) {
+							r.Get("/", s.requireAdmin(s.handleGetKVInfo))
+							r.Get("/keys", s.requireAdmin(s.handleListKVKeys))
+							r.Get("/keys/{key:*}", s.requireAdmin(s.handleGetKVValue))
+							r.Put("/keys/{key:*}", s.requireAdmin(s.handlePutKVValue))
+							r.Delete("/keys/{key:*}", s.requireAdmin(s.handleDeleteKVValue))
+						})
+					})
+					r.Route("/queues", func(r chi.Router) {
+						r.Get("/", s.requireAdmin(s.handleListQueues))
+						r.Route("/{name}", func(r chi.Router) {
+							r.Get("/", s.requireAdmin(s.handleGetQueueInfo))
+							r.Get("/peek", s.requireAdmin(s.handlePeekQueue))
+							r.Post("/pause", s.requireAdmin(s.handlePauseQueue))
+							r.Post("/resume", s.requireAdmin(s.handleResumeQueue))
+							r.Post("/redrive", s.requireAdmin(s.handleRedriveQueue))
+							r.Post("/purge", s.requireAdmin(s.handlePurgeQueue))
+						})
 					})
 				})
 			})
@@ -110,10 +136,10 @@ func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 		code = http.StatusServiceUnavailable
 	}
 	writeJSON(w, code, map[string]interface{}{
-		"status":        status,
-		"registry":      s.cfg.RegistryDB,
-		"pending_jobs":  pending,
-		"queue_max":     max,
+		"status":       status,
+		"registry":     s.cfg.RegistryDB,
+		"pending_jobs": pending,
+		"queue_max":    max,
 	})
 }
 
@@ -171,6 +197,7 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	page, err := s.store.ListProjects(r.Context(), registry.ListProjectsOpts{
 		Limit:  parsePageLimit(r),
 		Cursor: r.URL.Query().Get("cursor"),
+		Query:  strings.TrimSpace(r.URL.Query().Get("q")),
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "cursor") {
@@ -218,7 +245,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := map[string]interface{}{
 		"id": p.ID, "git_remote": p.GitRemote, "prod_version_id": p.ProdVersionID,
-		"prod_url": prodURL(s.cfg.GatewayURL, projectID),
+		"prod_url":   prodURL(s.cfg.GatewayURL, projectID),
 		"created_at": p.CreatedAt, "version_count": versionCount,
 		"versions_url": "/v1/projects/" + projectID + "/versions",
 	}

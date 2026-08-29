@@ -42,20 +42,6 @@ export CELLD_VAR_VERSION_ID="$VERSION"
   celld deploy . --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION"
 )
 
-# Restart celld to pick up deploy
-if [[ -f dev/data/pids/celld.pid ]]; then
-  kill "$(cat dev/data/pids/celld.pid)" 2>/dev/null || true
-  sleep 1
-fi
-celld --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
-  --listen "127.0.0.1:${CELLD_PORT}" >>dev/data/logs/celld.log 2>&1 &
-echo $! > dev/data/pids/celld.pid
-
-for i in $(seq 1 60); do
-  curl -sf "http://127.0.0.1:${CELLD_PORT}/__celld/health" >/dev/null && break
-  sleep 1
-done
-
 echo "==> [3/5] register version in platform API"
 RESP=$(curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions" \
   -H "Authorization: Bearer ${PLATFORM_TOKEN}" \

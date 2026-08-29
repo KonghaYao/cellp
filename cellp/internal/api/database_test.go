@@ -53,7 +53,7 @@ if [ "$1" = "d1" ] && [ "$2" = "execute" ]; then
     *COUNT\(\*\)*)
       echo '{"cnt":42}'
       ;;
-    *SELECT\ \*\ FROM\ \"users\"*)
+    *SELECT\ \*\ FROM\ \"users\"*|*SELECT\ \*\ FROM\ users*)
       echo '{"id":1,"email":"alice@example.com"}'
       echo '{"id":2,"email":"bob@example.com"}'
       ;;

@@ -8,6 +8,7 @@ import {
   listVersions,
   CellpApiError,
   type DatabaseMetadata,
+  type DatabaseUnavailableReason,
   type Version,
 } from "@/lib/cellp-api";
 import { storageBrowserHref, storageHref, versionHref } from "@/lib/routes";
@@ -35,6 +36,79 @@ async function loadAllVersions(projectId: string): Promise<Version[]> {
   return all;
 }
 
+type LoadErrorKind = "version_not_found" | DatabaseUnavailableReason | "server";
+
+function classifyDatabaseError(e: unknown): {
+  kind: LoadErrorKind;
+  message: string;
+} {
+  if (e instanceof CellpApiError) {
+    if (e.status === 404) {
+      const code =
+        typeof e.body === "object" &&
+        e.body !== null &&
+        "error" in e.body &&
+        typeof (e.body as { error: unknown }).error === "string"
+          ? (e.body as { error: string }).error
+          : "";
+      if (code === "version_not_found" || code === "project_not_found") {
+        return { kind: "version_not_found", message: "Version not found" };
+      }
+      if (code === "version_not_ready" || code.includes("not_ready")) {
+        return {
+          kind: "not_ready",
+          message: "Deployment is not ready yet — database is not available",
+        };
+      }
+      return {
+        kind: "not_found",
+        message: "No database attached to this deployment",
+      };
+    }
+    return {
+      kind: "server",
+      message: `${e.message} (${e.status})`,
+    };
+  }
+  return {
+    kind: "network",
+    message: "Could not reach the API — check your connection and try again",
+  };
+}
+
+function DatabaseErrorState({
+  kind,
+  message,
+  projectId,
+}: {
+  kind: LoadErrorKind;
+  message: string;
+  projectId: string;
+}) {
+  const title =
+    kind === "version_not_found"
+      ? "Version not found"
+      : kind === "not_ready"
+        ? "Database not ready"
+        : kind === "not_found"
+          ? "Database not found"
+          : kind === "network"
+            ? "Connection error"
+            : "Failed to load database";
+
+  return (
+    <div className="space-y-4 py-16 text-center">
+      <h1 className="text-2xl font-semibold">{title}</h1>
+      <p className="text-muted-foreground">{message}</p>
+      <p>
+        <Link to={`/projects/${projectId}/storage`} className="hover:underline">
+          Back to storage
+        </Link>
+      </p>
+    </div>
+  );
+}
+
 export function DatabasePage() {
   const { id = "", vid = "" } = useParams<{ id: string; vid: string }>();
   const [database, setDatabase] = useState<DatabaseMetadata | null>(null);
@@ -43,22 +117,30 @@ export function DatabasePage() {
   const [prodVersionId, setProdVersionId] = useState<string | null>(null);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const [fatalError, setFatalError] = useState<{
+    kind: LoadErrorKind;
+    message: string;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
-    const [project, v, allVersions, db] = await Promise.all([
+    const [project, v, allVersions] = await Promise.all([
       getProject(id),
       getVersion(id, vid),
       loadAllVersions(id),
-      getDatabase(id, vid),
     ]);
     setVersion(v);
     setVersions(allVersions);
     setProdVersionId(project.prod_version_id);
-    setDatabase(db);
-    setError(null);
-    setNotFound(false);
+
+    try {
+      const db = await getDatabase(id, vid);
+      setDatabase(db);
+      setFatalError(null);
+    } catch (e) {
+      setDatabase(null);
+      setFatalError(classifyDatabaseError(e));
+      throw e;
+    }
   }, [id, vid]);
 
   useEffect(() => {
@@ -66,30 +148,38 @@ export function DatabasePage() {
     (async () => {
       setLoading(true);
       setSelectedTable(null);
+      setFatalError(null);
       try {
-        const [project, v, allVersions, db] = await Promise.all([
+        const [project, v, allVersions] = await Promise.all([
           getProject(id),
           getVersion(id, vid),
           loadAllVersions(id),
-          getDatabase(id, vid),
         ]);
         if (cancelled) return;
         setVersion(v);
         setVersions(allVersions);
         setProdVersionId(project.prod_version_id);
-        setDatabase(db);
-        setError(null);
-        setNotFound(false);
+
+        try {
+          const db = await getDatabase(id, vid);
+          if (cancelled) return;
+          setDatabase(db);
+          setFatalError(null);
+        } catch (e) {
+          if (!cancelled) {
+            setDatabase(null);
+            setFatalError(classifyDatabaseError(e));
+          }
+        }
       } catch (e) {
         if (!cancelled) {
           if (e instanceof CellpApiError && e.status === 404) {
-            setNotFound(true);
+            setFatalError({
+              kind: "version_not_found",
+              message: "Version not found",
+            });
           } else {
-            setError(
-              e instanceof CellpApiError
-                ? `${e.message} (${e.status})`
-                : "Failed to load database",
-            );
+            setFatalError(classifyDatabaseError(e));
           }
         }
       } finally {
@@ -101,19 +191,13 @@ export function DatabasePage() {
     };
   }, [id, vid]);
 
-  if (notFound) {
+  if (!loading && fatalError) {
     return (
-      <div className="space-y-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold">Database not available</h1>
-        <p className="text-muted-foreground">
-          This version may not be ready or has no database attached.
-        </p>
-        <p>
-          <Link to={`/projects/${id}`} className="hover:underline">
-            Back to project
-          </Link>
-        </p>
-      </div>
+      <DatabaseErrorState
+        kind={fatalError.kind}
+        message={fatalError.message}
+        projectId={id}
+      />
     );
   }
 
@@ -155,13 +239,7 @@ export function DatabasePage() {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {!loading && !error && database && version && (
+      {!loading && !fatalError && database && version && (
         <>
           <Card>
             <CardHeader className="pb-3">

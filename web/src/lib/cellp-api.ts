@@ -44,6 +44,8 @@ export interface Version {
 export interface ProjectDetail {
   id: string;
   prod_version_id: string | null;
+  /** Production gateway URL from API ({GATEWAY_URL}/{projectID}/). */
+  prod_url?: string | null;
   git_remote: string | null;
   created_at: string;
   version_count?: number;
@@ -64,6 +66,19 @@ export interface PaginatedVersions {
 export interface ListProjectsOptions {
   cursor?: string | null;
   limit?: number;
+  q?: string;
+}
+
+/** @deprecated Server-side ?q= search replaces client-side pagination cap. */
+export const PROJECT_SEARCH_MAX_PAGES = 10;
+
+export function projectMatchesQuery(
+  project: ProjectSummary,
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return project.id.toLowerCase().includes(q);
 }
 
 export interface ListVersionsOptions {
@@ -75,6 +90,191 @@ export interface ListVersionsOptions {
 /** Default page size for cursor lists (override via VITE_CELLP_PAGE_SIZE). */
 export const LIST_PAGE_SIZE =
   Number(import.meta.env.VITE_CELLP_PAGE_SIZE) || 50;
+
+/** GET …/bindings — DESIGN §8.4 / OpenAPI `Bindings` (six arrays). */
+export interface Bindings {
+  d1: BindingsD1[];
+  kv: BindingsKV[];
+  queues: BindingsQueue[];
+  workflows: BindingsWorkflow[];
+  r2: BindingsR2[];
+  crons: string[];
+}
+
+export interface BindingsD1 {
+  binding: string;
+  database_name: string;
+  database_id?: string;
+}
+
+export interface BindingsKV {
+  binding: string;
+  /** wrangler `kv_namespaces[].id` — path `{ns}` verbatim. */
+  id: string;
+}
+
+export interface BindingsQueue {
+  name: string;
+  binding?: string;
+  consumer: boolean;
+  dead_letter_queue?: string;
+}
+
+export interface BindingsWorkflow {
+  binding: string;
+  name: string;
+  class_name: string;
+}
+
+export interface BindingsR2 {
+  binding: string;
+  bucket_name: string;
+}
+
+export function emptyBindings(): Bindings {
+  return {
+    d1: [],
+    kv: [],
+    queues: [],
+    workflows: [],
+    r2: [],
+    crons: [],
+  };
+}
+
+export function normalizeBindings(
+  data: Partial<Bindings> | null | undefined,
+): Bindings {
+  return {
+    d1: data?.d1 ?? [],
+    kv: data?.kv ?? [],
+    queues: data?.queues ?? [],
+    workflows: data?.workflows ?? [],
+    r2: data?.r2 ?? [],
+    crons: data?.crons ?? [],
+  };
+}
+
+export function hasAnyBindings(bindings: Bindings): boolean {
+  return (
+    bindings.d1.length +
+      bindings.kv.length +
+      bindings.queues.length +
+      bindings.workflows.length +
+      bindings.r2.length +
+      bindings.crons.length >
+    0
+  );
+}
+
+export interface KvNamespace {
+  id: string;
+  binding: string;
+}
+
+export interface KvNamespacesResponse {
+  namespaces: KvNamespace[];
+}
+
+export interface KvKey {
+  name: string;
+  expiration?: number;
+  metadata?: unknown;
+}
+
+export interface KvListResult {
+  keys: KvKey[];
+  cursor?: string;
+}
+
+export interface ListKvKeysOptions {
+  prefix?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface KvValue {
+  key: string;
+  value: string;
+  encoding: "utf-8" | "base64" | string;
+}
+
+export interface KvPutBody {
+  value: string;
+  ttl?: number;
+  metadata?: Record<string, unknown> | string;
+  base64?: boolean;
+  binary?: boolean;
+}
+
+export interface KvInfo {
+  keys: number;
+  bytes: number;
+  stored: number;
+  /** celld `kv info` live count; treat as `keys` when omitted. */
+  live?: number;
+}
+
+export interface QueueListItem {
+  name: string;
+}
+
+export interface QueueListResponse {
+  queues: QueueListItem[];
+}
+
+export interface QueuePeekMessage {
+  id?: string;
+  bodyBase64?: string;
+  contentType?: string;
+  [key: string]: unknown;
+}
+
+export interface QueuePeekResult {
+  messages?: QueuePeekMessage[];
+  [key: string]: unknown;
+}
+
+export interface QueueInfo {
+  name?: string;
+  paused?: boolean;
+  pending?: number;
+  backlogCount?: number;
+  backlogBytes?: number;
+  stored?: number;
+  oldestMessageTimestamp?: number | string | null;
+  [key: string]: unknown;
+}
+
+export interface WorkflowListItem {
+  binding: string;
+  workflow_name: string;
+  class_name: string;
+}
+
+export interface WorkflowListResponse {
+  workflows: WorkflowListItem[];
+}
+
+export interface WorkflowInstance {
+  scope?: string;
+  class?: string;
+  id: string;
+  reserved?: boolean;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WorkflowInstances {
+  workflow_name: string;
+  binding: string;
+  script_name?: string;
+  filter?: "workflow" | "script" | string;
+  limitation?: string | null;
+  wrangler_workflows?: string[];
+  instances: WorkflowInstance[];
+}
 
 export interface PromoteResponse {
   status: string;
@@ -203,6 +403,10 @@ async function request<T>(
     throw new CellpApiError(msg, res.status, body);
   }
 
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return body as T;
 }
 
@@ -215,6 +419,10 @@ function buildQuery(params: Record<string, string | undefined>): string {
   return s ? `?${s}` : "";
 }
 
+function versionRoot(projectId: string, versionId: string): string {
+  return `/v1/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`;
+}
+
 export async function listProjects(
   options: ListProjectsOptions = {},
 ): Promise<PaginatedProjects> {
@@ -222,6 +430,7 @@ export async function listProjects(
   const query = buildQuery({
     limit: String(limit),
     cursor: options.cursor ?? undefined,
+    q: options.q,
   });
   const data = await request<PaginatedProjects>(`/v1/projects${query}`);
   return {
@@ -296,6 +505,264 @@ export async function fetchVersionClient(
   return getVersion(projectId, versionId);
 }
 
+export async function getBindings(
+  projectId: string,
+  versionId: string,
+): Promise<Bindings> {
+  const data = await request<Partial<Bindings>>(
+    `${versionRoot(projectId, versionId)}/bindings`,
+  );
+  return normalizeBindings(data);
+}
+
+export async function listKvNamespaces(
+  projectId: string,
+  versionId: string,
+): Promise<KvNamespacesResponse> {
+  const data = await request<KvNamespacesResponse>(
+    `${versionRoot(projectId, versionId)}/kv`,
+  );
+  return { namespaces: data.namespaces ?? [] };
+}
+
+export async function listKvKeys(
+  projectId: string,
+  versionId: string,
+  ns: string,
+  options: ListKvKeysOptions = {},
+): Promise<KvListResult> {
+  const query = buildQuery({
+    prefix: options.prefix,
+    cursor: options.cursor,
+    limit: options.limit != null ? String(options.limit) : undefined,
+  });
+  const data = await request<KvListResult>(
+    `${versionRoot(projectId, versionId)}/kv/${encodeURIComponent(ns)}/keys${query}`,
+  );
+  return { keys: data.keys ?? [], cursor: data.cursor };
+}
+
+export async function getKvKey(
+  projectId: string,
+  versionId: string,
+  ns: string,
+  key: string,
+): Promise<KvValue> {
+  return request<KvValue>(
+    `${versionRoot(projectId, versionId)}/kv/${encodeURIComponent(ns)}/keys/${encodeURIComponent(key)}`,
+  );
+}
+
+export async function putKvKey(
+  projectId: string,
+  versionId: string,
+  ns: string,
+  key: string,
+  body: KvPutBody,
+): Promise<void> {
+  await request<void>(
+    `${versionRoot(projectId, versionId)}/kv/${encodeURIComponent(ns)}/keys/${encodeURIComponent(key)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function deleteKvKey(
+  projectId: string,
+  versionId: string,
+  ns: string,
+  key: string,
+): Promise<void> {
+  await request<void>(
+    `${versionRoot(projectId, versionId)}/kv/${encodeURIComponent(ns)}/keys/${encodeURIComponent(key)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function getKvInfo(
+  projectId: string,
+  versionId: string,
+  ns: string,
+): Promise<KvInfo> {
+  return request<KvInfo>(
+    `${versionRoot(projectId, versionId)}/kv/${encodeURIComponent(ns)}`,
+  );
+}
+
+export async function listQueues(
+  projectId: string,
+  versionId: string,
+): Promise<QueueListResponse> {
+  const data = await request<QueueListResponse>(
+    `${versionRoot(projectId, versionId)}/queues`,
+  );
+  return { queues: data.queues ?? [] };
+}
+
+export async function getQueue(
+  projectId: string,
+  versionId: string,
+  name: string,
+): Promise<QueueInfo> {
+  return request<QueueInfo>(
+    `${versionRoot(projectId, versionId)}/queues/${encodeURIComponent(name)}`,
+  );
+}
+
+export async function peekQueue(
+  projectId: string,
+  versionId: string,
+  name: string,
+  limit?: number,
+): Promise<QueuePeekResult> {
+  const query = buildQuery({
+    limit: limit != null ? String(limit) : undefined,
+  });
+  return request<QueuePeekResult>(
+    `${versionRoot(projectId, versionId)}/queues/${encodeURIComponent(name)}/peek${query}`,
+  );
+}
+
+export async function pauseQueue(
+  projectId: string,
+  versionId: string,
+  name: string,
+): Promise<unknown> {
+  return request(
+    `${versionRoot(projectId, versionId)}/queues/${encodeURIComponent(name)}/pause`,
+    { method: "POST" },
+  );
+}
+
+export async function resumeQueue(
+  projectId: string,
+  versionId: string,
+  name: string,
+): Promise<unknown> {
+  return request(
+    `${versionRoot(projectId, versionId)}/queues/${encodeURIComponent(name)}/resume`,
+    { method: "POST" },
+  );
+}
+
+export async function redriveQueue(
+  projectId: string,
+  versionId: string,
+  name: string,
+  limit?: number,
+): Promise<unknown> {
+  const query = buildQuery({
+    limit: limit != null ? String(limit) : undefined,
+  });
+  return request(
+    `${versionRoot(projectId, versionId)}/queues/${encodeURIComponent(name)}/redrive${query}`,
+    { method: "POST" },
+  );
+}
+
+export async function purgeQueue(
+  projectId: string,
+  versionId: string,
+  name: string,
+  body: { force: true },
+): Promise<unknown> {
+  return request(
+    `${versionRoot(projectId, versionId)}/queues/${encodeURIComponent(name)}/purge`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function listWorkflows(
+  projectId: string,
+  versionId: string,
+): Promise<WorkflowListResponse> {
+  const data = await request<WorkflowListResponse>(
+    `${versionRoot(projectId, versionId)}/workflows`,
+  );
+  return { workflows: data.workflows ?? [] };
+}
+
+export async function listWorkflowInstances(
+  projectId: string,
+  versionId: string,
+  name: string,
+): Promise<WorkflowInstances> {
+  const data = await request<WorkflowInstances>(
+    `${versionRoot(projectId, versionId)}/workflows/${encodeURIComponent(name)}/instances`,
+  );
+  return {
+    workflow_name: data.workflow_name,
+    binding: data.binding,
+    script_name: data.script_name,
+    filter: data.filter,
+    limitation: data.limitation ?? null,
+    wrangler_workflows: data.wrangler_workflows ?? [],
+    instances: data.instances ?? [],
+  };
+}
+
+function apiErrorCode(body: unknown): string {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    typeof (body as { error: unknown }).error === "string"
+  ) {
+    return (body as { error: string }).error;
+  }
+  return "";
+}
+
+export function bindingsErrorMessage(e: unknown): {
+  title: string;
+  description: string;
+} {
+  if (e instanceof CellpApiError) {
+    const code = apiErrorCode(e.body);
+    if (e.status === 404) {
+      if (code === "version_not_found") {
+        return {
+          title: "Deployment not found",
+          description:
+            "This version no longer exists. Pick another deployment from the switcher.",
+        };
+      }
+      if (code === "version_not_ready") {
+        return {
+          title: "Deployment not ready",
+          description:
+            "Bindings are available once the deployment reaches ready status.",
+        };
+      }
+      if (code === "wrangler_not_found" || code === "bindings_not_found") {
+        return {
+          title: "No wrangler manifest",
+          description:
+            "This deployment artifact has no wrangler.jsonc. Redeploy with a valid Worker bundle.",
+        };
+      }
+      return {
+        title: "Bindings API not available",
+        description:
+          "The cellpd server does not expose the bindings route yet. Rebuild and restart cellpd, then reload this page.",
+      };
+    }
+    return {
+      title: "Could not load bindings",
+      description: `${e.message} (${e.status})`,
+    };
+  }
+  return {
+    title: "Could not load bindings",
+    description: "Check your connection to the cellp API and try again.",
+  };
+}
+
 export async function getDatabase(
   projectId: string,
   versionId: string,
@@ -303,6 +770,71 @@ export async function getDatabase(
   return request<DatabaseMetadata>(
     `/v1/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/database`,
   );
+}
+
+export type DatabaseUnavailableReason =
+  | "not_found"
+  | "not_ready"
+  | "network"
+  | "server";
+
+export type DatabaseAvailability =
+  | { available: true; database: DatabaseMetadata }
+  | {
+      available: false;
+      reason: DatabaseUnavailableReason;
+      message: string;
+    };
+
+function databaseErrorCode(body: unknown): string {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    typeof (body as { error: unknown }).error === "string"
+  ) {
+    return (body as { error: string }).error;
+  }
+  return "";
+}
+
+/** Probe whether a version has an attached database (for gating links). */
+export async function checkDatabaseAvailability(
+  projectId: string,
+  versionId: string,
+): Promise<DatabaseAvailability> {
+  try {
+    const database = await getDatabase(projectId, versionId);
+    return { available: true, database };
+  } catch (e) {
+    if (e instanceof CellpApiError) {
+      if (e.status === 404) {
+        const code = databaseErrorCode(e.body);
+        if (code === "version_not_ready" || code.includes("not_ready")) {
+          return {
+            available: false,
+            reason: "not_ready",
+            message: "Deployment is not ready yet",
+          };
+        }
+        return {
+          available: false,
+          reason: "not_found",
+          message: "No database attached to this deployment",
+        };
+      }
+      return {
+        available: false,
+        reason: "server",
+        message: `${e.message} (${e.status})`,
+      };
+    }
+    return {
+      available: false,
+      reason: "network",
+      message: "Could not reach the API",
+    };
+  }
 }
 
 export async function listDatabaseTables(

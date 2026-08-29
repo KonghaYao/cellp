@@ -1,0 +1,11 @@
+// Producer-only. celld: a queue consumer script cannot also export fetch().
+// Do not add queues.consumers here — T5 v10-queue.sh deploys this Worker and
+// POSTs /enqueue, then peeks via cellpd :8790.
+{
+  "name": "queue-producer",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "queues": {
+    "producers": [{ "binding": "TASKS", "queue": "tasks" }]
+  }
+}

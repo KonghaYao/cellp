@@ -12,7 +12,7 @@
 | 我想… | 读这个 |
 |--------|--------|
 | 理解整体架构 | [DESIGN.md](../DESIGN.md) |
-| 查当前有效决策（AD-1..5、D1、存储 tier） | [decisions.md](./decisions.md) |
+| 查当前有效决策（AD-1..7、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
 | 跑验收 / 看门禁 | [test-plan.md](./test-plan.md) |
 | 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
 | 改 Dashboard | [../web/AGENTS.md](../web/AGENTS.md) |
@@ -53,6 +53,7 @@
 | 4 | [phase-4-dashboard.md](./plans/phase-4-dashboard.md) | M1 TP-VE-ALL | ✅ |
 | 5 | [phase-5-stress.md](./plans/phase-5-stress.md) | M2 | 见 phase2 压测 |
 | 6 | [phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) | M3 / 6A | **6A 实现完成**（SQLite scope；6B–6F OUT OF SCOPE） |
+| 7 | [phase-7-bindings.md](./plans/phase-7-bindings.md) | AD-6 · AD-7 | **计划中** — celld 0.4.0 KV / Queue / Workflow / Cron |
 
 ### v1 收尾（2026-08-29）
 

@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-08-29
+> **最后更新：** 2026-08-29（含 AD-6 · AD-7）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -16,7 +16,8 @@
 | **Git / CI** | 外部边界；cellp 只收 artifact + `POST /versions` |
 | **Registry** | SQLite（`cellp-registry.sqlite`，WAL）；**不用 PostgreSQL** |
 | **Gateway** | cellpd **内置** reverse proxy；用户自有 TLS/LB 反代即可 |
-| **一期范围** | CD + Branch + Version + promote/saga；≤5 ready versions / project；**不含** KV / Queue / Cron 平台能力 |
+| **一期范围** | CD + Branch + Version + promote/saga；≤5 ready versions / project |
+| **Bindings（本期）** | 沿用 celld 0.4.0 KV / Queue / Workflow / Cron；R2 清单；**无 branch 则空起步**（AD-6 · AD-7） |
 
 ---
 
@@ -164,7 +165,7 @@ flowchart LR
 |------|------|------------|
 | `cellp/` | Go 控制面（API · Orchestrator · Gateway · Registry） | module root；`cd cellp && go test ./...` |
 | `celld/` | Rust 运行时（git submodule） | 改 D1/LTX 后 `cargo build -p celld --profile lab` 并重装 |
-| `web/` | Dashboard（Vite + React） | **仅消费** `:8790` API；禁止直连 `:8792` / offshoot |
+| `web/` | Dashboard（Vite + React） | **仅消费** `:8790` API；禁止直连 `:8792` / offshoot / S3 |
 | `dev/` | 本地栈脚本 | `up.sh` / `health.sh` / `simulate-cd.sh` |
 | `e2e/` | 端口级集成验收 | `run-all.sh` = M1/M2 门禁 |
 | `stress/` | 压测 harness | phase5 = 生产压测；phase6 = 千万扩展 / D1 scale |
@@ -181,3 +182,42 @@ flowchart LR
 | **架构决策**（AD-*） | 更新本文件 + `plans/REVIEW.md` |
 | **验收状态** | 更新 `test-plan.md` + `docs/evidence/` |
 | **实施计划**（已完成） | 保留只读；状态标「已完成」 |
+
+---
+
+## 11. AD-6 — Worker 绑定沿用 celld 0.4.0
+
+**问题：** Worker 绑定（KV · Queue · Workflow · R2 · Cron）需要与 celld 运行时对齐。celld **v0.4.0**（2026-08-28）已原生支持 `kv_namespaces`、`queues`、`workflows`、`r2_buckets`，并提供 `celld kv` / `celld queue` / `celld cell list`。
+
+**决策：**
+
+| 项 | 实现 |
+|----|------|
+| Worker KV / Queue / Workflow / R2 / Cron | **celld 运行时**；`celld deploy` 原样消费 wrangler |
+| cellp | 解析 wrangler 出 bindings 清单；**包装已有 CLI**（与 D1 相同：cellpd → `celld … --bucket version-bucket`） |
+| Dashboard | 只打 `:8790`；Storage 升级为 Bindings hub |
+
+废弃 Version 字段 `kv_prefix` · `inherit_kv`（若 API 仍存在则忽略）。
+
+**不做：** 自研 queue broker；把 KV 写进 Registry；Dashboard 直连 celld。
+
+**完整规格：** [DESIGN.md §8](../DESIGN.md)
+
+**依据：** `celld/docs/cloudflare-compat.md` · `celld/crates/celld/kv_cli.rs` · `queue_cli.rs`
+
+---
+
+## 12. AD-7 — 无 branch 的绑定空起步（等到 celld 支持再 inherit）
+
+**问题：** D1 有 `celld d1 branch`（子 bucket 指父 LTX）。KV / R2 / Queue / Workflow **没有** 等价命令。若 preview 去读父 version 的 bucket，会破坏 AD-1 隔离，也可能写穿 prod。
+
+**决策：**
+
+| 绑定 | 子 version 数据 | 本期 |
+|------|-----------------|------|
+| **D1** | `d1 branch`（已落地） | 保持 |
+| **KV / R2 / Queue / Workflow** | **空**（独立 `s3://cellp-celld/{project}/{version}`） | **不做 copy / 挂父桶 / inherit** |
+| R2 对象浏览器 | 无 `celld r2` | **不做管理面**（清单可见） |
+| Workflow 控制 | 无 `celld workflow` | **只读** `cell list` |
+
+等 celld 提供这些资源的 branch / operator CLI 后，**新 ADR** 再开 inherit 专项。产品必须在 UI 标明 preview KV/Queue 不携带 prod 数据。

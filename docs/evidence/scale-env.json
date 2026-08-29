@@ -34,8 +34,7 @@
   "software": {
     "cellpd_version": "",
     "rustfs_tag": "",
-    "postgres_version": "",
-    "valkey_version": ""
+    "postgres_version": ""
   },
   "seed": {
     "project_prefix": "scale-seed",

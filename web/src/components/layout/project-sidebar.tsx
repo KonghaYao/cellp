@@ -1,14 +1,8 @@
 import { NavLink } from "react-router-dom";
-import {
-  Database,
-  LayoutDashboard,
-  Rocket,
-  Settings,
-} from "lucide-react";
+import { Database, LayoutDashboard, Rocket } from "lucide-react";
 import {
   deploymentsHref,
   projectOverviewHref,
-  settingsHref,
   storageHref,
 } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -54,30 +48,6 @@ export function ProjectSidebar({ projectId }: ProjectSidebarProps) {
           </li>
         ))}
       </ul>
-
-      <div>
-        <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Settings
-        </p>
-        <ul className="space-y-0.5">
-          <li>
-            <NavLink
-              to={settingsHref(projectId)}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                )
-              }
-            >
-              <Settings className="size-4 shrink-0" />
-              General
-            </NavLink>
-          </li>
-        </ul>
-      </div>
     </div>
   );
 }

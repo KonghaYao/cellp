@@ -86,11 +86,62 @@ api_post() {
     -d "$body"
 }
 
+api_put() {
+  local path="$1"
+  local body="$2"
+  local token="${3:-$PLATFORM_TOKEN}"
+  curl -sf -X PUT "${PLATFORM_URL}${path}" \
+    -H "$(api_auth "$token")" \
+    -H "Content-Type: application/json" \
+    -d "$body"
+}
+
+# api_status METHOD path [json_body] [token]
+# Sets API_STATUS and API_BODY (does not fail on 4xx/5xx). Do not wrap in $() — that would lose globals.
+api_status() {
+  local method="$1"
+  local path="$2"
+  local token="${4:-$ADMIN_TOKEN}"
+  local tmp
+  tmp=$(mktemp)
+  local args=(-sS -o "$tmp" -w '%{http_code}' -X "$method" -H "$(api_auth "$token")")
+  if [[ $# -ge 3 ]]; then
+    args+=(-H "Content-Type: application/json" -d "$3")
+  fi
+  API_STATUS=$(curl "${args[@]}" "${PLATFORM_URL}${path}" 2>/dev/null || echo "000")
+  API_BODY=$(cat "$tmp" 2>/dev/null || true)
+  rm -f "$tmp"
+}
+
 api_delete() {
   local path="$1"
   local token="${2:-$ADMIN_TOKEN}"
   curl -sf -X DELETE "${PLATFORM_URL}${path}" \
     -H "$(api_auth "$token")"
+}
+
+# Copy a Worker example (index.js + wrangler.jsonc) into orchestrator destDir.
+# Does not rewrite binding ids — KV {ns} / queue names stay verbatim.
+stage_worker_example() {
+  local src="$1"
+  local dest="$2"
+  mkdir -p "$dest"
+  if [[ ! -f "${src}/index.js" || ! -f "${src}/wrangler.jsonc" ]]; then
+    fail "example missing index.js or wrangler.jsonc: ${src}"
+  fi
+  cp "${src}/index.js" "${dest}/index.js"
+  cp "${src}/wrangler.jsonc" "${dest}/wrangler.jsonc"
+}
+
+# Standalone runs may skip when the stack is down. run-all.sh already require_platform.
+require_stack_or_skip() {
+  if curl -sf "${PLATFORM_URL}/v1/health" >/dev/null 2>&1 &&
+    curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "SKIP: celld/stack not running — ${PLATFORM_URL}/v1/health and :${CELLD_PORT}/.well-known/celld/health"
+  echo "      start with ./dev/scripts/up.sh or ./dev/scripts/up-native.sh"
+  exit 0
 }
 
 http_code() {
@@ -169,7 +220,7 @@ wait_http_gone() {
 }
 
 require_celld() {
-  if ! curl -sf "http://127.0.0.1:${CELLD_PORT}/__celld/health" >/dev/null 2>&1; then
+  if ! curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
     fail "celld not healthy on :${CELLD_PORT} — run dev/scripts/up.sh or up-native.sh"
   fi
 }

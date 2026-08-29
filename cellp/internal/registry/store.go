@@ -80,6 +80,7 @@ const (
 type ListProjectsOpts struct {
 	Limit  int
 	Cursor string
+	Query  string
 }
 
 // ProjectListItem is a project with aggregate version count.

@@ -321,6 +321,582 @@ paths:
           description: OK
         "404":
           description: Version not ready or no database
+  /projects/{projectID}/versions/{versionID}/bindings:
+    get:
+      summary: List bindings for a ready version
+      operationId: getBindings
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bindings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bindings"
+        "404":
+          description: version_not_found | version_not_ready | wrangler_not_found
+        "500":
+          description: parse wrangler
+  /projects/{projectID}/versions/{versionID}/kv:
+    get:
+      summary: List KV namespaces declared in wrangler
+      description: Read-only; does not invoke celld. Empty namespaces is 200, not 404.
+      operationId: listKVNamespaces
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Namespace list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  namespaces:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        binding:
+                          type: string
+        "404":
+          description: version_not_found | version_not_ready | wrangler_not_found
+  /projects/{projectID}/versions/{versionID}/kv/{ns}:
+    get:
+      summary: KV namespace info (celld kv info)
+      operationId: getKVInfo
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: path
+          required: true
+          schema:
+            type: string
+          description: wrangler kv_namespaces[].id verbatim
+      responses:
+        "200":
+          description: Totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KVInfo"
+        "404":
+          description: version_not_found | version_not_ready | kv_namespace_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/kv/{ns}/keys:
+    get:
+      summary: List KV keys (celld kv list)
+      operationId: listKVKeys
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: prefix
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Continuation cursor (maps to celld --after)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Keys page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KVListResult"
+        "404":
+          description: version_not_found | version_not_ready | kv_namespace_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/kv/{ns}/keys/{key}:
+    get:
+      summary: Get KV value (celld kv get)
+      operationId: getKVValue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Key may contain slashes
+      responses:
+        "200":
+          description: Value with encoding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KVValue"
+        "400":
+          description: key_required
+        "404":
+          description: version_not_found | version_not_ready | kv_namespace_not_found | key_not_found
+        "503":
+          description: celld_unavailable
+    put:
+      summary: Put KV value (celld kv put)
+      operationId: putKVValue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KVPut"
+      responses:
+        "204":
+          description: Written
+        "400":
+          description: value_required | invalid_base64 | ttl_too_small | metadata_too_large | key_required
+        "404":
+          description: version_not_found | version_not_ready | kv_namespace_not_found
+        "503":
+          description: celld_unavailable
+    delete:
+      summary: Delete KV key (celld kv delete)
+      operationId: deleteKVValue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: key_required
+        "404":
+          description: version_not_found | version_not_ready | kv_namespace_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/queues:
+    get:
+      summary: List queues declared in wrangler
+      description: Read-only; does not invoke celld. Empty list is 200, not 404. Includes dead_letter_queue names.
+      operationId: listQueues
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Queue names
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+        "404":
+          description: version_not_found | version_not_ready
+  /projects/{projectID}/versions/{versionID}/queues/{name}:
+    get:
+      summary: Queue info (celld queue info)
+      operationId: getQueueInfo
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: wrangler queues.*.queue or consumers[].dead_letter_queue
+      responses:
+        "200":
+          description: celld JSON object
+        "404":
+          description: version_not_found | version_not_ready | queue_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/queues/{name}/peek:
+    get:
+      summary: Peek queue messages (celld queue peek)
+      operationId: peekQueue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: celld JSON object
+        "400":
+          description: invalid_limit
+        "404":
+          description: version_not_found | version_not_ready | queue_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/queues/{name}/pause:
+    post:
+      summary: Pause queue delivery (celld queue pause)
+      operationId: pauseQueue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: celld JSON object
+        "404":
+          description: version_not_found | version_not_ready | queue_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/queues/{name}/resume:
+    post:
+      summary: Resume queue delivery (celld queue resume)
+      operationId: resumeQueue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: celld JSON object
+        "404":
+          description: version_not_found | version_not_ready | queue_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/queues/{name}/redrive:
+    post:
+      summary: Redrive dead-lettered messages (celld queue redrive)
+      description: limit is taken from the query string only; a body limit is ignored.
+      operationId: redriveQueue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: celld JSON object
+        "400":
+          description: invalid_limit
+        "404":
+          description: version_not_found | version_not_ready | queue_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/queues/{name}/purge:
+    post:
+      summary: Purge queue (celld queue purge --force)
+      operationId: purgeQueue
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [force]
+              properties:
+                force:
+                  type: boolean
+                  enum: [true]
+      responses:
+        "200":
+          description: celld JSON object
+        "400":
+          description: force_required
+        "404":
+          description: version_not_found | version_not_ready | queue_not_found
+        "503":
+          description: celld_unavailable
+  /projects/{projectID}/versions/{versionID}/workflows:
+    get:
+      summary: List workflows declared in wrangler for a ready version
+      description: |
+        Read-only. Sourced from wrangler `workflows[]` via ParseBindings; does not invoke celld.
+        Empty `workflows` means none declared (200). Missing wrangler → 404 `bindings_not_found`.
+      operationId: listWorkflows
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowList"
+        "404":
+          description: version_not_found | version_not_ready | bindings_not_found
+  /projects/{projectID}/versions/{versionID}/workflows/{name}/instances:
+    get:
+      summary: List workflow instances via celld cell list
+      description: |
+        Read-only wrapper around `celld cell list [CLASS] --all --json` on the version bucket.
+        `{name}` matches wrangler workflow `name`, then `binding`. Unknown name → 404 `workflow_not_found`
+        (celld is not invoked). Missing celld → 200 with empty `instances`.
+        When the version declares two or more workflows, `filter` is `script` and `limitation` explains
+        that celld `cell list` 只给出 `__Workflow.{script}:<64-hex>`；实例内部名 `{workflow_name}/{instance_id}`
+        被哈希，无法按 workflow 名精确过滤。本响应返回该 version / 该 script 下全部 Workflow cell，并附 wrangler
+        声明的 workflow 名。精确归属需等 `celld workflow`。
+        Pause / resume / restart / delete are not offered (no `celld workflow`).
+      operationId: listWorkflowInstances
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: wrangler workflows[].name, or binding if name does not match
+      responses:
+        "200":
+          description: Instance list (possibly script-level fallback)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowInstances"
+        "404":
+          description: version_not_found | version_not_ready | bindings_not_found | workflow_not_found
+        "502":
+          description: celld_cell_list_failed
   /projects/{projectID}/versions/{versionID}/database/tables:
     get:
       summary: List database tables
@@ -460,6 +1036,194 @@ components:
         created_at:
           type: string
           format: date-time
+    Bindings:
+      type: object
+      properties:
+        d1:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/BindingsD1"
+        kv:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/BindingsKV"
+        queues:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/BindingsQueue"
+        workflows:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/BindingsWorkflow"
+        r2:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/BindingsR2"
+        crons:
+          type: array
+          default: []
+          items:
+            type: string
+    BindingsD1:
+      type: object
+      properties:
+        binding:
+          type: string
+        database_name:
+          type: string
+        database_id:
+          type: string
+    BindingsKV:
+      type: object
+      properties:
+        binding:
+          type: string
+        id:
+          type: string
+    BindingsQueue:
+      type: object
+      properties:
+        name:
+          type: string
+        binding:
+          type: string
+        consumer:
+          type: boolean
+        dead_letter_queue:
+          type: string
+    BindingsWorkflow:
+      type: object
+      properties:
+        binding:
+          type: string
+        name:
+          type: string
+        class_name:
+          type: string
+    BindingsR2:
+      type: object
+      properties:
+        binding:
+          type: string
+        bucket_name:
+          type: string
+    KVInfo:
+      type: object
+      properties:
+        keys:
+          type: integer
+        bytes:
+          type: integer
+        stored:
+          type: integer
+    KVListResult:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              expiration:
+                type: integer
+              metadata: {}
+        cursor:
+          type: string
+    KVValue:
+      type: object
+      required: [key, value, encoding]
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        encoding:
+          type: string
+          enum: [utf-8, base64]
+    KVPut:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+          description: Required; empty string is allowed
+        ttl:
+          type: number
+          description: Seconds; must be >= 60 when set
+        metadata:
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: string
+        base64:
+          type: boolean
+        binary:
+          type: boolean
+          description: Same as base64; either true decodes value as StdEncoding base64
+    WorkflowList:
+      type: object
+      properties:
+        workflows:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/WorkflowListItem"
+    WorkflowListItem:
+      type: object
+      properties:
+        binding:
+          type: string
+        workflow_name:
+          type: string
+        class_name:
+          type: string
+    WorkflowInstances:
+      type: object
+      properties:
+        workflow_name:
+          type: string
+        binding:
+          type: string
+        script_name:
+          type: string
+        filter:
+          type: string
+          enum: [workflow, script]
+          description: workflow = attributable to this wrangler workflow; script = all Workflow cells for the script
+        limitation:
+          type: string
+          nullable: true
+          description: |
+            Present when filter=script. celld `cell list` 只给出 `__Workflow.{script}:<64-hex>`；实例内部名
+            `{workflow_name}/{instance_id}` 被哈希，无法按 workflow 名精确过滤。本响应返回该 version / 该 script
+            下全部 Workflow cell，并附 wrangler 声明的 workflow 名。精确归属需等 `celld workflow`。
+        wrangler_workflows:
+          type: array
+          items:
+            type: string
+        instances:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/WorkflowInstance"
+    WorkflowInstance:
+      type: object
+      properties:
+        scope:
+          type: string
+        class:
+          type: string
+        id:
+          type: string
+        reserved:
+          type: boolean
   securitySchemes:
     deployToken:
       type: http
