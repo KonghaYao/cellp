@@ -26,13 +26,22 @@ paths:
                     type: string
   /health/deep:
     get:
-      summary: Deep health check (queue depth)
+      summary: Deep health check (registry, RustFS, runtimes, queue)
       operationId: getHealthDeep
       responses:
         "200":
           description: OK
         "503":
-          description: Overloaded (queue full)
+          description: Degraded or overloaded
+  /runtime/routes:
+    get:
+      summary: Active route health summary
+      operationId: getRuntimeRoutes
+      security:
+        - adminToken: []
+      responses:
+        "200":
+          description: OK
   /projects:
     get:
       summary: List projects (cursor-paginated)

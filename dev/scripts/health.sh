@@ -29,6 +29,28 @@ else
   bad "rustfs :${S3_PORT:-9000}"
 fi
 
+ADMIN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
+
+# Deep health: registry + RustFS + runtime fleet + queue
+DEEP_TMP=$(mktemp)
+DEEP_CODE=$(curl -sS -o "$DEEP_TMP" -w '%{http_code}' "${PLATFORM_URL}/v1/health/deep" 2>/dev/null || echo "000")
+rm -f "$DEEP_TMP"
+if [[ "$DEEP_CODE" == "200" || "$DEEP_CODE" == "503" ]]; then
+  ok "platform deep health (http=${DEEP_CODE})"
+else
+  bad "platform deep health (http=${DEEP_CODE})"
+fi
+
+# Runtime route summary (admin)
+ROUTES_TMP=$(mktemp)
+ROUTES_CODE=$(curl -sS -o "$ROUTES_TMP" -w '%{http_code}' -H "Authorization: Bearer ${ADMIN}" "${PLATFORM_URL}/v1/runtime/routes" 2>/dev/null || echo "000")
+rm -f "$ROUTES_TMP"
+if [[ "$ROUTES_CODE" == "200" ]]; then
+  ok "platform runtime routes"
+else
+  bad "platform runtime routes (http=${ROUTES_CODE})"
+fi
+
 if [[ -f dev/data/registry.json ]] || [[ -f dev/data/platform-registry.sqlite ]] || [[ -f dev/data/cellp-registry.sqlite ]] || [[ -f "${REGISTRY_DB:-dev/data/cellp-registry.sqlite}" ]]; then
   ok "registry file"
 else
@@ -36,7 +58,6 @@ else
 fi
 
 # Stale cellpd lacks Phase 7 operator routes (KV/queue) — chi returns "404 page not found".
-ADMIN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
 PROBE="${PLATFORM_URL}/v1/projects/${DEV_PROJECT:-demo-app}/versions/__health_probe__/kv/"
 PROBE_TMP=$(mktemp)
 PROBE_CODE=$(curl -sS -o "$PROBE_TMP" -w '%{http_code}' -H "Authorization: Bearer ${ADMIN}" "$PROBE" 2>/dev/null || echo "000")

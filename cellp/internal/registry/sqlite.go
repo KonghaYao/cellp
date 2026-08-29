@@ -510,17 +510,41 @@ func (s *SQLiteStore) ListActiveRoutes(ctx context.Context, projectID string) ([
 			return nil, err
 		}
 		defer rows.Close()
-		var out []Route
-		for rows.Next() {
-			var r Route
-			var active int
-			if err := rows.Scan(&r.ProjectID, &r.VersionID, &active, &r.UpstreamHost, &r.UpstreamPort); err != nil {
-				return nil, err
-			}
-			r.Active = active == 1
-			out = append(out, r)
+		return scanRoutes(rows)
+	})
+}
+
+func (s *SQLiteStore) ListAllActiveRoutes(ctx context.Context) ([]Route, error) {
+	return withRetry(func() ([]Route, error) {
+		rows, err := s.db.QueryContext(ctx,
+			`SELECT project_id, version_id, active, upstream_host, upstream_port FROM routes
+			 WHERE active = 1`)
+		if err != nil {
+			return nil, err
 		}
-		return out, rows.Err()
+		defer rows.Close()
+		return scanRoutes(rows)
+	})
+}
+
+func scanRoutes(rows *sql.Rows) ([]Route, error) {
+	var out []Route
+	for rows.Next() {
+		var r Route
+		var active int
+		if err := rows.Scan(&r.ProjectID, &r.VersionID, &active, &r.UpstreamHost, &r.UpstreamPort); err != nil {
+			return nil, err
+		}
+		r.Active = active == 1
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLiteStore) Ping(ctx context.Context) error {
+	return withRetryErr(func() error {
+		var one int
+		return s.db.QueryRowContext(ctx, `SELECT 1`).Scan(&one)
 	})
 }
 

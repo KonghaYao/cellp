@@ -68,11 +68,53 @@ func TestHealthDeepPendingJobs(t *testing.T) {
 	}
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["pending_jobs"] != float64(2) {
-		t.Fatalf("pending_jobs = %v", resp["pending_jobs"])
+	if resp["status"] != "ok" {
+		t.Fatalf("status = %v", resp["status"])
 	}
-	if resp["queue_max"] != float64(10000) {
-		t.Fatalf("queue_max = %v", resp["queue_max"])
+	checks, ok := resp["checks"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("checks = %v", resp["checks"])
+	}
+	queue, ok := checks["queue"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("queue = %v", checks["queue"])
+	}
+	if queue["pending_jobs"] != float64(2) {
+		t.Fatalf("pending_jobs = %v", queue["pending_jobs"])
+	}
+	if queue["queue_max"] != float64(10000) {
+		t.Fatalf("queue_max = %v", queue["queue_max"])
+	}
+}
+
+func TestRuntimeRoutesSummary(t *testing.T) {
+	srv, store, _ := testAPI(t, "deploy", "admin")
+	defer store.Close()
+	ctx := context.Background()
+	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
+	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v1", Active: true,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
+	})
+	_ = store.UpdateVersionStatus(ctx, "demo", "v1", registry.StatusReady, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/runtime/routes", nil)
+	req.Header.Set("Authorization", "Bearer admin")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Summary struct {
+			ActiveRoutes int `json:"active_routes"`
+		} `json:"summary"`
+		Routes []map[string]interface{} `json:"routes"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Summary.ActiveRoutes != 1 || len(resp.Routes) != 1 {
+		t.Fatalf("summary = %+v routes = %+v", resp.Summary, resp.Routes)
 	}
 }
 

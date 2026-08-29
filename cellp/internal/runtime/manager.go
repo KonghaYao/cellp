@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/cellp/cellp/internal/registry"
 )
 
 // Manager manages celld subprocess lifecycle per version (AD-1).
@@ -104,7 +106,7 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 		return host, port, nil
 	}
 
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		m.mu.Lock()
 		m.processes[k] = &celldProc{port: port}
 		m.mu.Unlock()
@@ -162,7 +164,59 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 		case <-time.After(time.Second):
 		}
 	}
-	return host, port, nil
+	return host, port, fmt.Errorf("celld health timeout on %s:%d", host, port)
+}
+
+// CelldInstalled reports whether the celld binary is on PATH.
+func CelldInstalled() bool {
+	_, err := exec.LookPath("celld")
+	return err == nil
+}
+
+// Diagnose runs celld storage probe for a version bucket before deploy/start.
+func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
+	if !CelldInstalled() {
+		return nil
+	}
+	bucket := m.versionBucket(project, version)
+	cmd := exec.CommandContext(ctx, "celld", "diagnose",
+		"--bucket", bucket,
+		"--endpoint", m.endpoint,
+		"--region", m.region,
+	)
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", m.accessKey),
+		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", m.secretKey),
+		fmt.Sprintf("AWS_REGION=%s", m.region),
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("celld diagnose: %w: %s", err, string(out))
+	}
+	return nil
+}
+
+// RuntimeRouteHealth is per-route celld upstream status.
+type RuntimeRouteHealth struct {
+	ProjectID    string `json:"project_id"`
+	VersionID    string `json:"version_id"`
+	UpstreamHost string `json:"upstream_host"`
+	UpstreamPort int    `json:"upstream_port"`
+	Healthy      bool   `json:"healthy"`
+}
+
+// RuntimeHealth probes each active route's celld upstream.
+func (m *Manager) RuntimeHealth(ctx context.Context, routes []registry.Route) []RuntimeRouteHealth {
+	out := make([]RuntimeRouteHealth, 0, len(routes))
+	for _, r := range routes {
+		out = append(out, RuntimeRouteHealth{
+			ProjectID:    r.ProjectID,
+			VersionID:    r.VersionID,
+			UpstreamHost: r.UpstreamHost,
+			UpstreamPort: r.UpstreamPort,
+			Healthy:      m.Health(ctx, r.UpstreamHost, r.UpstreamPort),
+		})
+	}
+	return out
 }
 
 // Deploy runs celld deploy for a bundle directory.
@@ -170,8 +224,11 @@ func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir strin
 	if os.Getenv("CELLP_E2E_INJECT_DEPLOY_FAIL") == "1" {
 		return fmt.Errorf("injected deploy failure")
 	}
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return nil
+	}
+	if err := m.Diagnose(ctx, project, version); err != nil {
+		return err
 	}
 	bucket := m.versionBucket(project, version)
 	cmd := exec.CommandContext(ctx, "celld", "deploy", exampleDir,
@@ -462,7 +519,7 @@ func isSQLiteFile(path string) bool {
 
 // Health checks celld /.well-known/celld/health; returns true when celld is absent (dev).
 func (m *Manager) Health(ctx context.Context, host string, port int) bool {
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return true
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,

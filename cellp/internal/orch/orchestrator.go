@@ -271,6 +271,12 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		return err
 	}
 
+	if runtime.CelldInstalled() {
+		if err := runtime.VerifyGatewayRoute(ctx, o.cfg.GatewayURL, j.ProjectID, j.VersionID); err != nil {
+			return fmt.Errorf("gateway route verify: %w", err)
+		}
+	}
+
 	if err := o.setStatus(ctx, j, registry.StatusReady); err != nil {
 		return err
 	}

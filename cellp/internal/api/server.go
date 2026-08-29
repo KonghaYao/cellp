@@ -59,6 +59,7 @@ func (s *Server) routes() {
 
 	s.router.Get("/v1/health", s.handleHealth)
 	s.router.Get("/v1/health/deep", s.handleHealthDeep)
+	s.router.Get("/v1/runtime/routes", s.requireAdmin(s.handleRuntimeRoutes))
 
 	s.router.Route("/v1/projects", func(r chi.Router) {
 		r.Get("/", s.requireAdmin(s.handleListProjects))
@@ -119,27 +120,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":   "ok",
 		"registry": s.cfg.RegistryDB,
 		"gateway":  s.cfg.GatewayURL,
-	})
-}
-
-func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
-	pending, err := s.store.CountPendingJobs(r.Context())
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	max := QueueMax()
-	status := "ok"
-	code := http.StatusOK
-	if pending >= max {
-		status = "overloaded"
-		code = http.StatusServiceUnavailable
-	}
-	writeJSON(w, code, map[string]interface{}{
-		"status":       status,
-		"registry":     s.cfg.RegistryDB,
-		"pending_jobs": pending,
-		"queue_max":    max,
 	})
 }
 

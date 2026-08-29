@@ -139,7 +139,10 @@ type Store interface {
 	SetRouteActive(ctx context.Context, projectID, versionID string, active bool) error
 	GetRoute(ctx context.Context, projectID, versionID string) (*Route, error)
 	ListActiveRoutes(ctx context.Context, projectID string) ([]Route, error)
+	ListAllActiveRoutes(ctx context.Context) ([]Route, error)
 	DeleteRoute(ctx context.Context, projectID, versionID string) error
+
+	Ping(ctx context.Context) error
 
 	SetProdVersion(ctx context.Context, projectID, versionID string) error
 	SetProdVersionCAS(ctx context.Context, projectID, expected, new string) error
