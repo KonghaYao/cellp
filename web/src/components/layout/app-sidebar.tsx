@@ -1,13 +1,25 @@
+import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Activity,
+  Clock,
   Database,
+  HardDrive,
+  KeyRound,
   LayoutDashboard,
   LayoutGrid,
+  ListOrdered,
   Rocket,
   Settings,
+  Workflow,
 } from "lucide-react";
 import {
+  bindingsCronHref,
+  bindingsD1Href,
+  bindingsKvHref,
+  bindingsQueuesHref,
+  bindingsR2Href,
+  bindingsWorkflowsHref,
   deploymentsHref,
   platformHref,
   projectOverviewHref,
@@ -29,6 +41,15 @@ const GLOBAL_NAV = [
     to: platformHref(),
     end: true,
   },
+] as const;
+
+const BINDINGS_NAV = [
+  { key: "d1", label: "D1", icon: Database, to: bindingsD1Href() },
+  { key: "kv", label: "KV", icon: KeyRound, to: bindingsKvHref() },
+  { key: "queues", label: "Queues", icon: ListOrdered, to: bindingsQueuesHref() },
+  { key: "workflows", label: "Workflows", icon: Workflow, to: bindingsWorkflowsHref() },
+  { key: "r2", label: "R2", icon: HardDrive, to: bindingsR2Href() },
+  { key: "cron", label: "Cron", icon: Clock, to: bindingsCronHref() },
 ] as const;
 
 function projectNav(projectId: string) {
@@ -96,19 +117,37 @@ function NavItem({
   );
 }
 
+function NavSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <ul className="space-y-0.5">{children}</ul>
+    </div>
+  );
+}
+
 export function AppSidebar({ projectId }: AppSidebarProps) {
   return (
     <nav className="flex flex-1 flex-col gap-6 overflow-y-auto p-2">
-      <div>
-        <p className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Workspace
-        </p>
-        <ul className="space-y-0.5">
-          {GLOBAL_NAV.map((item) => (
-            <NavItem key={item.key} {...item} />
-          ))}
-        </ul>
-      </div>
+      <NavSection title="Workspace">
+        {GLOBAL_NAV.map((item) => (
+          <NavItem key={item.key} {...item} />
+        ))}
+      </NavSection>
+
+      <NavSection title="Bindings">
+        {BINDINGS_NAV.map((item) => (
+          <NavItem key={item.key} {...item} end />
+        ))}
+      </NavSection>
 
       {projectId ? (
         <div>

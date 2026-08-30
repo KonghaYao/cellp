@@ -14,6 +14,8 @@ import { VersionPage } from "@/pages/VersionPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { bindingsHref, storageBrowserHref } from "@/lib/routes";
 import { StorageVersionLayout } from "@/components/layout/storage-version-layout";
+import { BindingsHubLayout } from "@/components/layout/bindings-hub-layout";
+import { GlobalBindingListPage } from "@/pages/bindings/GlobalBindingListPage";
 
 function LegacyDatabaseRedirect() {
   const path = window.location.pathname;
@@ -38,6 +40,63 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<ProjectsPage />} />
           <Route path="/platform" element={<PlatformPage />} />
+          <Route path="/bindings" element={<BindingsHubLayout />}>
+            <Route index element={<Navigate to="d1" replace />} />
+            <Route
+              path="d1"
+              element={
+                <GlobalBindingListPage
+                  kind="d1"
+                  emptyDescription="No ready deployments declare a D1 database binding."
+                />
+              }
+            />
+            <Route
+              path="kv"
+              element={
+                <GlobalBindingListPage
+                  kind="kv"
+                  emptyDescription="No ready deployments declare a KV namespace binding."
+                />
+              }
+            />
+            <Route
+              path="queues"
+              element={
+                <GlobalBindingListPage
+                  kind="queues"
+                  emptyDescription="No ready deployments declare a Queue binding."
+                />
+              }
+            />
+            <Route
+              path="workflows"
+              element={
+                <GlobalBindingListPage
+                  kind="workflows"
+                  emptyDescription="No ready deployments declare a Workflow binding."
+                />
+              }
+            />
+            <Route
+              path="r2"
+              element={
+                <GlobalBindingListPage
+                  kind="r2"
+                  emptyDescription="No ready deployments declare an R2 bucket binding."
+                />
+              }
+            />
+            <Route
+              path="cron"
+              element={
+                <GlobalBindingListPage
+                  kind="cron"
+                  emptyDescription="No ready deployments declare a Cron trigger."
+                />
+              }
+            />
+          </Route>
           <Route path="/projects/:id" element={<ProjectLayout />}>
             <Route index element={<ProjectOverviewPage />} />
             <Route path="deployments" element={<DeploymentsPage />} />

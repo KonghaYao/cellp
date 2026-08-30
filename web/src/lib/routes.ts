@@ -41,6 +41,34 @@ export function platformHref(): string {
   return "/platform";
 }
 
+export function bindingsHubHref(): string {
+  return "/bindings";
+}
+
+export function bindingsD1Href(): string {
+  return "/bindings/d1";
+}
+
+export function bindingsKvHref(): string {
+  return "/bindings/kv";
+}
+
+export function bindingsQueuesHref(): string {
+  return "/bindings/queues";
+}
+
+export function bindingsWorkflowsHref(): string {
+  return "/bindings/workflows";
+}
+
+export function bindingsR2Href(): string {
+  return "/bindings/r2";
+}
+
+export function bindingsCronHref(): string {
+  return "/bindings/cron";
+}
+
 export function versionHref(projectId: string, versionId: string): string {
   return `/projects/${projectId}/versions/${versionId}`;
 }
