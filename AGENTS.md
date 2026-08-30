@@ -2,6 +2,8 @@
 
 你在本仓库开发 **cellp**（版本化 Serverless 运行时）。
 
+**面向使用者的文档站：** [https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)（源码 `site/`）。改产品行为时请同步站点，不要只改内部 ADR。
+
 ## 必读（按顺序）
 
 1. **[DESIGN.md](./DESIGN.md)** — 唯一顶层设计
@@ -23,7 +25,8 @@
 | `dev/` | 本地 dev 栈（RustFS · cellpd · celld · offshoot） | `./dev/scripts/health.sh` |
 | `e2e/` | 端口级集成测试（M1/M2 门禁） | `./e2e/scripts/run-all.sh` |
 | `stress/` | 压测（phase5 生产 · phase6 扩展/D1 scale） | 见 `stress/README.md` |
-| `docs/` | 计划 · 契约 · 证据 | [docs/README.md](./docs/README.md) |
+| `docs/` | 计划 · 契约 · 证据（内部） | 索引 [docs/README.md](./docs/README.md) |
+| `site/` | 公开产品文档（GitHub Pages） | `cd site && npm run docs:build` |
 
 ## 核心决策（摘要）
 

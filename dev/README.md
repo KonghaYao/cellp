@@ -1,5 +1,7 @@
 # cellp — 本地 Dev 快速上手
 
+产品文档（如何用、CI、Dashboard）：**[https://konghayao.github.io/cellp/get-started/local](https://konghayao.github.io/cellp/get-started/local)**
+
 ```bash
 cp dev/.env.example dev/.env
 ./dev/scripts/up.sh

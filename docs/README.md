@@ -1,4 +1,10 @@
-# cellp 文档库
+# cellp 文档库（仓库内部）
+
+> **面向开发者 / YC 的产品文档（GitHub Pages）：**  
+> **[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**  
+> 源码在 [`site/`](../site/)。使用者文档以站点为准，不要把本目录当 onboarding。
+>
+> 本目录是 **贡献者内部库**：设计、ADR、契约、验收门禁、证据。
 
 > **设计入口：** [DESIGN.md](../DESIGN.md)  
 > **决策摘要：** [decisions.md](./decisions.md)  
@@ -11,6 +17,7 @@
 
 | 我想… | 读这个 |
 |--------|--------|
+| **产品文档（如何用 cellp）** | **[GitHub Pages](https://konghayao.github.io/cellp/)** |
 | 理解整体架构 | [DESIGN.md](../DESIGN.md) |
 | 查当前有效决策（AD-1..10、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
 | 跑验收 / 看门禁 | [test-plan.md](./test-plan.md) |
@@ -19,8 +26,9 @@
 | 跑 E2E | [../e2e/README.md](../e2e/README.md) |
 | 跑压测 | [../stress/README.md](../stress/README.md) · [phase6/README.md](../stress/phase6/README.md) |
 | 查历史 VALIDATION 编号 | [../VALIDATION.md](../VALIDATION.md)（仅索引，执行以 test-plan 为准） |
-| 从 Cloudflare Workers 迁移 | [cloudflare-migration.md](./cloudflare-migration.md) |
-| 从 Vercel 迁移 | [vercel-migration.md](./vercel-migration.md) |
+| 从 Cloudflare / Vercel 迁移（产品文档） | [Pages: Migrate](https://konghayao.github.io/cellp/migrate/cloudflare) |
+| 从 Cloudflare Workers 迁移（内部对照） | [cloudflare-migration.md](./cloudflare-migration.md) |
+| 从 Vercel 迁移（内部对照） | [vercel-migration.md](./vercel-migration.md) |
 | 生产回滚 | [runbooks/rollback.md](./runbooks/rollback.md) |
 | 可观测性 | [observability.md](./observability.md) |
 | 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |

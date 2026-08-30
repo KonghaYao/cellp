@@ -1,64 +1,55 @@
 # cellp
 
-**cellp** — 私有化 **Workers 平台控制面**。在外部 CI 每次投递时 version 化 **App + Data**，经 Gateway 提供 preview / prod 环境。100% 私有化部署。
+**Private, versioned Workers — on your hardware.**
 
-| 文档 | 说明 |
-|------|------|
-| **[DESIGN.md](./DESIGN.md)** | 顶层设计（唯一设计入口） |
-| **[docs/decisions.md](./docs/decisions.md)** | 架构决策（**AD-10** 产品边界） |
-| **[docs/README.md](./docs/README.md)** | 文档库索引 |
-| **[docs/test-plan.md](./docs/test-plan.md)** | 功能验收门禁 |
-| **[AGENTS.md](./AGENTS.md)** | Agent / 贡献者总则 |
-| **[dev/README.md](./dev/README.md)** | 本地开发快速上手 |
+Every deploy versions **the app and its data**. Preview is a real fork of D1, KV, R2, and Queues. Production is an explicit promote. You keep Git, CI, and TLS; cellp is the control plane in the middle.
 
-## 技术栈
+**Docs (developers + YC):** **[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**
 
-| 组件 | 选型 | 职责 |
-|------|------|------|
-| **cellpd** | Go | API · Orchestrator · Gateway · SQLite Registry |
-| **celld** | Rust（[submodule](./celld/)） | Workers + D1 + LTX 运行时 |
-| **offshoot** | Go CLI | SQLite CoW 分支（App+Data versioning） |
-| **RustFS** | 自建 S3 | artifact · offshoot · celld blob |
-| **web/** | Vite + React SPA | Dashboard（仅消费 REST API） |
+[Quick start](https://konghayao.github.io/cellp/get-started/) · [Why cellp](https://konghayao.github.io/cellp/why) · [Compare Cloudflare / Vercel](https://konghayao.github.io/cellp/compare) · [REST API](https://konghayao.github.io/cellp/reference/api)
 
-**外部边界（非 cellp 组件 · AD-10）：** Git 托管（GitHub / Forgejo / …）· 外部 CI → `POST /versions` · 入口 DNS/TLS/WAF（外层项目）。
+---
 
-## v1 交付范围（2026-08-29）
+cellp 是**私有化 Workers 平台控制面**：外部 CI 每次投递时同时 version 化 App + Data，经 Gateway 提供 preview / prod。100% 自建，不依赖 AWS / Cloudflare 账号。
 
-| 能力 | 状态 | 验收 |
-|------|------|------|
-| CD + Version 生命周期 | ✅ | `e2e/scripts/ve-cd-loop.sh` |
-| Gateway 多 version 路由（AD-1） | ✅ | `v3-dual-route.sh` |
-| Promote saga（AD-5） | ✅ | `v4-promote-cutover.sh` |
-| offshoot → D1 import | ✅ | `v1-d1-seed.sh` |
-| D1 branch（子 version 共享父 LTX） | ✅ | `v1-d1-branch.sh` |
-| Dashboard（项目 · 部署 · 存储 · D1 管理） | ✅ | `cd web && npm run test:e2e` |
-| offshoot prod × RustFS（V0b） | ✅ | `e2e/scripts/v0b-offshoot-rustfs.sh` · [v0b-pass-report.md](./docs/evidence/v0b-pass-report.md) |
-| Phase 6 扩展（6A · SQLite scope） | ✅ 6A 实现完成 | [test-plan-phase6.md](./docs/test-plan-phase6.md) · [v1-v0b-phase6-plan.md](./docs/plans/v1-v0b-phase6-plan.md)（6B–6F OUT OF SCOPE） |
+面向使用者的文档以 GitHub Pages 为准；本 README 下面是仓库入口。贡献者 / Agent 仍读 [DESIGN.md](./DESIGN.md) 与 [docs/](./docs/README.md)。
 
-## 快速开始
+## What it is / is not
 
-### 克隆与子模块
+| cellp does | cellp does not |
+|------------|----------------|
+| Version lifecycle + preview / prod URLs | User accounts, orgs, SSO |
+| Branch D1 · KV · R2 · Queue on child versions | Git hosting, webhooks, PR bots |
+| Promote saga + rollback-by-re-promote | DNS, CDN, TLS, WAF, global PoPs |
+| Dashboard + REST on the same API | Next.js / Node serverless hosting |
+| Docker / laptop self-host (RustFS + SQLite) | A hosted cellp cloud |
+
+## Stack
+
+| Component | Role |
+|-----------|------|
+| **cellpd** | Go — API, orchestrator, gateway, SQLite registry |
+| **celld** | Rust ([submodule](./celld/)) — Workers + bindings runtime |
+| **offshoot** | SQLite copy-on-write (App + Data) |
+| **RustFS** | Private S3 — artifacts, offshoot, celld blobs |
+| **web/** | Vite SPA Dashboard (REST only) |
+
+## Quick start
 
 ```bash
-git clone <repo> cellp && cd cellp
+git clone https://github.com/KonghaYao/cellp.git && cd cellp
 git submodule update --init celld
-```
-
-### 本地 dev 栈
-
-```bash
+# build celld: cd celld && cargo build -p celld --profile lab
 cp dev/.env.example dev/.env
 ./dev/scripts/up.sh
-./dev/scripts/simulate-cd.sh demo-app v-dev1
-./dev/scripts/health.sh
-curl -sf http://127.0.0.1:8787/demo-app/v-dev1/
+./dev/scripts/seed-commerce-store.sh
+curl -sf http://127.0.0.1:8787/commerce-store/v1/stats
 ```
 
-前置：Docker（RustFS）· Node 20+ · Go · `celld` · `offshoot` · `jq` · `esbuild`  
-详见 **[dev/README.md](./dev/README.md)**。
+Prereqs: Docker · Node 20+ · Go · `celld` · `offshoot` · `jq` · `esbuild`.  
+Walkthrough: **[docs site → Get started](https://konghayao.github.io/cellp/get-started/)** · local scripts: [dev/README.md](./dev/README.md).
 
-### Docker Compose（单机部署）
+### Docker
 
 ```bash
 git submodule update --init celld
@@ -66,24 +57,9 @@ docker compose up -d --build
 curl -sf http://127.0.0.1:8790/v1/health
 ```
 
-镜像：`ghcr.io/konghayo/cellp:latest` · 详见 **[docker/README.md](./docker/README.md)**。
+Image: `ghcr.io/konghayo/cellp:latest` · [Self-hosting](https://konghayao.github.io/cellp/guides/self-hosting) · [docker/README.md](./docker/README.md).
 
-### 构建 celld
-
-```bash
-cd celld && cargo build -p celld --profile lab
-# 产物: celld/target/lab/celld
-```
-
-### 集成验收
-
-```bash
-./e2e/scripts/run-all.sh
-cd cellp && go test ./...
-cd web && npm run test:e2e
-```
-
-### Dashboard 开发
+### Dashboard
 
 ```bash
 ./dev/scripts/up.sh
@@ -91,28 +67,37 @@ cd web && npm install && npm run dev
 # http://127.0.0.1:5190
 ```
 
-## 仓库结构
+## Repository
 
 ```
-cellp/          # Go 控制面（module root）
-celld/          # Rust 运行时（git submodule）
-web/            # Dashboard（Vite SPA）
-dev/            # 本地栈脚本与示例
-e2e/            # 端口级集成测试
-stress/         # 压测 harness
-docs/           # 计划 · 契约 · 证据
+cellp/     Go control plane
+celld/     Rust runtime (submodule)
+web/       Dashboard
+dev/       Local stack + examples
+e2e/       Integration gates
+stress/    Load tests
+docs/      Internal design · ADRs · test plans · evidence
+site/      Public documentation (this GitHub Pages site)
 ```
 
-## 端口（本地 dev）
+Local ports: Gateway **8787** · API **8790** · celld **8792+** · Dashboard **5190** · RustFS **9000**.
 
-| 端口 | 服务 |
-|------|------|
-| 8787 | cellpd Gateway |
-| 8790 | cellpd API |
-| 8792+ | celld（每 version 递增） |
-| 5190 | Dashboard dev server (`DASHBOARD_PORT`) |
-| 9000 | RustFS S3 |
+## Contributor docs
 
-## 许可
+| Doc | For |
+|-----|-----|
+| [DESIGN.md](./DESIGN.md) | Architecture (source of truth for implementers) |
+| [docs/decisions.md](./docs/decisions.md) | AD-1…10 product boundary |
+| [docs/test-plan.md](./docs/test-plan.md) | Acceptance gates |
+| [AGENTS.md](./AGENTS.md) | How agents/contributors change the tree |
+| [docs/README.md](./docs/README.md) | Internal doc index |
 
-cellp 组件许可见各子目录。`celld/` submodule 基于 [KonghaYao/celld](https://github.com/KonghaYao/celld)（含 D1 import/branch 扩展）。
+```bash
+cd cellp && go test ./...
+./e2e/scripts/run-all.sh
+cd web && npm run test:e2e
+```
+
+## License
+
+See each subtree. `celld/` is based on [KonghaYao/celld](https://github.com/KonghaYao/celld).

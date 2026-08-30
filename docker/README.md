@@ -1,5 +1,7 @@
 # Docker deployment
 
+Product guide: **[Self-hosting](https://konghayao.github.io/cellp/guides/self-hosting)**.
+
 Single-machine stack: **RustFS** (S3) + **cellpd** (API `:8790`, Gateway `:8787`).  
 Per-version **celld** runtimes are spawned by cellpd at deploy time — they are not separate compose services.
 
