@@ -85,5 +85,5 @@ docs/evidence/stress-report.md
 .vercel
 
 # --- VitePress (public docs site) ---
-site/docs/.vitepress/cache
-site/docs/.vitepress/dist
+site/**/.vitepress/cache
+site/**/.vitepress/dist
