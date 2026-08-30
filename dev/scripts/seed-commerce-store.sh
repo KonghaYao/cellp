@@ -55,8 +55,9 @@ print_summary() {
   echo "  API:       ${GATEWAY_URL}/${PROJECT}/${VERSION}/health"
   echo "  Stats:     ${GATEWAY_URL}/${PROJECT}/${VERSION}/stats"
   echo "  Products:  ${GATEWAY_URL}/${PROJECT}/${VERSION}/products"
-  echo "  Dashboard: http://127.0.0.1:5173/projects/${PROJECT}"
-  echo "  D1:        http://127.0.0.1:5173/projects/${PROJECT}/storage/${VERSION}/browser"
+  echo "  Storefront: ${GATEWAY_URL}/${PROJECT}/${VERSION}/"
+  echo "  Dashboard: http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}"
+  echo "  D1:        http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${VERSION}/browser"
   echo ""
 }
 
@@ -69,7 +70,8 @@ destroy_version_if_exists
 purge_destroyed
 
 log "stage commerce worker + D1 seed"
-stage_worker_example "$EXAMPLE" "$DEST"
+mkdir -p "$DEST"
+cp "${EXAMPLE}/index.js" "${EXAMPLE}/storefront.js" "${EXAMPLE}/wrangler.jsonc" "$DEST/"
 "${EXAMPLE}/seed.sh" "${DEST}/seed.db" 80 200 400
 
 create_version "$PROJECT" "$VERSION" | jq -r .id >/dev/null
@@ -81,8 +83,29 @@ api_status POST "/v1/projects/${PROJECT}/versions/${VERSION}/promote" "{}" "$ADM
 log "${VERSION} promoted to production"
 
 wait_http_200 "${GATEWAY_URL}/${PROJECT}/${VERSION}/health" 60
+wait_http_200 "${GATEWAY_URL}/${PROJECT}/${VERSION}/" 60
 
-api_status GET "/v1/projects/${PROJECT}/versions/${VERSION}/database/tables/products/rows?limit=1"
+BASE="/v1/projects/${PROJECT}/versions/${VERSION}"
+api_status GET "${BASE}/bindings"
+echo "$API_BODY" | jq -e '(.d1|length)>0 and (.kv|length)>0 and (.queues|length)>0 and (.workflows|length)>0 and (.r2|length)>0 and (.crons|length)>0' >/dev/null \
+  || fail "v1 bindings incomplete: $(echo "$API_BODY" | jq -c .)"
+
+# Seed KV banner via worker API (exercises KV binding at runtime)
+curl -sf -X PUT "${GATEWAY_URL}/${PROJECT}/${VERSION}/api/kv/banner" \
+  -H "Content-Type: application/json" \
+  -d '{"value":"Welcome to commerce-store — edit this banner (KV) in the storefront"}' >/dev/null
+
+curl -sf -X POST "${GATEWAY_URL}/${PROJECT}/${VERSION}/api/queue/enqueue" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"seed fulfillment task"}' >/dev/null || true
+
+curl -sf -X POST "${GATEWAY_URL}/${PROJECT}/${VERSION}/api/workflow/report" >/dev/null || true
+
+curl -sf -X POST "${GATEWAY_URL}/${PROJECT}/${VERSION}/api/r2/upload" \
+  -H "Content-Type: application/json" \
+  -d '{"note":"commerce-store seed asset"}' >/dev/null || true
+
+api_status GET "${BASE}/database/tables/products/rows?limit=1"
 ROWS=$(echo "$API_BODY" | jq '.rows | length' 2>/dev/null || echo 0)
 [[ "$ROWS" -ge 1 ]] || fail "D1 products empty after deploy"
 

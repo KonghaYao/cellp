@@ -1,5 +1,5 @@
 {
-  "name": "commerce",
+  "name": "commerce-store",
   "main": "index.js",
   "compatibility_date": "2026-01-01",
   "d1_databases": [
@@ -8,5 +8,23 @@
       "database_name": "commerce",
       "database_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     }
-  ]
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "commerce-store-cache"
+    }
+  ],
+  "queues": {
+    "producers": [{ "binding": "FULFILLMENT", "queue": "fulfillment" }]
+  },
+  "workflows": [
+    {
+      "binding": "REPORTS",
+      "name": "order-report",
+      "class_name": "OrderReport"
+    }
+  ],
+  "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "commerce-assets" }],
+  "triggers": { "crons": ["0 * * * *"] }
 }

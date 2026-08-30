@@ -88,7 +88,7 @@ cd web && npm run test:e2e
 ```bash
 ./dev/scripts/up.sh
 cd web && npm install && npm run dev
-# http://127.0.0.1:5173
+# http://127.0.0.1:5190
 ```
 
 ## 仓库结构
@@ -110,7 +110,7 @@ docs/           # 计划 · 契约 · 证据
 | 8787 | cellpd Gateway |
 | 8790 | cellpd API |
 | 8792+ | celld（每 version 递增） |
-| 5173 | Dashboard dev server |
+| 5190 | Dashboard dev server (`DASHBOARD_PORT`) |
 | 9000 | RustFS S3 |
 
 ## 许可

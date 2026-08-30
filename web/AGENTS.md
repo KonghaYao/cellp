@@ -16,7 +16,7 @@
 
 # 终端 2：Dashboard
 cd web && npm install && npm run dev
-# http://127.0.0.1:5173
+# http://127.0.0.1:5190
 ```
 
 API 默认 `http://127.0.0.1:8790`（见 `web/src/lib/cellp-api.ts`）。  

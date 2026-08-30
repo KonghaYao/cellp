@@ -151,11 +151,11 @@ print_summary() {
   echo "Demo ready for Dashboard acceptance:"
   echo "  Project:   ${PROJECT}"
   echo "  Versions:  ${V1} (prod, seeded) · ${V2} (preview, AD-7 empty KV/queue)"
-  echo "  Dashboard: http://127.0.0.1:5173/projects/${PROJECT}/storage"
-  echo "  KV:        http://127.0.0.1:5173/projects/${PROJECT}/storage/${V1}/kv"
-  echo "  Queues:    http://127.0.0.1:5173/projects/${PROJECT}/storage/${V1}/queues"
-  echo "  Workflows: http://127.0.0.1:5173/projects/${PROJECT}/storage/${V1}/workflows"
-  echo "  D1:        http://127.0.0.1:5173/projects/${PROJECT}/storage/${V1}/browser"
+  echo "  Dashboard: http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage"
+  echo "  KV:        http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/kv"
+  echo "  Queues:    http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/queues"
+  echo "  Workflows: http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/workflows"
+  echo "  D1:        http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/browser"
   echo ""
 }
 

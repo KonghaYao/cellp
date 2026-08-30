@@ -14,6 +14,7 @@ import { resolveProdUrl, formatRelativeTime, truncateSha } from "@/lib/format";
 import { deploymentsHref, storageBrowserHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { DeploymentsTable } from "@/components/deployments-table";
+import { CommerceStorefrontEmbed } from "@/components/commerce-storefront-embed";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
@@ -184,19 +185,27 @@ export function ProjectOverviewPage() {
               )}
             </div>
             {project?.prod_version_id && (
-              <a
-                href={prodUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <Globe className="size-3.5" />
-                Visit
-                <ExternalLink className="size-3 text-muted-foreground" />
-              </a>
-            )}
+            <a
+              href={prodUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              <Globe className="size-3.5" />
+              {id === "commerce-store" ? "Open storefront" : "Visit"}
+              <ExternalLink className="size-3 text-muted-foreground" />
+            </a>
+          )}
           </div>
         </div>
+      )}
+
+      {!loading && id === "commerce-store" && project?.prod_version_id && (
+        <CommerceStorefrontEmbed
+          projectId={id}
+          versionId={project.prod_version_id}
+          prodUrl={project.prod_url}
+        />
       )}
 
       {loading ? (
@@ -285,8 +294,18 @@ export function ProjectOverviewPage() {
               to={storageBrowserHref(id, project.prod_version_id)}
               className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
             >
-              Browse production database
+              Browse storage bindings
             </Link>
+          )}
+          {id === "commerce-store" && project?.prod_version_id && (
+            <a
+              href={prodUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              Storefront UI
+            </a>
           )}
         </div>
       </div>

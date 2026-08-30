@@ -1,8 +1,11 @@
 const GATEWAY_DEFAULT = "http://127.0.0.1:8787";
 
 export function gatewayBase(): string {
-  const url = import.meta.env.VITE_CELLP_GATEWAY_URL ?? GATEWAY_DEFAULT;
-  return url.replace(/\/$/, "");
+  const configured = import.meta.env.VITE_CELLP_GATEWAY_URL as string | undefined;
+  if (configured === "") return "/__gateway";
+  if (configured) return configured.replace(/\/$/, "");
+  if (import.meta.env.DEV) return "/__gateway";
+  return GATEWAY_DEFAULT;
 }
 
 /** Derive production URL from project id and gateway env. */

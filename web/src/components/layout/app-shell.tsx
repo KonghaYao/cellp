@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Boxes, ChevronRight, Menu, X } from "lucide-react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { ApiHealthBanner } from "@/components/api-health-banner";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -83,6 +84,7 @@ export function AppShell() {
             <span className="text-sm font-medium">Projects</span>
           )}
         </header>
+        <ApiHealthBanner />
         <main className="flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
           <Outlet />
         </main>

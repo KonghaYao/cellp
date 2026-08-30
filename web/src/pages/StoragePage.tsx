@@ -104,20 +104,30 @@ export function StoragePage() {
           cursor = page.next_cursor;
         } while (cursor);
         const ready = all.filter((v) => v.status === "ready");
-        const withBindings = await Promise.all(
-          ready.map(async (version) => {
-            try {
-              const bindings = await getBindings(id, version.id);
-              return { version, bindings };
-            } catch {
-              return null;
-            }
-          }),
-        );
+        const withBindings: VersionRow[] = [];
+        const bindingErrors: string[] = [];
+        for (const version of ready) {
+          try {
+            const bindings = await getBindings(id, version.id);
+            withBindings.push({ version, bindings });
+          } catch (e) {
+            const msg =
+              e instanceof CellpApiError
+                ? `${version.id}: ${e.message}`
+                : `${version.id}: failed to load bindings`;
+            bindingErrors.push(msg);
+          }
+        }
         if (cancelled) return;
         setProdVersionId(project.prod_version_id);
-        setRows(withBindings.filter((row): row is VersionRow => row != null));
-        setError(null);
+        setRows(withBindings);
+        if (bindingErrors.length > 0 && withBindings.length === 0) {
+          setError(bindingErrors.join(" · "));
+        } else if (bindingErrors.length > 0) {
+          setError(`Some bindings failed: ${bindingErrors.join(" · ")}`);
+        } else {
+          setError(null);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(

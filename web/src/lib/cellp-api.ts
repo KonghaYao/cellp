@@ -352,8 +352,11 @@ export interface CreateVersionResponse {
 }
 
 function apiBase(): string {
-  const url = import.meta.env.VITE_CELLP_API_URL ?? DEFAULT_API_URL;
-  return url.replace(/\/$/, "");
+  const configured = import.meta.env.VITE_CELLP_API_URL as string | undefined;
+  if (configured === "") return "";
+  if (configured) return configured.replace(/\/$/, "");
+  if (import.meta.env.DEV) return "";
+  return DEFAULT_API_URL.replace(/\/$/, "");
 }
 
 function adminToken(): string {
