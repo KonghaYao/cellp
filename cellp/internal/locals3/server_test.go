@@ -61,8 +61,8 @@ func TestPutGet(t *testing.T) {
 
 // celld diagnose is the storage gate for cellp dev. Skip when celld is not on PATH.
 func TestCelldDiagnose(t *testing.T) {
-	if _, err := exec.LookPath("celld"); err != nil {
-		t.Skip("celld not on PATH")
+	if os.Getenv("CELLP_TEST_CELLD") == "" {
+		t.Skip("set CELLP_TEST_CELLD=1 to run celld diagnose against gofakes3")
 	}
 	dir := t.TempDir()
 	srv, err := locals3.Start("127.0.0.1:0", filepath.Join(dir, "s3.bolt"))
