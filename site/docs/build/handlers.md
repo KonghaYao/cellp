@@ -64,8 +64,8 @@ await env.FULFILLMENT.send({
 })
 ```
 
-::: warning Do not put `queue()` on the same script as `fetch()`
-celld will not run a consumer script that also exports `fetch`. HTTP producer and queue consumer are **two Workers** (two versions / two artifacts), or you consume from outside the fetch script.
+::: warning Producer vs consumer
+A queue **consumer** must export `queue()`. If that script has no `fetch`, celld compiles a 404 stub. HTTP `fetch` + `queue()` on **one** module is not the supported cellp pattern — keep a producer Worker for HTTP (`dev/examples/queue`) and a separate consumer if you need `queue()`.
 :::
 
 [Queues](/bindings/queues).

@@ -30,7 +30,7 @@ Child (PR) example body:
 }
 ```
 
-Poll `GET` on the version (or the `poll_url` from the 202) until `status` is `ready` or `failed`.
+Poll `GET` on the version until `status` is `ready` or `failed`. Use **`ADMIN_TOKEN`** for GET (deploy token is 403 if the two secrets differ). Locally they are the same `dev-local-token`.
 
 ## GitHub Actions (PR preview)
 
@@ -51,15 +51,16 @@ Sketch:
       -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" \
       -H "Content-Type: application/json" \
       -d "$BODY"
-    # poll until ready, print preview_url
+    # poll until ready with ADMIN_TOKEN, print preview_url
 ```
 
 Secrets you need:
 
 | Secret / var | Purpose |
 |--------------|---------|
-| `CELLP_URL` | API origin, e.g. `https://cellp.internal/v1` |
-| `CELLP_DEPLOY_TOKEN` | CI-only token |
+| `CELLP_URL` | API origin **including `/v1`**, e.g. `https://cellp.internal/v1` |
+| `CELLP_DEPLOY_TOKEN` | `POST /versions` only |
+| `CELLP_ADMIN_TOKEN` | Poll GET, promote, Dashboard |
 | RustFS endpoint + keys | Artifact upload |
 
 Commenting the preview URL on the PR is **your** GitHub token / bot. cellp will not.
@@ -71,7 +72,7 @@ Same upload + `POST /versions` **without** treating it as a throwaway PR id. Aft
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$CELLP_URL/v1/projects/$PROJECT/versions/$VERSION/promote"
+  "$CELLP_URL/projects/$PROJECT/versions/$VERSION/promote"
 ```
 
 Keep `ADMIN_TOKEN` out of PR workflows from forks.
@@ -89,7 +90,7 @@ Avoid parenting every PR at live production.
 ## Local stand-in
 
 ```bash
-./dev/scripts/simulate-cd.sh my-shop v-local1
+./dev/scripts/simulate-cd.sh my-shop v-local1 path/to/worker
 ```
 
-Same orchestrator path, no GitHub required.
+Default third argument is `dev/examples/counter`. The script always creates a **root** version. Laptop copy-into-`artifacts/` + `POST /versions` is the path that matches CI.

@@ -12,7 +12,11 @@ my-shop/
   index.js          # the Worker
 ```
 
-That folder **is** the deploy artifact. Put it at `s3://cellp-artifacts/{project}/{version}/` (locally: `dev/data/artifacts/{project}/{version}/`). cellp reads `wrangler.jsonc` / `wrangler.json` from there. There is no extra “create D1 in the dashboard first” step.
+That folder **is** the deploy artifact. Put it at `s3://cellp-artifacts/{project}/{version}/` (locally: `dev/data/artifacts/{project}/{version}/`).
+
+The orchestrator deploys that directory **only if it contains `wrangler.jsonc`**. A `wrangler.json`-only folder is parsed for listings, but **deploy falls back to `dev/examples/counter`**. Name the file `wrangler.jsonc`.
+
+You do not run `celld deploy` yourself for this path — cellpd does it. There is no “create D1 in the dashboard first” step.
 
 ## 1. The Worker
 
@@ -56,7 +60,9 @@ Add databases, KV, R2, queues, cron, and workflows in this file. That is [how yo
 
 ## 3. Create a project (once)
 
-Local tokens default to `dev-local-token`.
+Locally both tokens default to `dev-local-token`. If you split them: **create project** and **poll version** need `ADMIN_TOKEN`; **POST /versions** needs `DEPLOY_TOKEN`. Using the admin token on `POST /versions` is **403** when the two secrets differ.
+
+`POST /versions` will also create the project if it does not exist, so this step is optional.
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8790/v1/projects \
@@ -81,7 +87,7 @@ curl -sS -X POST http://127.0.0.1:8790/v1/projects/my-shop/versions \
   -d '{"id":"v1"}'
 ```
 
-Poll until `status` is `ready`:
+Poll until `status` is `ready` (loop; a single GET is a snapshot). Locally the same token works; in production poll with **admin**:
 
 ```bash
 curl -sS http://127.0.0.1:8790/v1/projects/my-shop/versions/v1 \
@@ -90,11 +96,9 @@ curl -sS http://127.0.0.1:8790/v1/projects/my-shop/versions/v1 \
 
 Open **http://127.0.0.1:8787/my-shop/v1/**
 
-Helper for the bundled examples: `./dev/scripts/simulate-cd.sh <project> <version> [path-to-worker]`.
+If this is the **first** ready version on the project, `/{project}/` (production path) already points at it — no promote yet. Later deploys stay preview-only until you [promote](/concepts/promote).
 
-## 5. Put it on production when you mean to
-
-Preview is `/{project}/{version}/`. Production is `/{project}/` only after [promote](/concepts/promote).
+`./dev/scripts/simulate-cd.sh` is **not** this flow: it extra-`celld deploy`s the **counter** example unless you pass a third path, always sends `parent_version_id: null`, and does not copy your files into `artifacts/`. Prefer the copy + `POST /versions` steps above. For commerce: `./dev/scripts/simulate-cd.sh commerce-store v-dev2 dev/examples/commerce`.
 
 ## What to read next
 

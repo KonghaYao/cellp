@@ -31,8 +31,8 @@ export default {
 }
 ```
 
-::: warning `queue()` + `fetch()` on one script
-celld rejects a consumer script that also exports `fetch()`. HTTP API and queue consumer = two Workers. See `dev/examples/queue` (producer-only).
+::: warning Producer vs consumer
+A consumer must export `queue()`. HTTP `fetch` + `queue()` on one script is not the supported cellp pattern. Keep a producer Worker for HTTP (`dev/examples/queue`) and a separate consumer if you need `queue()`.
 :::
 
 ## 3. What you see after deploy
@@ -48,7 +48,7 @@ celld rejects a consumer script that also exports `fetch()`. HTTP API and queue 
 ```
 GET  …/queues
 GET  …/queues/{name}
-POST …/queues/{name}/peek
+GET  …/queues/{name}/peek
 POST …/queues/{name}/pause
 POST …/queues/{name}/resume
 POST …/queues/{name}/redrive

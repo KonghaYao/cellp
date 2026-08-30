@@ -58,13 +58,13 @@ jobs:
             --arg ref "${{ needs.build.outputs.git_ref }}" \
             --arg sha "${{ needs.build.outputs.git_sha }}" \
             --arg digest "${{ needs.build.outputs.artifact_digest }}" \
-            '{id:$id, parent_version_id:$parent, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}}')
+            '{id:$id, parent_version_id:$parent, git_ref:$ref, git_sha:$sha, artifact_digest:$digest}')
           RESP=$(curl -sf -X POST "${{ env.CELLP_URL }}/projects/${{ env.PROJECT_ID }}/versions" \
             -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" \
             -H "Content-Type: application/json" -d "$BODY")
           POLL=$(echo "$RESP" | jq -r .poll_url)
           for i in $(seq 1 120); do
-            V=$(curl -sf -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" "${{ env.CELLP_URL }}$POLL")
+            V=$(curl -sf -H "Authorization: Bearer ${{ secrets.CELLP_ADMIN_TOKEN }}" "${{ env.CELLP_URL }}$POLL")
             S=$(echo "$V" | jq -r .status)
             if [ "$S" = "ready" ]; then
               echo "Preview URL: $(echo "$V" | jq -r .preview_url)"

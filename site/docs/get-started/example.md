@@ -45,7 +45,7 @@ Declared in [`wrangler.jsonc`](https://github.com/KonghaYao/cellp/blob/main/dev/
 
 1. Add a product and place an order on the storefront.
 2. Open Dashboard → Storage → D1 and see the new rows.
-3. Deploy a **child** version (`simulate-cd` with a parent) and confirm preview data forked while `v1` stayed put.
-4. [Promote](/concepts/promote) when you want `/commerce-store/` (no version segment) to serve that version.
+3. Deploy a **child** version: copy `wrangler.jsonc` (+ `index.js` / `storefront.js`) to `dev/data/artifacts/commerce-store/<new-id>/`, then `POST /versions` with `"parent_version_id":"v1"`. Confirm preview data forked while `v1` stayed put. `simulate-cd.sh` cannot do this (it always posts `parent_version_id: null`).
+4. Later versions need [promote](/concepts/promote) before `/commerce-store/` (no version segment) serves them. The **first** ready version is already production.
 
 This example is the fastest way to feel “App + Data, same version.”

@@ -27,19 +27,11 @@ Production does **not** share a database with a PR. A PR with `parent_version_id
 
 ### Seed D1 with a SQLite file
 
-If the artifact directory contains **`seed.db`** (a real SQLite file), the orchestrator runs `celld d1 import` for a **root** version.
+If the artifact directory contains **`seed.db`** (a real SQLite file), the orchestrator may run `celld d1 import` for a **root** version — **after** an optional offshoot **export to that same path**.
 
-Local commerce does exactly that:
+If offshoot export succeeds, **it overwrites** the `seed.db` you copied. Locally export often fails (non-strict warn) and your file survives; that is luck, not the contract. e2e seeds **offshoot**, not only the artifact file.
 
-```bash
-./dev/scripts/seed-commerce-store.sh
-# writes seed.db next to wrangler.jsonc under
-# dev/data/artifacts/commerce-store/v1/
-```
-
-Your app can do the same: generate `seed.db` in CI (`sqlite3 seed.db < schema.sql` then inserts), upload it **beside** `wrangler.jsonc`.
-
-Do not POST SQLite bytes through the JSON API. Path/file import only.
+Your CI can still generate `seed.db` (`sqlite3 seed.db < schema.sql`). Do not POST SQLite bytes through the JSON API.
 
 ### Seed D1 from the Worker
 

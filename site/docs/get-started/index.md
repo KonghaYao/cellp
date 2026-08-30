@@ -55,11 +55,11 @@ Open the storefront: [http://127.0.0.1:8787/commerce-store/v1/](http://127.0.0.1
 ## 5. Deploy another version (optional)
 
 ```bash
-./dev/scripts/simulate-cd.sh commerce-store v-dev2
+./dev/scripts/simulate-cd.sh commerce-store v-dev2 dev/examples/commerce
 curl -sf http://127.0.0.1:8787/commerce-store/v-dev2/
 ```
 
-You now have two isolated versions of the same project. Production is whichever version you [promote](/concepts/promote).
+You now have another **root** version of the same project (this script always sends `parent_version_id: null`). It does **not** fork D1 from `v1`. For a data fork, [stage files and POST with `parent_version_id`](/build/data). Production `/{project}/` is already `v1` after the first ready version; [promote](/concepts/promote) to cut over later versions.
 
 ## Docker (single machine)
 

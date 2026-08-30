@@ -1,6 +1,6 @@
 # Configure bindings
 
-Platform data is **not** a separate product you click together in the Dashboard. You declare it in **`wrangler.jsonc`** (or `wrangler.json`) next to the Worker. On deploy, celld creates those bindings on **this version**. The Dashboard is for inspecting and editing **values** after the version is `ready`.
+Platform data is **not** a separate product you click together in the Dashboard. You declare it in **`wrangler.jsonc`** next to the Worker (`wrangler.json` is parsed for listings but **not** used as the deploy bundle). On deploy, celld creates those bindings on **this version**. The Dashboard is for inspecting and editing **values** after the version is `ready`.
 
 ## The rule
 
@@ -12,6 +12,10 @@ Platform data is **not** a separate product you click together in the Dashboard.
 | `vars` | Overridable per version in Settings |
 
 If it is not in wrangler, `env.FOO` is `undefined`. Creating a “database” only in the UI does nothing.
+
+**Deploy filename:** the orchestrator only treats **`wrangler.jsonc`** as the Worker bundle. Use that name.
+
+cellp currently honors **one** `d1_databases` entry. A second database in the array fails deploy.
 
 ## Minimal file
 
@@ -114,17 +118,19 @@ Implement `scheduled(controller, env, ctx)` on the default export. celld fires i
 "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }]
 ```
 
-See the repo example `dev/examples/counter`. celld DO support is **partial** — read [celld compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md) before you bet the product on it.
+See the repo example `dev/examples/counter`. celld DO support is **partial**. Durable Objects **do not** show up on `GET …/bindings` (the control-plane parser has no `durable_objects` field). Confirm [celld compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md) before you bet the product on them.
 
 ## Full example (commerce)
 
-The storefront in this repo wires all of the above. Copy [dev/examples/commerce/wrangler.jsonc](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/wrangler.jsonc) and [index.js](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/index.js).
+The storefront in this repo wires all of the above. Copy [wrangler.jsonc](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/wrangler.jsonc), [index.js](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/index.js), and [storefront.js](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/storefront.js).
 
 ## Child versions
 
-When CI sends `parent_version_id`, keep **the same** `database_id`, KV `id`, queue names, and R2 `bucket_name` as the parent wrangler. cellp inherits those identities and **branches** the data. Changing ids on a PR is how you accidentally get an empty preview.
+When CI sends `parent_version_id`, cellp **copies parent identities** onto the child wrangler for D1 `database_id`, KV `id`, and R2 `bucket_name`. You should still ship the same ids in your file so listings match what you expect. **Queue names must already match** the parent or Start fails.
 
-The **script** always comes from this artifact (`main`). You can change routes and SQL; you should not change binding identities unless you intend a new empty resource.
+Changing those ids in a PR does **not** give you a quietly empty preview for D1/KV/R2 (they get overwritten). An empty preview is usually a missing `parent_version_id`, a failed branch, or a count mismatch.
+
+The **script** always comes from this artifact (`main`). You can change routes and SQL.
 
 ## What the Dashboard is for
 
