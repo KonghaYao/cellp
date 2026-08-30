@@ -1,6 +1,8 @@
 # cellp — 本地 Dev 快速上手
 
-产品文档（如何用、CI、Dashboard）：**[https://konghayao.github.io/cellp/get-started/local](https://konghayao.github.io/cellp/get-started/local)**
+产品文档（如何用、CI、Dashboard）：**[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**
+
+使用者本机无 Docker：`curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh` 然后 `cellp dev`。下面是**贡献者**本地栈（Docker RustFS）。
 
 ```bash
 cp dev/.env.example dev/.env

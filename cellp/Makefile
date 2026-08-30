@@ -5,6 +5,7 @@ test:
 
 build:
 	go build -o cellpd ./cmd/cellpd
+	go build -o cellp ./cmd/cellp
 
 tidy:
 	go mod tidy

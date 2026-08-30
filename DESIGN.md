@@ -667,8 +667,9 @@ curl http://127.0.0.1:8787/demo-app/v-dev1/
 
 ```
 cellp/                          # 控制面 Go（一期 P0）
+├── cmd/cellp/                  # CLI：dev / serve / doctor
 ├── cmd/cellpd/
-└── internal/{api,orch,registry,gateway,runtime,branch}/
+└── internal/{api,orch,registry,gateway,runtime,branch,serve,locals3}/
 
 e2e/                            # 端口级 E2E（后端完成后、前端前）
 ├── scripts/                    # curl / testscript 打 :8787 :8790 :8792

@@ -19,7 +19,7 @@
 
 | 路径 | 是什么 | 验证命令 |
 |------|--------|----------|
-| `cellp/` | Go 控制面（API · Orchestrator · Gateway · Registry） | `cd cellp && go test ./...` |
+| `cellp/` | Go 控制面 + **`cellp` CLI**（`dev` / `serve`） | `cd cellp && go test ./...` |
 | `celld/` | Rust Workers 运行时（**git submodule**） | `cargo build -p celld --profile lab`（在 `celld/`） |
 | `web/` | Dashboard（Vite + React SPA） | `cd web && npm run test:e2e` |
 | `dev/` | 本地 dev 栈（RustFS · cellpd · celld · offshoot） | `./dev/scripts/health.sh` |

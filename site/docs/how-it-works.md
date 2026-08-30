@@ -1,12 +1,11 @@
 # How it works
 
-You do not push git to cellp. You **push a version**.
+You do not push git to cellp. You **push a version**. On a laptop that is `cellp dev`. In CI it is upload + `POST /versions`.
 
 ## The loop
 
 <Flow :steps="[
-  'Build a wrangler bundle in CI (or locally)',
-  'Upload it to s3://cellp-artifacts/{project}/{version}/ on your RustFS',
+  'Write a Worker + wrangler.jsonc. Locally: cellp dev. In CI: upload the folder to RustFS',
   'POST /v1/projects/{project}/versions with id, optional parent_version_id, and artifact digest',
   'Poll GET …/versions/{id} until status is ready (or failed)',
   'Hit the preview URL on the gateway: /{project}/{version}/',

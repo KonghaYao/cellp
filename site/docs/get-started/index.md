@@ -1,84 +1,66 @@
 # Quick start
 
-Get a live Worker with real bindings on your laptop. No Cloudflare account.
+Install the CLI, start a local platform (**no Docker**), deploy a Worker.
 
-## What you will have
-
-- Gateway at `http://127.0.0.1:8787`
-- API at `http://127.0.0.1:8790`
-- An example store at `/commerce-store/v1/`
-- Dashboard at `http://127.0.0.1:5190` (after `npm run dev` in `web/`)
-
-## Prerequisites
-
-- Docker (for RustFS)
-- Node 20+
-- Go
-- Rust/cargo (to build **celld**)
-- `jq`, `esbuild` (`npm i -g esbuild`)
-- [offshoot](https://github.com/sricola/offshoot): `go install github.com/sricola/offshoot/cmd/offshoot@latest`
-
-## 1. Clone
+## 1. Install
 
 ```bash
-git clone https://github.com/KonghaYao/cellp.git
-cd cellp
-git submodule update --init celld
+curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+cellp doctor
 ```
 
-## 2. Build the runtime
+Details: [Install](/guides/install).
+
+## 2. Run the platform
 
 ```bash
-cd celld && cargo build -p celld --profile lab
-# put celld/target/lab/celld on your PATH, e.g. ~/.local/bin/celld
+cellp dev --no-deploy
 ```
 
-## 3. Start the stack
+Leaves API on `:8790` and gateway on `:8787`. Stop with Ctrl-C. Full notes: [cellp dev](/guides/dev).
 
-```bash
-cp dev/.env.example dev/.env
-./dev/scripts/up.sh
-./dev/scripts/health.sh
+## 3. Write a Worker (or use the example)
+
+Minimal app:
+
+```text
+my-shop/
+  wrangler.jsonc
+  index.js
 ```
 
-`health.sh` must exit 0. If it does not, run `./dev/scripts/logs.sh`.
-
-## 4. Seed the example
+See [Write a Worker](/build/). From that directory:
 
 ```bash
-./dev/scripts/seed-commerce-store.sh
-curl -sf http://127.0.0.1:8787/commerce-store/v1/stats
+cellp dev
 ```
 
-Open the storefront: [http://127.0.0.1:8787/commerce-store/v1/](http://127.0.0.1:8787/commerce-store/v1/)
+Opens `http://127.0.0.1:8787/<name>/dev/` after the version is ready.
 
-## 5. Deploy another version (optional)
+## Commerce example (from this repo)
 
 ```bash
-./dev/scripts/simulate-cd.sh commerce-store v-dev2 dev/examples/commerce
-curl -sf http://127.0.0.1:8787/commerce-store/v-dev2/
+git clone https://github.com/KonghaYao/cellp.git && cd cellp
+# after install.sh so celld is on PATH
+cd dev/examples/commerce
+cellp dev --project commerce-store
 ```
 
-You now have another **root** version of the same project (this script always sends `parent_version_id: null`). It does **not** fork D1 from `v1`. For a data fork, [stage files and POST with `parent_version_id`](/build/data). Production `/{project}/` is already `v1` after the first ready version; [promote](/concepts/promote) to cut over later versions.
+Or the contributor stack with Docker RustFS: [Local stack](/get-started/local).
 
-## Docker (single machine)
-
-If you prefer Compose instead of the laptop toolchain:
+## Docker (self-host)
 
 ```bash
-git submodule update --init celld
-docker compose up -d --build
+docker compose up -d
 curl -sf http://127.0.0.1:8790/v1/health
 ```
 
-Image: `ghcr.io/konghayo/cellp:latest`. Full notes: [Self-hosting](/guides/self-hosting).
+Image `ghcr.io/konghayo/cellp`. [Self-hosting](/guides/self-hosting).
 
 ## Next
 
-- **[Write a Worker](/build/)** — `index.js` + `wrangler.jsonc` + first version URL
-- **[Configure bindings](/build/wrangler)** — how D1 / KV / R2 / queues get onto `env`
-- **[Platform data](/build/data)** — seed D1, edit KV, fork preview data
-- [Local stack in more detail](/get-started/local)
-- [Example app (commerce)](/get-started/example)
-- [Dashboard](/get-started/dashboard)
+- [cellp dev](/guides/dev)
+- [Write a Worker](/build/)
+- [Configure bindings](/build/wrangler)
 - [Deploy from CI](/guides/ci)

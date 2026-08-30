@@ -49,7 +49,9 @@ yarn-error.log*
 
 # --- cellp build artifacts ---
 cellp/cellpd
+cellp/cellp
 cellp/cellpd.exe
+cellp/cellp.exe
 dev/bin/
 *.exe
 

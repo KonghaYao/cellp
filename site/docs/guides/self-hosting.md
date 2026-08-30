@@ -1,6 +1,9 @@
 # Self-hosting
 
-cellp is meant to run on **your** machines. The supported happy path is Docker Compose: RustFS + cellpd. celld processes are **spawned by cellpd** when a version becomes ready — they are not extra Compose services.
+cellp is meant to run on **your** machines.
+
+- **Laptop, no Docker:** [Install](/guides/install) then [cellp dev](/guides/dev).
+- **Production-shaped VM:** Docker Compose with **RustFS** + **cellpd** (`cellp serve` / `ghcr.io/konghayo/cellp`). celld processes are spawned by cellpd — not extra Compose services.
 
 ## Quick start
 
@@ -63,7 +66,7 @@ docker build -f docker/Dockerfile -t cellp:local .
 docker build -f docker/Dockerfile --build-arg CELLD_PROFILE=lab -t cellp:lab .
 ```
 
-The image includes `cellpd`, `celld`, `offshoot`, and `esbuild`.
+The image includes `cellpd`, `cellp`, `celld`, `offshoot`, and `esbuild`.
 
 ## Front door
 

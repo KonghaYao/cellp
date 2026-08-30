@@ -159,7 +159,9 @@ flowchart LR
 | **V0c** 多节点条件写 | 单一 VIP 可跳过 | ✅ skip 文档 |
 | **V0d** offshoot attach | `e2e/scripts/v0d-offshoot-attach.sh` | ✅ |
 
-**RustFS：** 默认 S3 后端；`celld diagnose` 通过前 **不得**启动 fleet。
+**RustFS：** 默认 **生产** S3 后端；`celld diagnose` 通过前 **不得**启动 fleet。
+
+**Laptop `cellp dev`：** 无 Docker 时用进程内 gofakes3 + bbolt（`:19000`，数据 `~/.cellp/data`）。这不是 AWS/R2，也不是生产对象存储；生产与 `docker compose` 仍用 **RustFS**。
 
 ---
 
@@ -167,7 +169,7 @@ flowchart LR
 
 | 路径 | 用途 | Agent 注意 |
 |------|------|------------|
-| `cellp/` | Go 控制面（API · Orchestrator · Gateway · Registry） | module root；`cd cellp && go test ./...` |
+| `cellp/` | Go 控制面 + `cellp` CLI | module root；`cd cellp && go test ./...` |
 | `celld/` | Rust 运行时（git submodule） | 改 D1/LTX 后 `cargo build -p celld --profile lab` 并重装 |
 | `web/` | Dashboard（Vite + React） | **仅消费** `:8790` API；禁止直连 `:8792` / offshoot / S3 |
 | `dev/` | 本地栈脚本 | `up.sh` / `health.sh` / `simulate-cd.sh` |

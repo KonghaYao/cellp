@@ -35,7 +35,7 @@ export default defineConfig({
     logo: { src: '/logo.svg', alt: 'cellp' },
     siteTitle: 'cellp',
     nav: [
-      { text: 'Docs', link: '/build/', activeMatch: '^/(build|get-started|concepts|guides|bindings)/' },
+      { text: 'Docs', link: '/guides/install', activeMatch: '^/(build|get-started|concepts|guides|bindings)/' },
       { text: 'Why cellp', link: '/why' },
       { text: 'Migrate', link: '/migrate/cloudflare', activeMatch: '^/migrate/' },
       { text: 'API', link: '/reference/api' },
@@ -87,6 +87,8 @@ export default defineConfig({
         {
           text: 'Guides',
           items: [
+            { text: 'Install', link: '/guides/install' },
+            { text: 'cellp dev', link: '/guides/dev' },
             { text: 'Deploy from CI', link: '/guides/ci' },
             { text: 'Environment variables', link: '/guides/environment-variables' },
             { text: 'Self-hosting', link: '/guides/self-hosting' },

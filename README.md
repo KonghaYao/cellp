@@ -6,7 +6,14 @@ Every deploy versions **the app and its data**. Preview is a real fork of D1, KV
 
 **Docs:** **[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**
 
-[Write a Worker](https://konghayao.github.io/cellp/build/) · [Configure bindings](https://konghayao.github.io/cellp/build/wrangler) · [Platform data](https://konghayao.github.io/cellp/build/data) · [Quick start](https://konghayao.github.io/cellp/get-started/) · [Why cellp](https://konghayao.github.io/cellp/why)
+```bash
+curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+cellp doctor
+cellp dev
+```
+
+[Install](https://konghayao.github.io/cellp/guides/install) · [cellp dev](https://konghayao.github.io/cellp/guides/dev) · [Write a Worker](https://konghayao.github.io/cellp/build/)
 
 ---
 
@@ -35,6 +42,16 @@ cellp 是**私有化 Workers 平台控制面**：外部 CI 每次投递时同时
 | **web/** | Vite SPA Dashboard (REST only) |
 
 ## Quick start
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+cellp dev
+```
+
+Binaries (macOS / Linux / Windows) ship on [GitHub Releases](https://github.com/KonghaYao/cellp/releases). Docker: `ghcr.io/konghayo/cellp`.
+
+### From source (contributors)
 
 ```bash
 git clone https://github.com/KonghaYao/cellp.git && cd cellp

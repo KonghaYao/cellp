@@ -85,6 +85,7 @@ docker build -f docker/Dockerfile --build-arg CELLD_PROFILE=lab -t cellp:lab .
 | Binary | Source |
 |--------|--------|
 | `cellpd` | `cellp/cmd/cellpd` (Go) |
+| `cellp` | `cellp/cmd/cellp` (Go) |
 | `celld` | `celld/` submodule (`cargo build -p celld --profile release`) |
 | `offshoot` | `go install github.com/sricola/offshoot/cmd/offshoot@latest` |
 | `esbuild` | npm global (celld deploy bundling) |

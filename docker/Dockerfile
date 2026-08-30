@@ -33,7 +33,8 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 COPY cellp/ ./
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cellpd ./cmd/cellpd
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cellpd ./cmd/cellpd && \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cellp ./cmd/cellp
 
 # --- esbuild (celld deploy bundling) ---
 FROM node:22-bookworm-slim AS build-esbuild
@@ -47,6 +48,7 @@ RUN apt-get update && \
 
 COPY --from=build-celld /out/celld /usr/local/bin/celld
 COPY --from=build-cellpd /out/cellpd /usr/local/bin/cellpd
+COPY --from=build-cellpd /out/cellp /usr/local/bin/cellp
 COPY --from=build-offshoot /out/offshoot /usr/local/bin/offshoot
 COPY --from=build-esbuild /usr/local/bin/esbuild /usr/local/bin/esbuild
 

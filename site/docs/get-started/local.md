@@ -1,5 +1,12 @@
 # Local stack
 
+Two laptop paths:
+
+| Path | When |
+|------|------|
+| **[cellp dev](/guides/dev)** | Product loop: no Docker, embedded S3, one command |
+| **`./dev/scripts/up.sh`** | Contributor stack: Docker **RustFS** + host `cellpd` (this page) |
+
 The `dev/` directory is a full cellp on one machine: RustFS, cellpd (API + gateway), celld, offshoot.
 
 ## Bring it up

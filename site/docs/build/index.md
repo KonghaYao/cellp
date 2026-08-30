@@ -73,9 +73,17 @@ curl -sS -X POST http://127.0.0.1:8790/v1/projects \
 
 Or use the Dashboard → Projects → create.
 
-## 4. Drop the files in as version `v1`
+## Local `cellp dev`
 
-With the [local stack](/get-started/local) already up:
+After [install](/guides/install), from this folder:
+
+```bash
+cellp dev
+```
+
+That starts the platform (no Docker) and deploys cwd as version `dev`. See [cellp dev](/guides/dev).
+
+You can also stage files yourself (CI-shaped):
 
 ```bash
 mkdir -p dev/data/artifacts/my-shop/v1
