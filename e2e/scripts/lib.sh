@@ -180,7 +180,10 @@ create_version() {
   local project="$1"
   local version="$2"
   local parent="${3:-}"
-  local extra="${4:-{}}"
+  local extra="${4:-}"
+  if [[ -z "$extra" ]]; then
+    extra="{}"
+  fi
   local body
   if [[ -n "$parent" ]]; then
     body=$(jq -n --arg id "$version" --arg parent "$parent" --argjson extra "$extra" \

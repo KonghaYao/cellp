@@ -63,6 +63,7 @@ type wranglerFile struct {
 	Queues       *wranglerQueues    `json:"queues"`
 	Workflows    []wranglerWorkflow `json:"workflows"`
 	R2Buckets    []wranglerR2       `json:"r2_buckets"`
+	Vars         map[string]string  `json:"vars"`
 	Triggers     *struct {
 		Crons []string `json:"crons"`
 	} `json:"triggers"`
@@ -217,5 +218,25 @@ func ParseBindings(projectDir string) (*Bindings, error) {
 		out.Crons = append(out.Crons, cfg.Triggers.Crons...)
 	}
 
+	return out, nil
+}
+
+// ParseWranglerVars returns wrangler.json vars (plain_text Worker env).
+func ParseWranglerVars(projectDir string) (map[string]string, error) {
+	raw, err := readWranglerConfig(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	var cfg wranglerFile
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("parse wrangler: %w", err)
+	}
+	out := map[string]string{}
+	for k, v := range cfg.Vars {
+		if k == "" {
+			continue
+		}
+		out[k] = v
+	}
 	return out, nil
 }

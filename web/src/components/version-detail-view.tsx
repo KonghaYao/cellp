@@ -31,6 +31,7 @@ import { CopyButton } from "@/components/copy-button";
 import { StatusIndicator } from "@/components/status-indicator";
 import { VersionActions } from "@/components/version-actions";
 import { VersionPolling } from "@/components/version-polling";
+import { EnvEditor } from "@/components/env-editor";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -243,6 +244,13 @@ function VersionDetailContent({
           </MetadataRow>
         </MetadataSection>
       </div>
+
+      {(version.status === "ready" ||
+        version.status === "archived" ||
+        version.status === "pending" ||
+        version.status === "deploying") && (
+        <EnvEditor projectId={projectId} versionId={version.id} />
+      )}
 
       {version.error && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-red-600">

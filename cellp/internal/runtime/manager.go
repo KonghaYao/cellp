@@ -29,7 +29,11 @@ type Manager struct {
 	processes map[string]*celldProc
 	ports     map[string]int
 	nextN     int
+	envLoader WorkerEnvLoader
 }
+
+// WorkerEnvLoader returns dashboard/CD Worker vars for a version (not platform keys).
+type WorkerEnvLoader func(ctx context.Context, project, version string) (map[string]string, error)
 
 type celldProc struct {
 	cmd      *exec.Cmd
@@ -49,6 +53,11 @@ func New(basePort int, endpoint, region, bucket, accessKey, secretKey string) *M
 		processes: make(map[string]*celldProc),
 		ports:     make(map[string]int),
 	}
+}
+
+// SetWorkerEnvLoader supplies per-version Worker vars written to CELLD_VARS_FILE at Start.
+func (m *Manager) SetWorkerEnvLoader(fn WorkerEnvLoader) {
+	m.envLoader = fn
 }
 
 func (m *Manager) key(project, version string) string {
@@ -135,6 +144,13 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 	return m.StartOnPort(ctx, project, version, "127.0.0.1", port)
 }
 
+// Restart stops then starts celld so CELLD_VARS_FILE is re-read.
+func (m *Manager) Restart(ctx context.Context, project, version string) error {
+	_ = m.Stop(ctx, project, version)
+	_, _, err := m.Start(ctx, project, version)
+	return err
+}
+
 // StartOnPort launches celld on host:port for the version.
 func (m *Manager) StartOnPort(ctx context.Context, project, version, host string, port int) (string, int, error) {
 	k := m.key(project, version)
@@ -187,7 +203,7 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 		// for AD-1 start.
 		gateMs = "5000"
 	}
-	cmd.Env = append(os.Environ(),
+	envExtra := []string{
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
 		fmt.Sprintf("CELLD_VAR_VERSION_ID=%s", version),
 		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", m.accessKey),
@@ -195,7 +211,21 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 		fmt.Sprintf("AWS_REGION=%s", m.region),
 		fmt.Sprintf("CELLD_WATCH=%s", watch),
 		fmt.Sprintf("CELLD_READY_FLEET_GATE_MS=%s", gateMs),
-	)
+	}
+	if m.envLoader != nil {
+		workerEnv, err := m.envLoader(ctx, project, version)
+		if err != nil {
+			return "", 0, fmt.Errorf("load worker env: %w", err)
+		}
+		if len(workerEnv) > 0 {
+			varsPath := filepath.Join(watch, "celld.vars")
+			if err := WriteCelldVarsFile(varsPath, workerEnv); err != nil {
+				return "", 0, fmt.Errorf("write CELLD_VARS_FILE: %w", err)
+			}
+			envExtra = append(envExtra, "CELLD_VARS_FILE="+varsPath)
+		}
+	}
+	cmd.Env = append(os.Environ(), envExtra...)
 	logPath := filepath.Join(os.TempDir(), fmt.Sprintf("celld-%s-%s.log", project, version))
 	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
 		cmd.Stdout = f

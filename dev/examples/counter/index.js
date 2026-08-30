@@ -12,6 +12,7 @@ export class Counter {
         n,
         version: this.env.VERSION_ID ?? "unknown",
         project: this.env.PROJECT_ID ?? "unknown",
+        greeting: this.env.GREETING ?? null,
         url: request.url,
       }),
       { status: 200, headers: { "content-type": "application/json" } },

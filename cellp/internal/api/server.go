@@ -83,6 +83,8 @@ func (s *Server) routes() {
 					r.Post("/pin", s.requireAdmin(s.handlePin))
 					r.Post("/unpin", s.requireAdmin(s.handleUnpin))
 					r.Delete("/", s.requireAdmin(s.handleDestroy))
+					r.Get("/env", s.requireAdmin(s.handleGetEnv))
+					r.Put("/env", s.requireAdmin(s.handlePutEnv))
 
 					r.Get("/bindings", s.requireAdmin(s.handleGetBindings))
 					r.Get("/workflows", s.requireAdmin(s.handleListWorkflows))
@@ -323,8 +325,22 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TP-SEC-4: strip platform env keys
-	req.Env = config.StripPlatformEnv(req.Env)
+	// TP-SEC-4: strip platform env keys; inherit parent overrides when unset
+	merged := map[string]string{}
+	if req.ParentVersionID != nil && *req.ParentVersionID != "" {
+		if parentEnv, err := s.store.GetVersionEnv(r.Context(), projectID, *req.ParentVersionID); err == nil {
+			merged = parentEnv
+		}
+	}
+	for k, v := range req.Env {
+		merged[k] = v
+	}
+	normalized, err := config.NormalizeWorkerEnv(merged)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	req.Env = normalized
 
 	pending, err := s.store.CountPendingJobs(r.Context())
 	if err != nil {

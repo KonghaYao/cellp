@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, Settings } from "lucide-react";
 import {
   getBindings,
   getProject,
+  getVersion,
   hasAnyBindings,
   CellpApiError,
   type Bindings,
@@ -16,6 +17,7 @@ import {
   storageQueuesHref,
   storageWorkflowsHref,
 } from "@/lib/routes";
+import { EnvEditor } from "@/components/env-editor";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,9 +42,23 @@ export function SettingsPage() {
           }
           return;
         }
-        const b = await getBindings(id, project.prod_version_id);
+        let prodId: string | null = project.prod_version_id;
+        try {
+          const v = await getVersion(id, prodId);
+          if (v.status === "destroyed") prodId = null;
+        } catch {
+          prodId = null;
+        }
+        let b: Bindings | null = null;
+        if (prodId) {
+          try {
+            b = await getBindings(id, prodId);
+          } catch {
+            b = null;
+          }
+        }
         if (!cancelled) {
-          setProdVersionId(project.prod_version_id);
+          setProdVersionId(prodId);
           setBindings(b);
           setError(null);
         }
@@ -138,19 +154,16 @@ export function SettingsPage() {
         </div>
       )}
 
-      {!loading && !prodVersionId && !error && (
-        <div className="rounded-md border border-border bg-card p-6 text-sm text-muted-foreground">
-          No production deployment yet. Promote a ready version to configure bindings.
-        </div>
+      {!loading && prodVersionId && !error && (
+        <EnvEditor projectId={id} versionId={prodVersionId} />
       )}
 
-      <div className="rounded-md border border-dashed border-border bg-card/50 p-6">
-        <h2 className="text-label-14 font-medium">Coming soon</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Environment variables, custom domains, and Git integration are planned for a
-          future release.
-        </p>
-      </div>
+      {!loading && !prodVersionId && !error && (
+        <div className="rounded-md border border-border bg-card p-6 text-sm text-muted-foreground">
+          No production deployment yet. Promote a ready version to configure Worker env
+          and bindings.
+        </div>
+      )}
 
       <p className="text-sm text-muted-foreground">
         Need help today?{" "}

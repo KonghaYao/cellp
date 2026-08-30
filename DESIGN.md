@@ -466,6 +466,15 @@ s3://cellp-celld/{project}/{version}/
 
 `queues[]` 含 producer binding 名、queue 名、是否本 script consumer、`dead_letter_queue`。空数组表示「未声明」，不是错误。
 
+#### Worker env（`wrangler.vars` · 不进 `/bindings`）
+
+覆盖存在 `versions.env_json`。Start 时写入 watch 目录 `celld.vars` 并设置 `CELLD_VARS_FILE`；`CELLD_VAR_PROJECT_ID` / `CELLD_VAR_VERSION_ID` 始终最高优先级。pending 也可 PUT；ready 则 Stop+Start。
+
+| 方法 | 路径 | 作用 |
+|---|---|---|
+| GET | `.../env` | wrangler `vars` ∪ overrides ∪ 平台键（`source` · `readonly`） |
+| PUT | `.../env` | body `{ "vars": { "KEY": "val" } }` 整表替换覆盖；不可设 `PROJECT_ID` · `VERSION_ID` · `CELLP_*` · `CELLD_*` |
+
 #### KV（包装 `celld kv`）
 
 | 方法 | 路径 | celld |
@@ -550,6 +559,8 @@ Token：**DEPLOY_TOKEN**（POST versions）· **ADMIN_TOKEN**（promote/destroy�
 | DELETE | `.../versions/{vid}` | destroy |
 | GET | `.../versions/{vid}/database` | D1 元数据（已有） |
 | GET | `.../versions/{vid}/bindings` | 绑定清单（§8.4） |
+| GET | `.../versions/{vid}/env` | Worker env：wrangler `vars` ∪ Dashboard 覆盖 ∪ 平台 `PROJECT_ID`/`VERSION_ID` |
+| PUT | `.../versions/{vid}/env` | 替换覆盖；ready version 重启 celld（`CELLD_VARS_FILE`） |
 | * | `.../versions/{vid}/kv/…` | KV operator（§8.4） |
 | * | `.../versions/{vid}/queues/…` | Queue operator（§8.4） |
 | GET | `.../versions/{vid}/workflows/…` | Workflow 只读（§8.4） |
@@ -574,7 +585,8 @@ artifact URL **服务端构造**（防 SSRF）。status：`pending` → … → 
 | `/projects/{id}/storage/{vid}/kv` | KV browser |
 | `/projects/{id}/storage/{vid}/queues` | Queue 控制台 |
 | `/projects/{id}/storage/{vid}/workflows` | Workflow 实例（只读） |
-| `/projects/{id}/versions/{vid}` | Promote · Destroy |
+| `/projects/{id}/versions/{vid}` | Promote · Destroy · Worker env |
+| `/projects/{id}/settings` | 生产 version Worker env · bindings 摘要 |
 
 **一期不做：** 实时图表 · 用量统计 · 复杂 SSE 面板（轮询即可）· R2 对象浏览器 · Workflow 控制按钮。
 
@@ -609,7 +621,7 @@ curl http://127.0.0.1:8787/demo-app/v-dev1/
 - celld bind 127.0.0.1；Gateway 对外
 - DEPLOY / ADMIN token 拆分
 - PR 禁止 fork prod 数据
-- CD env 不可覆盖平台托管键
+- CD / Dashboard env 不可覆盖平台托管键（`PROJECT_ID` · `VERSION_ID` · `CELLP_*` · `CELLD_*`）；覆盖写入 `CELLD_VARS_FILE`，ready version 会重启 celld
 
 ---
 

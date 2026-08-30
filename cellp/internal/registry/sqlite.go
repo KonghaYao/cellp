@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -368,13 +369,17 @@ func (s *SQLiteStore) CreateVersion(ctx context.Context, in CreateVersionInput) 
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	err := withRetryErr(func() error {
+	envJSON, err := marshalEnvJSON(in.Env)
+	if err != nil {
+		return nil, err
+	}
+	err = withRetryErr(func() error {
 		_, err := s.db.ExecContext(ctx, `
 			INSERT INTO versions (id, project_id, parent_version_id, git_ref, git_sha, artifact_uri,
-				artifact_digest, preview_url, status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				artifact_digest, preview_url, status, env_json, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			in.ID, in.ProjectID, nullStr(in.ParentVersionID), in.GitRef, in.GitSHA,
-			in.ArtifactURI, in.ArtifactDigest, in.PreviewURL, StatusPending,
+			in.ArtifactURI, in.ArtifactDigest, in.PreviewURL, StatusPending, envJSON,
 			now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 		return err
 	})
@@ -926,6 +931,68 @@ func (s *SQLiteStore) TouchLastAccess(ctx context.Context, projectID, versionID 
 			now, projectID, versionID)
 		return err
 	})
+}
+
+func (s *SQLiteStore) GetVersionEnv(ctx context.Context, projectID, versionID string) (map[string]string, error) {
+	return withRetry(func() (map[string]string, error) {
+		row := s.db.QueryRowContext(ctx,
+			`SELECT env_json FROM versions WHERE project_id = ? AND id = ?`, projectID, versionID)
+		var raw sql.NullString
+		if err := row.Scan(&raw); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("version not found")
+			}
+			return nil, err
+		}
+		return unmarshalEnvJSON(raw.String), nil
+	})
+}
+
+func (s *SQLiteStore) SetVersionEnv(ctx context.Context, projectID, versionID string, env map[string]string) error {
+	payload, err := marshalEnvJSON(env)
+	if err != nil {
+		return err
+	}
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		res, err := s.db.ExecContext(ctx,
+			`UPDATE versions SET env_json = ?, updated_at = ? WHERE project_id = ? AND id = ?`,
+			payload, now, projectID, versionID)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("version not found")
+		}
+		return nil
+	})
+}
+
+func marshalEnvJSON(env map[string]string) (string, error) {
+	if env == nil {
+		env = map[string]string{}
+	}
+	b, err := json.Marshal(env)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func unmarshalEnvJSON(raw string) map[string]string {
+	out := map[string]string{}
+	if strings.TrimSpace(raw) == "" {
+		return out
+	}
+	_ = json.Unmarshal([]byte(raw), &out)
+	if out == nil {
+		return map[string]string{}
+	}
+	return out
 }
 
 func (s *SQLiteStore) ListAllReadyVersions(ctx context.Context) ([]Version, error) {

@@ -60,6 +60,23 @@ test.describe("cellp dashboard smoke (TP-UI-1..5)", () => {
       page.getByRole("button", { name: "Promote to prod" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Destroy" })).toBeVisible();
+    await expect(page.getByTestId("worker-env-editor")).toBeVisible();
+  });
+
+  test("settings edits worker env", async ({ page }) => {
+    await page.goto("/projects/demo-app/settings");
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    const editor = page.getByTestId("worker-env-editor");
+    await expect(editor).toBeVisible();
+    await expect(editor.locator('input[value="PROJECT_ID"]')).toBeVisible();
+    await editor.getByRole("button", { name: "Add variable" }).click();
+    const keys = editor.getByLabel(/Env key/);
+    await keys.last().fill("DASH_KEY");
+    const values = editor.getByLabel(/Env value/);
+    await values.last().fill("from-dashboard");
+    await editor.getByRole("button", { name: "Save" }).click();
+    await expect(editor.getByText("Saved.")).toBeVisible();
+    await expect(editor.locator('input[value="DASH_KEY"]')).toBeVisible();
   });
 
   test("promote updates prod pointer", async ({ page }) => {

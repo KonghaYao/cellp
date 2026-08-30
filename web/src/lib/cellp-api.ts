@@ -544,6 +544,36 @@ export async function unpinVersion(
   return getVersion(projectId, versionId);
 }
 
+export type WorkerEnvSource = "platform" | "override" | "wrangler";
+
+export interface WorkerEnvVar {
+  key: string;
+  value: string;
+  source: WorkerEnvSource;
+  readonly: boolean;
+}
+
+export async function getVersionEnv(
+  projectId: string,
+  versionId: string,
+): Promise<WorkerEnvVar[]> {
+  const data = await request<{ vars: WorkerEnvVar[] }>(
+    `${versionRoot(projectId, versionId)}/env`,
+  );
+  return data.vars ?? [];
+}
+
+export async function putVersionEnv(
+  projectId: string,
+  versionId: string,
+  vars: Record<string, string>,
+): Promise<void> {
+  await request(`${versionRoot(projectId, versionId)}/env`, {
+    method: "PUT",
+    body: JSON.stringify({ vars }),
+  });
+}
+
 export async function healthCheck(): Promise<{ status: string }> {
   return request<{ status: string }>("/v1/health");
 }

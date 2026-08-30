@@ -24,12 +24,17 @@ func TestRegistryCRUD(t *testing.T) {
 	if _, err := s.CreateVersion(ctx, CreateVersionInput{
 		ID: "v1", ProjectID: "demo",
 		ArtifactURI: "s3://cellp-artifacts/demo/v1/",
+		Env:         map[string]string{"GREETING": "hi"},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.GetVersion(ctx, "demo", "v1")
 	if err != nil || got == nil || got.Status != StatusPending {
 		t.Fatalf("get version: %+v err=%v", got, err)
+	}
+	env, err := s.GetVersionEnv(ctx, "demo", "v1")
+	if err != nil || env["GREETING"] != "hi" {
+		t.Fatalf("env = %#v err=%v", env, err)
 	}
 	if err := s.UpdateVersionStatus(ctx, "demo", "v1", StatusReady, nil); err != nil {
 		t.Fatal(err)

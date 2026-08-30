@@ -347,6 +347,17 @@
 | 通过 | 6+ ready 无 429；archive 非 prod → 503 `version_archived`；wake → 200；archive prod → 422 |
 | 证据 | `docs/evidence/v15-archive-e2e.log` |
 
+### [ ] TP-V16 — Worker env
+
+| 命令 | `e2e/scripts/v16-worker-env.sh` |
+| 通过 | POST env → Worker `env.GREETING`；PUT 后预览更新；平台键不可覆盖 |
+| 证据 | `docs/evidence/v16-worker-env-e2e.log` |
+
+### [ ] TP-UI-13 — Settings Worker env
+
+| 检查 | `/projects/:id/settings` 可编辑生产 version env；Save 走 `PUT …/env` |
+| 命令 | `cd web && npm run test:e2e` |
+
 ### TP-VE-1（路径修订，非新 ID）
 
 | 检查 | `:8790/v1/health` · `:8787/health` · `:8792/.well-known/celld/health` → 200 |

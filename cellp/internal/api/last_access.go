@@ -31,7 +31,7 @@ func (s *statusRecorder) Write(b []byte) (int, error) {
 // counts as use for AD-9 last_access (idle archive). Status polling and
 // lifecycle verbs do not; operator KV/queue/D1 routes do. 503 is ignored
 // (same as Gateway).
-func shouldCountVersionAccess(pathSuffix string, status int) bool {
+func shouldCountVersionAccess(method, pathSuffix string, status int) bool {
 	if status < 200 || status >= 300 || status == http.StatusServiceUnavailable {
 		return false
 	}
@@ -39,6 +39,9 @@ func shouldCountVersionAccess(pathSuffix string, status int) bool {
 	switch rest {
 	case "", "/promote", "/archive", "/wake", "/pin", "/unpin":
 		return false
+	case "/env":
+		// GET is Dashboard metadata (like GET version). PUT mutates runtime.
+		return method != http.MethodGet && method != http.MethodHead
 	default:
 		return true
 	}
@@ -55,7 +58,7 @@ func (s *Server) touchVersionAccess(next http.Handler) http.Handler {
 		}
 		prefix := fmt.Sprintf("/v1/projects/%s/versions/%s", projectID, versionID)
 		suffix := strings.TrimPrefix(r.URL.Path, prefix)
-		if !shouldCountVersionAccess(suffix, rw.status) {
+		if !shouldCountVersionAccess(r.Method, suffix, rw.status) {
 			return
 		}
 		s.touchLastAccessThrottled(projectID, versionID)

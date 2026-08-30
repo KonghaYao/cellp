@@ -33,8 +33,8 @@
 | `/projects/:id/deployments` | Deployments 表格 |
 | `/projects/:id/storage` | Storage 入口 |
 | `/projects/:id/storage/:vid/browser` | D1 管理（Schema · Data · Query · Branches） |
-| `/projects/:id/settings` | 项目设置 |
-| `/projects/:id/versions/:vid` | 版本详情 · Promote · Destroy |
+| `/projects/:id/settings` | 项目设置 · **Worker env** |
+| `/projects/:id/versions/:vid` | 版本详情 · Promote · Destroy · **Worker env** |
 
 旧路径 `/projects/:id/versions/:vid/database` → 重定向到 storage browser。
 
@@ -82,6 +82,7 @@ cd web && npm run build
 | TP-UI-4 | 仅 API 消费 | `web/src/lib/cellp-api.ts` |
 | TP-UI-5 | Playwright smoke | `npm run test:e2e` |
 | TP-UI-6 | 无直连运行时 | `rg ':8792\|offshoot' web/src/` 无匹配 |
+| TP-UI-13 | Settings Worker env | Playwright `settings edits worker env` |
 
 ## Subagent prompt
 

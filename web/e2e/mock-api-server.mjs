@@ -29,6 +29,30 @@ function version(id, projectId, overrides = {}) {
   };
 }
 
+const VERSION_ENV = {
+  "demo-app/v1": { GREETING: "from-wrangler" },
+};
+
+function platformEnvKeys() {
+  return new Set(["PROJECT_ID", "VERSION_ID"]);
+}
+
+function stripPlatformEnv(vars = {}) {
+  const out = {};
+  for (const [k, v] of Object.entries(vars)) {
+    const upper = String(k).toUpperCase();
+    if (upper.startsWith("CELLP_") || upper.startsWith("CELLD_")) continue;
+    if (platformEnvKeys().has(upper)) continue;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) continue;
+    out[k] = String(v);
+  }
+  return out;
+}
+
+function envKey(projectId, versionId) {
+  return `${projectId}/${versionId}`;
+}
+
 const state = {
   projects: {
     "demo-app": {
@@ -701,6 +725,13 @@ const server = http.createServer(async (req, res) => {
       ready_at: now,
     });
     project.versions[id] = newVersion;
+    const inherited = parentId
+      ? { ...(VERSION_ENV[envKey(projectId, parentId)] || {}) }
+      : {};
+    VERSION_ENV[envKey(projectId, id)] = {
+      ...inherited,
+      ...stripPlatformEnv(body.env || {}),
+    };
     if (parentId) {
       VERSION_ROW_COUNTS[id] = forkRowCounts(parentId);
     } else {
@@ -714,6 +745,42 @@ const server = http.createServer(async (req, res) => {
   }
 
   const versionId = parts[4];
+
+  if (
+    parts[1] === "projects" &&
+    parts[3] === "versions" &&
+    parts[5] === "env" &&
+    parts.length === 6
+  ) {
+    if (!project) return json(res, 404, { error: "project_not_found" });
+    const v = project.versions?.[versionId];
+    if (!v) return json(res, 404, { error: "version_not_found" });
+    const key = envKey(projectId, versionId);
+    if (req.method === "GET") {
+      const overrides = VERSION_ENV[key] || {};
+      const vars = [
+        { key: "PROJECT_ID", value: projectId, source: "platform", readonly: true },
+        { key: "VERSION_ID", value: versionId, source: "platform", readonly: true },
+        ...Object.entries(overrides).map(([k, value]) => ({
+          key: k,
+          value,
+          source: "override",
+          readonly: false,
+        })),
+      ];
+      return json(res, 200, { vars });
+    }
+    if (req.method === "PUT") {
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch {
+        return json(res, 400, { error: "invalid_json" });
+      }
+      VERSION_ENV[key] = stripPlatformEnv(body.vars || {});
+      return json(res, 200, { id: versionId, project_id: projectId, status: v.status });
+    }
+  }
 
   if (
     parts[1] === "projects" &&

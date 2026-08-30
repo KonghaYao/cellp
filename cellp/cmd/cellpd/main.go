@@ -41,6 +41,9 @@ func main() {
 	queue := job.NewSQLiteQueue(store)
 	bm := branch.New(cfg.OffshootStore, store)
 	rm := runtime.New(cfg.CelldBasePort, cfg.S3Endpoint, cfg.S3Region, cfg.CelldBucket, cfg.S3AccessKey, cfg.S3SecretKey)
+	rm.SetWorkerEnvLoader(func(ctx context.Context, project, version string) (map[string]string, error) {
+		return store.GetVersionEnv(ctx, project, version)
+	})
 	as := &artifact.Store{
 		Bucket:      cfg.ArtifactsBucket,
 		LocalDir:    cfg.ArtifactsDir,

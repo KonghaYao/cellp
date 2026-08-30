@@ -142,6 +142,8 @@ type Store interface {
 
 	SetVersionPinned(ctx context.Context, projectID, versionID string, pinned bool) error
 	TouchLastAccess(ctx context.Context, projectID, versionID string) error
+	GetVersionEnv(ctx context.Context, projectID, versionID string) (map[string]string, error)
+	SetVersionEnv(ctx context.Context, projectID, versionID string, env map[string]string) error
 	ListAllReadyVersions(ctx context.Context) ([]Version, error)
 	CountChildVersions(ctx context.Context, projectID, parentVersionID string) (int, error)
 

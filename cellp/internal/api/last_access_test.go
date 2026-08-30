@@ -8,27 +8,30 @@ import (
 func TestShouldCountVersionAccess(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
+		method string
 		suffix string
 		status int
 		want   bool
 	}{
-		{suffix: "", status: 200, want: false},
-		{suffix: "/", status: 200, want: false},
-		{suffix: "/promote", status: 200, want: false},
-		{suffix: "/archive", status: 200, want: false},
-		{suffix: "/wake", status: 200, want: false},
-		{suffix: "/pin", status: 200, want: false},
-		{suffix: "/unpin", status: 200, want: false},
-		{suffix: "/kv/ns/keys/k", status: 200, want: true},
-		{suffix: "/queues/tasks/peek", status: 200, want: true},
-		{suffix: "/database/query", status: 200, want: true},
-		{suffix: "/kv/ns/keys/k", status: 503, want: false},
-		{suffix: "/kv/ns/keys/k", status: 404, want: false},
+		{method: http.MethodGet, suffix: "", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/promote", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/archive", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/wake", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/pin", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/unpin", status: 200, want: false},
+		{method: http.MethodGet, suffix: "/env", status: 200, want: false},
+		{method: http.MethodPut, suffix: "/env", status: 200, want: true},
+		{method: http.MethodGet, suffix: "/kv/ns/keys/k", status: 200, want: true},
+		{method: http.MethodGet, suffix: "/queues/tasks/peek", status: 200, want: true},
+		{method: http.MethodGet, suffix: "/database/query", status: 200, want: true},
+		{method: http.MethodGet, suffix: "/kv/ns/keys/k", status: 503, want: false},
+		{method: http.MethodGet, suffix: "/kv/ns/keys/k", status: 404, want: false},
 	}
 	for _, tc := range cases {
-		got := shouldCountVersionAccess(tc.suffix, tc.status)
+		got := shouldCountVersionAccess(tc.method, tc.suffix, tc.status)
 		if got != tc.want {
-			t.Errorf("shouldCountVersionAccess(%q, %d) = %v, want %v", tc.suffix, tc.status, got, tc.want)
+			t.Errorf("shouldCountVersionAccess(%q, %q, %d) = %v, want %v", tc.method, tc.suffix, tc.status, got, tc.want)
 		}
 	}
 }

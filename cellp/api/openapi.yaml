@@ -264,6 +264,81 @@ paths:
           description: Accepted
         "422":
           description: Validation error (e.g. fork prod)
+  /projects/{projectID}/versions/{versionID}/env:
+    get:
+      summary: List Worker env vars (wrangler + overrides + platform)
+      operationId: getVersionEnv
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Env vars
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vars:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        value:
+                          type: string
+                        source:
+                          type: string
+                          enum: [platform, override, wrangler]
+                        readonly:
+                          type: boolean
+        "404":
+          description: Version not found
+    put:
+      summary: Replace Worker env overrides (cannot set platform keys)
+      operationId: putVersionEnv
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vars:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "200":
+          description: Saved (ready versions restart celld)
+        "400":
+          description: Invalid key or value
+        "404":
+          description: Version not found
   /projects/{projectID}/versions/{versionID}:
     get:
       summary: Get version status

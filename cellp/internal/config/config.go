@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -77,15 +78,59 @@ func envInt(key string, def int) int {
 	return def
 }
 
-// StripPlatformEnv removes CELLP_* and CELLD_REGISTRY keys from user env.
+var workerEnvKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+const (
+	maxWorkerEnvKeys  = 64
+	maxWorkerEnvValue = 8192
+)
+
+// StripPlatformEnv removes keys the platform owns (DESIGN §12).
 func StripPlatformEnv(env map[string]string) map[string]string {
 	out := make(map[string]string, len(env))
 	for k, v := range env {
-		upper := strings.ToUpper(k)
-		if strings.HasPrefix(upper, "CELLP_") || upper == "CELLD_REGISTRY" {
+		if isPlatformEnvKey(k) {
 			continue
 		}
 		out[k] = v
 	}
 	return out
+}
+
+func isPlatformEnvKey(k string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(k))
+	if upper == "" {
+		return true
+	}
+	if strings.HasPrefix(upper, "CELLP_") || strings.HasPrefix(upper, "CELLD_") {
+		return true
+	}
+	switch upper {
+	case "PROJECT_ID", "VERSION_ID", "CELLD_REGISTRY":
+		return true
+	default:
+		return false
+	}
+}
+
+// NormalizeWorkerEnv strips platform keys and rejects invalid names/values.
+func NormalizeWorkerEnv(env map[string]string) (map[string]string, error) {
+	stripped := StripPlatformEnv(env)
+	if len(stripped) > maxWorkerEnvKeys {
+		return nil, fmt.Errorf("too many env keys (max %d)", maxWorkerEnvKeys)
+	}
+	out := make(map[string]string, len(stripped))
+	for k, v := range stripped {
+		if !workerEnvKeyRe.MatchString(k) {
+			return nil, fmt.Errorf("invalid env key %q", k)
+		}
+		if strings.ContainsAny(v, "\n\x00") {
+			return nil, fmt.Errorf("invalid env value for %q", k)
+		}
+		if len(v) > maxWorkerEnvValue {
+			return nil, fmt.Errorf("env value for %q is too long", k)
+		}
+		out[k] = v
+	}
+	return out, nil
 }
