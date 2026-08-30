@@ -58,10 +58,18 @@ dev/bin/
 *.sqlite-wal
 *.sqlite-shm
 
+# --- research clones / agent scratch ---
+/offshoot-research/
+/agent-tools/
+**/.ux-review*/
+**/.ux-review-r*/
+
 # --- test / stress evidence (generated; keep templates only) ---
 docs/evidence/*.log
 docs/evidence/*.out
 docs/evidence/*.db
+docs/evidence/commerce-prod-*
+docs/evidence/dashboard-ux-rounds.md
 docs/evidence/stress-metrics.jsonl
 docs/evidence/stress-run-all*.log
 docs/evidence/stress-report.md
