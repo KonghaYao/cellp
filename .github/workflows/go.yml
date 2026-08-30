@@ -11,7 +11,7 @@ on:
       - ".github/workflows/go.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   GOTOOLCHAIN: auto
