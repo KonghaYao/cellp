@@ -142,7 +142,7 @@ test.describe("database management (Neon-like)", () => {
 
   test("project page links to database", async ({ page }) => {
     await page.goto("/projects/demo-app");
-    await page.getByRole("link", { name: "Browse production database" }).click();
+    await page.getByRole("link", { name: "Browse storage bindings" }).click();
     await expect(page).toHaveURL(/\/storage\/v\d+\/browser/);
   });
 

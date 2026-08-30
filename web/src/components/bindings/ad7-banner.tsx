@@ -1,8 +1,8 @@
 import { Info } from "lucide-react";
 
-/** AD-7 empty-start copy — keep identical on hub, KV, Queue, and Workflow surfaces. */
+/** Preview binding copy — keep identical on hub, KV, Queue, and Workflow surfaces. */
 export const AD7_BANNER_TEXT =
-  "Preview KV / Queue start empty and do not inherit Production keys or backlog. D1 still uses branch.";
+  "Preview KV / Queue inherit parent keys and backlog via branch (like D1). Workflow and Cron instances start empty.";
 
 export function Ad7Banner({ className }: { className?: string }) {
   return (

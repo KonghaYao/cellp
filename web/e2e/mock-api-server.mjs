@@ -368,10 +368,14 @@ function bindingsManifest(projectId, versionId) {
   };
 }
 
-/** Per-version KV maps. Sibling versions never share keys (AD-7). */
+/** Per-version KV maps. Child versions branch from parent (AD-8); sibling writes stay isolated. */
 const kvStores = {};
 const queueStores = {};
 const workflowStores = {};
+
+function versionParentId(projectId, versionId) {
+  return state.projects[projectId]?.versions?.[versionId]?.parent_version_id ?? null;
+}
 
 function kvStoreId(projectId, versionId, ns) {
   return `${projectId}::${versionId}::${ns}`;
@@ -389,6 +393,15 @@ function seedKvMap(projectId, versionId, ns) {
   const expectedNs = `${projectId}-cache`;
   const map = new Map();
   if (ns !== expectedNs) return map;
+
+  const parentId = versionParentId(projectId, versionId);
+  if (parentId) {
+    const parentMap = getKvMap(projectId, parentId, ns);
+    for (const [key, entry] of parentMap) {
+      map.set(key, { ...entry });
+    }
+  }
+
   if (projectId === "demo-app" && versionId === "v1") {
     map.set("greeting", { value: "hello-prod", encoding: "utf-8" });
     map.set("item-1", { value: "one", encoding: "utf-8" });
@@ -413,16 +426,21 @@ function declaredKvIds(projectId) {
 }
 
 function seedQueue(projectId, versionId, name) {
-  const messages =
-    projectId === "demo-app" && versionId === "v1" && name === "tasks"
-      ? [
-          {
-            id: "msg-1",
-            bodyBase64: Buffer.from("hello-queue").toString("base64"),
-            contentType: "text/plain",
-          },
-        ]
-      : [];
+  const messages = [];
+  const parentId = versionParentId(projectId, versionId);
+  if (parentId) {
+    const parentQ = getQueueState(projectId, parentId, name);
+    for (const msg of parentQ.messages) {
+      messages.push({ ...msg });
+    }
+  }
+  if (projectId === "demo-app" && versionId === "v1" && name === "tasks") {
+    messages.push({
+      id: "msg-1",
+      bodyBase64: Buffer.from("hello-queue").toString("base64"),
+      contentType: "text/plain",
+    });
+  }
   return { paused: false, messages };
 }
 

@@ -1,0 +1,20 @@
+{
+  "project": "demo-app",
+  "versions": [
+    "v-e2e-1788087892-25925",
+    "v-e2e-1788087892-10904"
+  ],
+  "queue": "tasks",
+  "exit": 0,
+  "timestamp": "2026-08-30T11:05:22Z",
+  "http": {
+    "bindings": 200,
+    "info": 200,
+    "peek": 200,
+    "purge_noforce": 400,
+    "purge_force": 200,
+    "child_peek": 200,
+    "pause": 200
+  },
+  "note": "producer-only example; no queues.consumers (celld: consumer cannot export fetch)"
+}

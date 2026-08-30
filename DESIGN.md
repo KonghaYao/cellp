@@ -1,24 +1,58 @@
 # cellp 设计文档
 
 > **cellp** — 版本化的 Serverless 应用运行时（cell + platform）  
-> **唯一设计入口** · 管理维度：**Project + Version**（无用户体系）  
-> 决策摘要：[docs/decisions.md](./docs/decisions.md) · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
+> **唯一设计入口** · 管理维度：**Project + Version**（**无用户体系 · AD-10**）  
+> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-10** 产品边界） · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
 
 ---
 
 ## 1. 概述
 
-**cellp** 在每次 CD 时同时 version 化 **App + Data**，通过稳定 Gateway URL 提供完整可访问环境。
+**cellp** 是 **私有化 Workers 平台控制面**：在外部 CI 每次投递时，同时 version 化 **App + Data**，经 Gateway 提供 preview / prod 可访问环境。
+
+**不是：** 自托管 Cloudflare、自托管 Vercel、Git 平台、账号中心、全球边缘 CDN。  
+**是：** Version 生命周期 · offshoot + D1/KV/R2/Queue branch · promote 切流 · Bindings 运维 API · Dashboard。
 
 **部署约束：100% 私有化。** 不依赖 AWS / Cloudflare / Azure 等任何外部托管云服务；全部组件运行在自有硬件、私有 VPC 或自建 K8s 上。
+
+### 1.1 核心范畴（cellp 做什么）
+
+| # | 能力 | 说明 |
+|---|------|------|
+| 1 | **Version CD** | 外部 CI → artifact → `POST /versions` → poll → `ready` |
+| 2 | **App + Data 同版** | offshoot fork/export；根 version D1 import；子 version D1 branch |
+| 3 | **Binding branch** | 子 version：D1 · KV · R2 · Queue（AD-8）；Workflow / Cron / Worker 脚本不 branch |
+| 4 | **运行时隔离** | 每 ready version 独立 celld 进程 + 独立 bucket（AD-1） |
+| 5 | **Gateway** | `/{project}/{version}/` 预览；`/{project}/` 生产（AD-2） |
+| 6 | **Promote** | saga 切流：drain · offshoot promote · CAS prod（AD-5） |
+| 7 | **Bindings 运维** | `GET …/bindings`；KV / Queue / D1 operator；Workflow 只读 |
+| 8 | **Worker env** | per-version 覆盖 → `CELLD_VARS_FILE`；Dashboard / API 可编辑 |
+| 9 | **Registry** | SQLite：project · version · route · prod 指针 · jobs |
+| 10 | **Dashboard** | 运维 UI；**仅**消费 cellpd `:8790` REST API |
+
+完整否定清单与边界论证见 **[docs/decisions.md §15 AD-10](./docs/decisions.md#15-ad-10--产品边界权威否定与核心范畴)**。
+
+### 1.2 权威不做（AD-10）
+
+| 类别 | 决策 | 由谁承担 |
+|------|------|----------|
+| **账号 / 租户** | **坚决不做**用户、Org、RBAC、SSO | 外层生态，或共享 `DEPLOY_TOKEN` / `ADMIN_TOKEN` |
+| **Git / CI** | **不做**仓库托管、Webhook、PR 集成 | GitHub / Forgejo / GitLab + 外部 CI → `POST /versions` |
+| **链路层** | **不做** DNS · CDN · TLS 终止 · WAF · DDoS | 外层 Nginx / LB / 自有网关等项目 |
+| **全球边缘** | **不做** Cloudflare 式 PoP；**分布式**即可 | 多 cellpd + RustFS + celld fleet（二期扩展） |
+| **PaaS 托管** | **不做** Next.js SSR · Node serverless · Pages | wrangler → celld Workers 形态 only |
+
+**一期诚实范围：** 单节点（或 VIP 单入口）preview/prod 平面。ready version **无数量硬上限**；不活跃 preview 以 **archived** 停进程（AD-9）。
+
+**Bindings 诚实范围：** 沿用 celld 已有 CLI 与 wrangler key。D1 · KV · R2 · Queue 子 version **branch**（AD-8）；Workflow / Cron / Worker 脚本**不** branch。
 
 ### 能力分期
 
 | 阶段 | 范围 | 能力 |
 |------|------|------|
 | **一期** | 核心 Serverless 平台 | **CD 全流程**（外部 CI → artifact → `POST /versions` → preview URL）· **Branch + Version**（App+Data）· **线上稳定**（promote · quiesce · saga · health gate） |
-| **Bindings（本期）** | celld 0.4.0 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld 运行时 + operator CLI；R2 **清单可见**；**无 branch 的数据面不做 inherit** |
-| **二期** | 弹性 | scale-to-zero 唤醒 · 多节点 cellpd · Gateway 路由缓存（未实现） |
+| **Bindings（本期）** | celld 0.4.0 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld；R2 **清单可见**；D1/KV/R2/Queue **branch**（AD-8） |
+| **二期** | 弹性 | scale-to-zero 唤醒 · **多节点 cellpd**（分布式，非全球边缘）· Gateway 路由缓存（未实现） |
 | **三期** | 可观测 · 性能/统计 | **OTEL / 日志 / 指标** · 用量与性能统计 · （**暂不计划实施**，仅文档占位） |
 
 | 阶段 | 能力 | 底层 |
@@ -27,6 +61,7 @@
 | **一期** | Branch + Version | offshoot |
 | **一期** | Promote / 线上 cutover | cellpd Orchestrator |
 | **一期** | D1 import / branch | celld `d1 import` · `d1 branch` |
+| **Bindings** | KV / R2 / Queue branch | celld `kv branch` · `r2 branch` · `queue branch`（AD-8） |
 | **Bindings** | Workers KV | celld `kv_namespaces` + `celld kv` |
 | **Bindings** | Queues | celld `queues` + `celld queue` |
 | **Bindings** | Workflows | celld `workflows`；实例只读（`celld cell list`） |
@@ -35,11 +70,7 @@
 | **二期** | Scale to zero | celld cell hibernate + Gateway wake |
 | **二期** | Gateway 路由缓存 | 未实现（进程内 LRU 已够用） |
 
-**不做：** DNS / CDN / WAF / DDoS / Zero Trust / **Git 托管 / CI 引擎**（外部系统负责；cellp 只收 artifact + API 调用）。
-
-**一期诚实范围：** 单节点（或 VIP 单入口）preview/prod 平面。ready version **无数量硬上限**；不活跃 preview 以 **archived** 停进程（AD-9）。
-
-**Bindings 诚实范围：** 沿用 celld 已有 CLI 与 wrangler key；**D1 是唯一有 branch 的绑定**。KV / R2 / Queue / Workflow 在 celld 提供 branch 之前，子 version **空起步**，cellp 不发明 copy / inherit / 共享桶。
+（上表「不做」与外层分工见 **§1.2 AD-10**。）
 
 ---
 
@@ -49,9 +80,11 @@
 
 ```mermaid
 flowchart TB
-  subgraph external ["外部（非 cellp 组件）"]
+  subgraph external ["外部（非 cellp 组件 · AD-10）"]
     Dev["开发者"]
-    CI["CI/CD<br/>任意 Git + 构建"]
+    GIT["Git 托管<br/>GitHub / Forgejo / …"]
+    CI["外部 CI<br/>构建 wrangler bundle"]
+    EDGE["入口链路<br/>DNS · TLS · WAF · CDN"]
   end
 
   subgraph cellp ["cellp 控制面"]
@@ -71,8 +104,11 @@ flowchart TB
     OBJ["RustFS<br/>artifact · offshoot · celld（含 KV 大 value · R2 前缀 · Queue cell）"]
   end
 
-  Dev --> CI
+  Dev --> GIT
+  GIT --> CI
   CI -->|"artifact + POST /versions"| API
+  Dev -->|"经外层 TLS"| EDGE
+  EDGE --> GW
   API --> ORCH
   ORCH --> REG
   ORCH --> OS
@@ -167,14 +203,15 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 | **Dashboard** | **Vite + React SPA** | 一期 · VE 通过后 · 纯静态 `web/dist/` |
 | **Dev mock** | Node（`dev/mock-platform`） | 过渡；由 `cellpd` 替换 |
 
-#### 外部边界（**不是 cellp 依赖**）
+#### 外部边界（**不是 cellp 组件 · AD-10**）
 
 | 外部 | cellp 接口 | 说明 |
 |------|-----------|------|
-| **任意 Git + CI** | `POST /v1/projects/{id}/versions` | cellp 不托管 Git、不跑 CI；只消费 artifact |
-| **入口 TLS / LB** | 反代到 cellpd Gateway 端口 | Nginx / 云 LB / 自有网关；**不含 Caddy 选型** |
+| **Git 托管** | — | GitHub / Forgejo / GitLab 等；cellp **不**托管仓库、不接收 `git push` |
+| **外部 CI** | `POST /v1/projects/{id}/versions` | 构建 artifact 后调用；`git_ref` / `git_sha` 仅为元数据 |
+| **入口链路** | 反代到 cellpd Gateway 端口 | DNS · TLS · WAF · CDN 由**外层其他项目**承担 |
 
-**明确不引入：** Cloudflare R2 · AWS S3 · GCS · Azure 公有云 · 任何第三方托管 PaaS。
+**明确不引入：** Cloudflare R2 · AWS S3 · GCS · Azure 公有云 · 任何第三方托管 PaaS · **Caddy / Forgejo 作为 cellp 依赖**。
 
 #### 技术选型：为何 Go 后端 + Vite SPA 前端
 
@@ -191,7 +228,7 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 3. Vite Dashboard（列表 · 部署 · 存储 · Promote/Destroy）      ← M1 后
 ```
 
-前端 **不得** 先于后端 E2E 开工；一期 Dashboard **不做** 复杂图表、多租户、权限 UI。
+前端 **不得** 先于后端 E2E 开工；一期 Dashboard **不做** 复杂图表、**账号 / 多租户 / 权限 UI**（AD-10）。
 
 ### 2.3 模块职责表
 
@@ -664,7 +701,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 | 存储/集成 | V0a–V0d · V1–V7 |
 | 后端门禁 | **VE** — 各端口 HTTP 全链路，无 UI |
 
-**一期不做：** KV/R2/Queue branch · R2 浏览器 · Workflow 控制 · scale-to-zero · 多节点 · **PostgreSQL Registry** · **多租户/RBAC**。
+**一期不做：** R2 浏览器 · Workflow 控制 · scale-to-zero · 多节点 · **PostgreSQL Registry** · **账号 / 多租户 / RBAC**（AD-10）· **Git 托管** · **DNS/CDN/TLS/WAF**。
 
 ### Phase 6 扩展基线（SQLite 止血 · 2026-08-29）
 
@@ -676,7 +713,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 | Registry | SQLite + 游标分页 | PostgreSQL（**明确不做**） |
 | Project 规模 | ~10k 实测，List p99 ~260ms | 100万需 PG |
 | Gateway | 路由进程内缓存 | 水平扩展 + 外部路由缓存（二期+，未实现） |
-| 租户 | 单 token | Org/RBAC（**明确不做**） |
+| 租户 | 单 token（AD-10：不做账号体系） | Org/RBAC（**明确不做**） |
 
 **诚实结论：** 在 **SQLite + 单 token** 约束下，6A 分页/GC/缓存已落地；10k project 列表 p99 无法稳定 <200ms，此为存储引擎上限而非实现 bug。
 
@@ -723,7 +760,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 
 ## 附录 A — 外部 CI 调用示例
 
-cellp **不包含** Git 托管或 CI 引擎。任意 CI 在构建完成后：
+cellp **不包含** Git 托管、CI 引擎、账号体系或入口链路层（AD-10）。外部 Git 平台 + CI 在构建完成后：
 
 1. 将 artifact 写入 `s3://cellp-artifacts/{project}/{version}/`
 2. `POST $CELLP_URL/v1/projects/$PROJECT_ID/versions`（Bearer `DEPLOY_TOKEN`）

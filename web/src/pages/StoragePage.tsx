@@ -33,7 +33,7 @@ import { StatusIndicator } from "@/components/status-indicator";
 import { cn } from "@/lib/utils";
 
 const R2_TOOLTIP =
-  "No celld r2 CLI — object browser is not available. Preview objects do not inherit Production.";
+  "No celld r2 CLI — object browser is not available. Preview objects inherit parent bucket via branch.";
 const CRON_TOOLTIP_PREFIX = "Cron is triggered by celld; no run-once action.";
 
 type VersionRow = {
@@ -265,7 +265,7 @@ export function StoragePage() {
                       </div>
                       {isPreview && (
                         <p className="mt-2 text-xs text-muted-foreground">
-                          Preview KV / Queue do not inherit Production data.
+                          Preview KV / Queue branch from parent. Workflow / Cron start empty.
                         </p>
                       )}
                     </TableCell>

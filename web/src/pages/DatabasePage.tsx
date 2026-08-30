@@ -344,7 +344,16 @@ export function DatabasePage() {
                       <div className="flex justify-between gap-4">
                         <dt className="text-muted-foreground">Parent</dt>
                         <dd className="font-mono">
-                          {version.parent_version_id ?? "—"}
+                          {version.parent_version_id ? (
+                            <Link
+                              to={versionHref(id, version.parent_version_id)}
+                              className="hover:underline"
+                            >
+                              {version.parent_version_id}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-4">

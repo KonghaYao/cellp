@@ -38,15 +38,16 @@ test.describe("TP-UI-8 queue console", () => {
     expect(purgePosts).toHaveLength(0);
   });
 
-  test("preview queue shows AD-7 banner and empty peek", async ({ page }) => {
+  test("preview queue inherits parent backlog via branch (TP-UI-11)", async ({
+    page,
+  }) => {
     await page.goto("/projects/demo-app/storage/v2/queues");
     await expect(page.getByTestId("ad7-banner")).toBeVisible();
-    await expect(page.getByTestId("ad7-banner")).toContainText(
-      "do not inherit Production",
-    );
-    await expect(page.getByTestId("queue-peek")).toContainText(
-      "No messages in the peek window.",
-    );
+    await expect(page.getByTestId("ad7-banner")).toContainText("inherit");
+    await expect(page.getByTestId("ad7-banner")).toContainText("Workflow");
+
+    const peek = page.getByTestId("queue-peek");
+    await expect(peek).toContainText("hello-queue");
   });
 });
 

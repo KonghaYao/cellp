@@ -1,0 +1,16 @@
+{
+  "project": "demo-app",
+  "versions": [
+    "v-e2e-1788087922-28864",
+    "v-e2e-1788087922-13843"
+  ],
+  "workflow_name": "report-builder",
+  "exit": 0,
+  "timestamp": "2026-08-30T11:05:49Z",
+  "http": {
+    "workflow_bindings": 200,
+    "workflows_list": 200,
+    "instances": 200,
+    "cron_bindings": 200
+  }
+}

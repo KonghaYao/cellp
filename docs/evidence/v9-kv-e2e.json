@@ -1,0 +1,19 @@
+{
+  "project": "demo-app",
+  "versions": [
+    "v-e2e-1788087813-1643",
+    "v-e2e-1788087813-19390"
+  ],
+  "namespace_id": "example-values",
+  "key": "e2e-greeting",
+  "exit": 0,
+  "timestamp": "2026-08-30T11:04:52Z",
+  "http": {
+    "bindings": 200,
+    "put_va": 204,
+    "get_va": 200,
+    "get_vb_empty": 404,
+    "put_vb": 204,
+    "get_va_after": 200
+  }
+}

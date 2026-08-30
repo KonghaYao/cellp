@@ -17,11 +17,22 @@ exec > >(tee -a "$LOG") 2>&1
 log "V15 archive project=${PROJECT}"
 
 ensure_project "$PROJECT"
-cleanup_e2e_versions "$PROJECT"
+cleanup_project_e2e_all() {
+  local project="$1"
+  local ids
+  ids=$(api_get "/v1/projects/${project}/versions" "$ADMIN_TOKEN" 2>/dev/null \
+    | jq -r '.versions[]? | select(.id|startswith("v-e2e-")) | .id' 2>/dev/null || true)
+  for vid in $ids; do
+    [[ -z "$vid" ]] && continue
+    api_delete "/v1/projects/${project}/versions/${vid}" "$ADMIN_TOKEN" >/dev/null 2>&1 || true
+  done
+}
+
+cleanup_project_e2e_all "$PROJECT"
 
 IDS=()
 for i in $(seq 1 6); do
-  VID="v-e2e-arch-${i}-$(unique_id | cut -c1-8)"
+  VID="$(unique_id)"
   IDS+=("$VID")
   DEST="${ARTIFACTS_DIR}/${PROJECT}/${VID}"
   stage_worker_example "$COUNTER" "$DEST"
@@ -29,7 +40,7 @@ for i in $(seq 1 6); do
 done
 
 # Explicit 7th deploy must not hit removed ready cap
-EXTRA="v-e2e-extra-$(unique_id | cut -c1-8)"
+EXTRA="$(unique_id)"
 DEST="${ARTIFACTS_DIR}/${PROJECT}/${EXTRA}"
 stage_worker_example "$COUNTER" "$DEST"
 HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST \

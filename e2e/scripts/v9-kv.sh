@@ -81,7 +81,7 @@ stage_worker_example "$KV_EXAMPLE" "$DEST_B"
 create_version "$PROJECT" "$VA" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VA" ready 120 >/dev/null
 
-create_version "$PROJECT" "$VB" "$VA" | jq -r .id >/dev/null
+create_version "$PROJECT" "$VB" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VB" ready 120 >/dev/null
 
 BASE_A="/v1/projects/${PROJECT}/versions/${VA}"

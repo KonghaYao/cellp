@@ -185,7 +185,7 @@ else
   log "WARN: POST pause → HTTP ${PAUSE_CODE} (optional; OpenAPI allows 200 for broker pause without consumer)"
 fi
 
-create_version "$PROJECT" "$VC" "$VA" | jq -r .id >/dev/null
+create_version "$PROJECT" "$VC" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VC" ready 120 >/dev/null
 
 api_status GET "${BASE_C}/queues/${QUEUE}/peek?limit=10"

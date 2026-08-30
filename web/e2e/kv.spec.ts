@@ -48,15 +48,34 @@ test.describe("KV browser (TP-UI-7)", () => {
     await expect(list.getByRole("button", { name: "greeting" })).not.toBeVisible();
   });
 
-  test("v2 shows AD-7 banner and does not inherit prod greeting", async ({
+  test("v2 inherits prod greeting via branch; sibling writes stay isolated (TP-UI-11)", async ({
     page,
   }) => {
     await page.goto(kvPage("v2"));
     await expect(page.getByTestId("ad7-banner")).toBeVisible();
-    await expect(page.getByText("This namespace has no keys")).toBeVisible();
+    await expect(page.getByTestId("ad7-banner")).toContainText("inherit");
+
+    const list = page.getByTestId("kv-key-list");
+    await expect(list.getByRole("button", { name: "greeting", exact: true })).toBeVisible();
+
+    await list.getByRole("button", { name: "greeting", exact: true }).click();
     await expect(
-      page.getByTestId("kv-key-list").getByRole("button", { name: "greeting" }),
-    ).toHaveCount(0);
+      page.getByTestId("kv-key-editor").getByRole("textbox", { name: "Key value" }),
+    ).toHaveValue("hello-prod");
+
+    const put = page.getByTestId("kv-put-form");
+    await put.getByLabel("Key name").fill("v2-only");
+    await put.getByRole("textbox", { name: "Put value" }).fill("sibling-isolated");
+    await put.getByRole("button", { name: "Put key" }).click();
+    const editor = page.getByTestId("kv-key-editor");
+    await expect(editor.getByRole("textbox", { name: "Key value" })).toHaveValue(
+      "sibling-isolated",
+    );
+
+    await page.goto(kvPage("v1"));
+    await page.getByLabel("Prefix").fill("v2-only");
+    await page.getByRole("button", { name: "Filter" }).click();
+    await expect(page.getByText("No keys match this prefix")).toBeVisible();
   });
 
   test("version switcher stays on the KV page", async ({ page }) => {

@@ -12,13 +12,14 @@
 | 我想… | 读这个 |
 |--------|--------|
 | 理解整体架构 | [DESIGN.md](../DESIGN.md) |
-| 查当前有效决策（AD-1..7、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
+| 查当前有效决策（AD-1..10、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
 | 跑验收 / 看门禁 | [test-plan.md](./test-plan.md) |
 | 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
 | 改 Dashboard | [../web/AGENTS.md](../web/AGENTS.md) |
 | 跑 E2E | [../e2e/README.md](../e2e/README.md) |
 | 跑压测 | [../stress/README.md](../stress/README.md) · [phase6/README.md](../stress/phase6/README.md) |
 | 查历史 VALIDATION 编号 | [../VALIDATION.md](../VALIDATION.md)（仅索引，执行以 test-plan 为准） |
+| 从 Cloudflare Workers 迁移 | [cloudflare-migration.md](./cloudflare-migration.md) |
 
 ---
 
@@ -53,9 +54,10 @@
 | 4 | [phase-4-dashboard.md](./plans/phase-4-dashboard.md) | M1 TP-VE-ALL | ✅ |
 | 5 | [phase-5-stress.md](./plans/phase-5-stress.md) | M2 | 见 phase2 压测 |
 | 6 | [phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) | M3 / 6A | **6A 实现完成**（SQLite scope；6B–6F OUT OF SCOPE） |
-| 7 | [phase-7-bindings.md](./plans/phase-7-bindings.md) | AD-6 · AD-7 | **计划中** — celld 0.4.0 KV / Queue / Workflow / Cron |
+| 7 | [phase-7-bindings.md](./plans/phase-7-bindings.md) | AD-6 · AD-7 | **已落地**（后端 E2E TP-V9–V16 · 2026-08-30）· Dashboard TP-UI track 1 |
 | 8 | [phase-8-binding-branch.md](./plans/phase-8-binding-branch.md) | AD-8 | **已落地** — KV / R2 / Queue branch |
 | 9 | [phase-9-version-archive.md](./plans/phase-9-version-archive.md) | AD-9 | **已落地** — archived / wake / 取消 5 ready 上限 |
+| — | [decisions.md §15](./decisions.md#15-ad-10--产品边界权威否定与核心范畴) | AD-10 | **已落地** — 产品边界（账号/Git/链路/边缘否定 + 核心范畴） |
 
 ### v1 收尾（2026-08-29）
 

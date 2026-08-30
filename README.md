@@ -1,11 +1,11 @@
 # cellp
 
-**cellp** — 版本化 Serverless 应用运行时。在每次 CD 时同时 version 化 **App + Data**，通过稳定 Gateway URL 提供完整可访问环境。100% 私有化部署。
+**cellp** — 私有化 **Workers 平台控制面**。在外部 CI 每次投递时 version 化 **App + Data**，经 Gateway 提供 preview / prod 环境。100% 私有化部署。
 
 | 文档 | 说明 |
 |------|------|
 | **[DESIGN.md](./DESIGN.md)** | 顶层设计（唯一设计入口） |
-| **[docs/decisions.md](./docs/decisions.md)** | 架构决策与冻结约束 |
+| **[docs/decisions.md](./docs/decisions.md)** | 架构决策（**AD-10** 产品边界） |
 | **[docs/README.md](./docs/README.md)** | 文档库索引 |
 | **[docs/test-plan.md](./docs/test-plan.md)** | 功能验收门禁 |
 | **[AGENTS.md](./AGENTS.md)** | Agent / 贡献者总则 |
@@ -21,7 +21,7 @@
 | **RustFS** | 自建 S3 | artifact · offshoot · celld blob |
 | **web/** | Vite + React SPA | Dashboard（仅消费 REST API） |
 
-**外部边界（非 cellp 组件）：** 任意 Git 托管 · 任意 CI 引擎。
+**外部边界（非 cellp 组件 · AD-10）：** Git 托管（GitHub / Forgejo / …）· 外部 CI → `POST /versions` · 入口 DNS/TLS/WAF（外层项目）。
 
 ## v1 交付范围（2026-08-29）
 

@@ -5,7 +5,7 @@
 ## 必读（按顺序）
 
 1. **[DESIGN.md](./DESIGN.md)** — 唯一顶层设计
-2. **[docs/decisions.md](./docs/decisions.md)** — 当前有效架构决策（AD-1..7 · D1 · 存储 tier · Bindings）
+2. **[docs/decisions.md](./docs/decisions.md)** — 当前有效架构决策（AD-1..10 · D1 · 存储 tier · Bindings）
 3. **[docs/test-plan.md](./docs/test-plan.md)** — 功能验收门禁
 4. 任务相关子目录 AGENTS：
    - 后端 / 本地栈 → **[dev/AGENTS.md](./dev/AGENTS.md)**
@@ -32,7 +32,10 @@
 - **D1 import：** 根 version；`celld d1 import --file`；契约 [D1-IMPORT-RPC.md](./docs/plans/D1-IMPORT-RPC.md)
 - **D1 branch：** 子 version（`parent_version_id`）；`celld d1 branch --parent-bucket`；契约 [D1-BRANCH-RPC.md](./docs/plans/D1-BRANCH-RPC.md)
 - **AD-6：** Worker KV / Queue / Workflow / R2 / Cron **沿用 celld 0.4.0**
-- **AD-7：** 无 celld branch 的绑定 **空起步**；不做 inherit / 挂父桶；R2 无 CLI → 无对象浏览器；Workflow 无 CLI → 只读 list
+- **AD-7：** 仅 Workflow / Cron / Worker 脚本**不** branch；R2 无 CLI → 无对象浏览器；Workflow 无 CLI → 只读 list
+- **AD-8：** 子 version **KV / R2 / Queue branch**（与 D1 同构）
+- **AD-9：** archived / wake；取消 ready 硬上限
+- **AD-10：** **不做**账号体系 · Git 托管 · DNS/CDN/TLS/WAF · 全球边缘；**做**分布式 Workers 控制面（见 decisions §15）
 
 ## 改代码后的验证顺序
 

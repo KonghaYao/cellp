@@ -3,7 +3,7 @@
 > **规格：** [DESIGN.md §8](../../DESIGN.md)（唯一设计）  
 > **决策：** [decisions.md AD-6 · AD-7](../decisions.md)  
 > **验收：** [VALIDATION.md V9–V11](../../VALIDATION.md)  
-> **状态：** 计划中（2026-08-29）
+> **状态：** 已落地 — 后端 E2E（TP-V9–V16 · `run-all.sh`）· 2026-08-30；Dashboard TP-UI 见 track 1
 
 沿用 celld 运行时与 operator CLI。**D1 仍是唯一有 branch 的绑定**；KV / R2 / Queue / Workflow 子 version **空起步**。R2 无 CLI → 无对象浏览器。Workflow 无 CLI → 只读 list。
 
@@ -41,11 +41,12 @@ T4 **不得**在 T1–T3 API 合同未写入 OpenAPI 前开工写死路径。T5 
 
 ## Exit
 
-- [ ] `GET /v1/projects/{id}/versions/{vid}/bindings` 
-- [ ] KV list/get/put/delete/info 经 cellpd
-- [ ] Queue info/peek/pause/resume/redrive/purge（purge 需 force）
-- [ ] Workflow instances 只读不 500
-- [ ] Dashboard Storage 总览 + KV + Queue + Workflow 页
-- [ ] `cd cellp && go test ./...`
-- [ ] Playwright：新 TP-UI 不直连 `:8792`
-- [ ] health 脚本使用 `/.well-known/celld/health`
+- [x] `GET /v1/projects/{id}/versions/{vid}/bindings` 
+- [x] KV list/get/put/delete/info 经 cellpd
+- [x] Queue info/peek/pause/resume/redrive/purge（purge 需 force）
+- [x] Workflow instances 只读不 500
+- [x] Dashboard Storage 总览 + KV + Queue + Workflow 页
+- [x] `cd cellp && go test ./...`（M2 run-all 同期绿）
+- [x] Playwright：新 TP-UI 不直连 `:8792`
+- [x] health 脚本使用 `/.well-known/celld/health`
+- [x] `./e2e/scripts/run-all.sh`（含 v9–v16）· `docs/evidence/m2-run-all-20260830-190100.log`

@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-08-30（含 AD-6 · AD-7 · AD-8 · AD-9）
+> **最后更新：** 2026-08-30（含 AD-6 · AD-7 · AD-8 · AD-9 · **AD-10**）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -10,12 +10,16 @@
 
 ## 1. 平台边界
 
+> **权威否定清单：** [§15 AD-10](#15-ad-10--产品边界权威否定与核心范畴)（2026-08-30，回应 CF/Vercel 采纳质疑）
+
 | 决策 | 内容 |
 |------|------|
 | **私有化** | 100% 自建；不依赖 AWS / Cloudflare / Azure 等外部托管 SaaS |
-| **Git / CI** | 外部边界；cellp 只收 artifact + `POST /versions` |
+| **Git / CI** | **外部边界**；GitHub / Forgejo / GitLab 等托管源码，CI 构建后 `POST /versions`；cellp **不做** Git 托管、仓库 Webhook、PR 集成 |
+| **账号 / 租户** | **坚决不做**用户体系、Org、RBAC、SSO；仅 `DEPLOY_TOKEN` + `ADMIN_TOKEN`（见 AD-10） |
+| **边缘 / 链路** | **不做**全球边缘 PoP、DNS、CDN、TLS 终止、WAF；入口由**外层其他项目**承担；cellp 提供**分布式**控制面 + Gateway 反代 |
 | **Registry** | SQLite（`cellp-registry.sqlite`，WAL）；**不用 PostgreSQL** |
-| **Gateway** | cellpd **内置** reverse proxy；用户自有 TLS/LB 反代即可 |
+| **Gateway** | cellpd **内置** reverse proxy；监听 HTTP，由外部 LB 反代并终止 TLS |
 | **一期范围** | CD + Branch + Version + promote/saga；ready 数量**无硬上限**（AD-9，靠封存回收进程） |
 | **Bindings（本期）** | 沿用 celld 0.4.0；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 不 branch |
 
@@ -248,4 +252,71 @@ flowchart LR
 - 第一期 Gateway 对 archived 回 503，显式 `POST wake`，不同步 wake
 
 **计划：** [phase-9-version-archive.md](./plans/phase-9-version-archive.md)
+
+---
+
+## 15. AD-10 — 产品边界（权威否定与核心范畴）
+
+**背景：** 外部审查常以 Cloudflare / Vercel 默认能力衡量 cellp。下列为**冻结的产品边界**——不是 roadmap 缺口，而是刻意不做；后续 issue/PR 不得静默越界。
+
+### 15.1 坚决不做账号体系
+
+| 项 | 决策 |
+|----|------|
+| 用户 / Org / Team | **不做**注册、登录、OAuth、SSO、多租户 |
+| 鉴权 | 仅 **`DEPLOY_TOKEN`**（`POST /versions`）与 **`ADMIN_TOKEN`**（其余 API + Dashboard） |
+| 管理维度 | **Project + Version**；无「谁部署了」审计归属（除非外层系统记录 token 使用） |
+| Dashboard | **不做**权限 UI、角色切换、成员邀请 |
+
+多租户、RBAC、审计归属若需要，由**生态外层项目**实现，或**永远不在 cellp 范围内**。
+
+### 15.2 不做全球边缘；分布式能力即可
+
+| 项 | 决策 |
+|----|------|
+| 目标形态 | **私有化分布式**部署（多 cellpd 节点、RustFS 集群、每 version 独立 celld），非 Cloudflare 式全球 PoP |
+| 二期「多节点」 | 控制面与运行时**水平扩展**、路由缓存；**不是** CDN 边缘、不是 Anycast |
+| 延迟预期 | 不承诺「用户就近边缘」；承诺 version 隔离、preview/prod 路由、数据 branch |
+
+### 15.3 不做 DNS / CDN / TLS / WAF 等链路层
+
+| 项 | 决策 |
+|----|------|
+| cellp Gateway | HTTP reverse proxy：`/{project}/` · `/{project}/{version}/` → celld upstream |
+| TLS / 域名 / WAF / DDoS | **外层项目**（Nginx、云 LB、自有网关、Zero Trust 代理等）终止 TLS 并防护 |
+| 依赖 | **不引入** Caddy、不内置 ACME、不管理 DNS 记录 |
+
+cellp 只暴露 Gateway 端口；公网形态由部署方拼装。
+
+### 15.4 不做 Git；外部平台推送版本
+
+| 项 | 决策 |
+|----|------|
+| 源码托管 | GitHub · Forgejo · GitLab 等**外部**；cellp **不** clone、不托管仓库、不跑 Git 服务 |
+| 版本入口 | 外部 CI 构建 wrangler bundle → 上传 artifact → **`POST /v1/projects/{id}/versions`** |
+| 元数据 | `git_ref` / `git_sha` 仅为 version **标签**，不驱动路由、不自动 promote |
+| 集成形态 | Webhook / Actions / Forgejo CI **在外部**触发；cellp 只收 HTTP API |
+
+**禁止**将 Forgejo / GitHub App 列为 cellp 运行时依赖（见 AGENTS.md）。
+
+### 15.5 cellp 核心范畴（做什么）
+
+cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Data**，并提供 preview / prod 切流。
+
+| # | 核心能力 | 模块 |
+|---|----------|------|
+| 1 | **Version 生命周期** | pending → ready → archived → destroyed；poll API |
+| 2 | **App + Data 同版** | offshoot fork/export；D1 import / branch（AD-1 · D1 契约） |
+| 3 | **Binding 数据 branch** | 子 version：D1 + KV + R2 + Queue（AD-8）；Workflow/Cron/脚本不 branch |
+| 4 | **运行时隔离** | 每 ready version 独立 celld + bucket（AD-1） |
+| 5 | **Gateway 路由** | preview `/{project}/{version}/`；prod `/{project}/`（AD-2） |
+| 6 | **Promote 切流** | drain · offshoot promote · CAS prod · saga 补偿（AD-5） |
+| 7 | **Bindings 运维 API** | wrangler 清单；KV / Queue / D1 operator；Workflow 只读 |
+| 8 | **Worker env** | per-version 覆盖 → `CELLD_VARS_FILE`；`GET/PUT …/env` |
+| 9 | **Registry** | SQLite：project、version、route、prod 指针、jobs |
+| 10 | **Dashboard** | 项目 · 部署 · 存储 · Settings env；**仅**消费 `:8790` API |
+
+**不是 cellp：** 自托管 Cloudflare、自托管 Vercel、PaaS 托管、Git 平台、账号中心、边缘 CDN。
+
+**证据与契约：** `DESIGN.md` · `D1-*-RPC.md` · `test-plan.md` TP-V* / TP-UI-*
 

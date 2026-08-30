@@ -26,7 +26,7 @@ import {
   statusLabel,
   STATUS_DOT,
 } from "@/lib/status";
-import { storageBrowserHref } from "@/lib/routes";
+import { storageBrowserHref, versionHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { StatusIndicator } from "@/components/status-indicator";
 import { VersionActions } from "@/components/version-actions";
@@ -86,8 +86,11 @@ function VersionDetailContent({
   onRefresh?: () => void | Promise<void>;
 }) {
   const isProd = prodVersionId === version.id;
+  const isPreview = version.parent_version_id != null;
   const prodUrl = resolveProdUrl(projectId, projectProdUrl, version.preview_url);
   const [databaseAvailability, setDatabaseAvailability] =
+    useState<DatabaseAvailability | null>(null);
+  const [parentDatabaseAvailability, setParentDatabaseAvailability] =
     useState<DatabaseAvailability | null>(null);
 
   useEffect(() => {
@@ -105,6 +108,22 @@ function VersionDetailContent({
     };
   }, [projectId, version.id, version.status]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const parentId = version.parent_version_id;
+    if (!parentId) {
+      setParentDatabaseAvailability(null);
+      return;
+    }
+    (async () => {
+      const result = await checkDatabaseAvailability(projectId, parentId);
+      if (!cancelled) setParentDatabaseAvailability(result);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, version.parent_version_id]);
+
   return (
     <div className="space-y-8">
       <div className="rounded-lg border border-border bg-card p-6">
@@ -120,6 +139,7 @@ function VersionDetailContent({
                 <Badge variant="secondary">Archived</Badge>
               )}
               {version.pinned && <Badge variant="outline">Pinned</Badge>}
+              {isPreview && <Badge variant="secondary">Preview branch</Badge>}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               Deployed {formatRelativeTime(version.created_at)} ·{" "}
@@ -146,10 +166,52 @@ function VersionDetailContent({
           <MetadataRow label="Version ID" value={version.id} mono copyable />
           <MetadataRow
             label="Parent version"
-            value={version.parent_version_id ?? "—"}
             mono
             copyable={Boolean(version.parent_version_id)}
-          />
+            copyValue={version.parent_version_id ?? undefined}
+          >
+            {version.parent_version_id ? (
+              <div className="flex flex-col items-end gap-1">
+                <Link
+                  to={versionHref(projectId, version.parent_version_id)}
+                  className="font-mono text-xs hover:underline"
+                >
+                  {version.parent_version_id}
+                </Link>
+                {parentDatabaseAvailability?.available === true && (
+                  <Link
+                    to={storageBrowserHref(
+                      projectId,
+                      version.parent_version_id,
+                    )}
+                    className="inline-flex items-center gap-1 text-xs text-foreground hover:underline"
+                  >
+                    <Database className="size-3" />
+                    Parent D1
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <span className="font-mono text-xs">—</span>
+            )}
+          </MetadataRow>
+          {isPreview &&
+            databaseAvailability?.available === true &&
+            databaseAvailability.database.branch_method && (
+              <MetadataRow
+                label="D1 branch method"
+                value={formatBranchMethod(
+                  databaseAvailability.database.branch_method,
+                )}
+              />
+            )}
+          {isPreview && (
+            <MetadataRow label="Binding branch">
+              <span className="text-xs">
+                D1 · KV · R2 · Queue from parent
+              </span>
+            </MetadataRow>
+          )}
           <MetadataRow label="Status" value={statusLabel(version.status)} />
           <MetadataRow
             label="Duration"
@@ -343,6 +405,10 @@ function MetadataSection({
       <dl className="space-y-3">{children}</dl>
     </div>
   );
+}
+
+function formatBranchMethod(method: string): string {
+  return method.replace(/_/g, " ");
 }
 
 function MetadataRow({

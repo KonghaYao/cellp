@@ -209,36 +209,41 @@
 | 命令 | `rg ':8792|offshoot' web/` |
 | 通过 | 无匹配 |
 
-### [ ] TP-UI-7 — Storage hub 徽章（Bindings）
+### [x] TP-UI-7 — Storage hub 徽章（Bindings）
 
 | 检查 | `/projects/{id}/storage` 可见 d1 / kv / queue / workflow / r2 / cron |
 | 对齐 | [phase-7-t4-dashboard.md](./plans/phase-7-t4-dashboard.md) Playwright |
-| 通过 | FE verify（本 track 只写 ID） |
+| 通过 | `storage-bindings.spec.ts` · `cd web && CI=1 npm run test:e2e`（2026-08-30） |
 
-### [ ] TP-UI-8 — KV browser
+### [x] TP-UI-8 — KV browser
 
 | 检查 | version KV 页可见 key；PUT 后 list 出现 |
 | 对齐 | T4 Playwright · 后端契约 TP-V9 |
+| 通过 | `kv.spec.ts` · 2026-08-30 Playwright 绿 |
 
-### [ ] TP-UI-9 — Queue 控制台
+### [x] TP-UI-9 — Queue 控制台
 
 | 检查 | queues 见 `tasks`；peek 渲染；purge 无确认不得静默清空 |
 | 对齐 | T4 Playwright · 后端契约 TP-V10 |
+| 通过 | `queues-workflows.spec.ts` · 2026-08-30 Playwright 绿 |
 
-### [ ] TP-UI-10 — Workflow 只读
+### [x] TP-UI-10 — Workflow 只读
 
 | 检查 | workflows 实例列表；**无** Pause / Resume / Restart |
 | 对齐 | T4 Playwright · 后端契约 TP-V11 |
+| 通过 | `queues-workflows.spec.ts` · 2026-08-30 Playwright 绿 |
 
-### [ ] TP-UI-11 — AD-7 空起步横幅
+### [x] TP-UI-11 — AD-8 branch 横幅（KV/Queue 继承）
 
-| 检查 | 子 version KV/Queue 横幅可见；子 KV 无父 key |
-| 对齐 | T4 Playwright |
+| 检查 | 子 version 横幅可见；KV 继承父 key（如 `greeting`）；Queue peek 继承父 backlog；兄弟 version 写入仍隔离 |
+| 对齐 | T4 Playwright · `kv.spec.ts` · `queues-workflows.spec.ts` |
+| 通过 | 2026-08-30 Playwright 绿 |
 
-### [ ] TP-UI-12 — R2/Cron 无独立浏览器
+### [x] TP-UI-12 — R2/Cron 无独立浏览器
 
 | 检查 | hub 上 R2/Cron **不是**链到 `/r2` 或 `/cron`；直接 goto 404 或回 hub |
 | 对齐 | T4 Playwright |
+| 通过 | `storage-bindings.spec.ts` · 2026-08-30 Playwright 绿 |
 
 ---
 
@@ -261,7 +266,7 @@
 | **TP-VE-*** | 端口烟雾 · M1 门禁 | `ve-*.sh` · `health-all.sh` |
 | **TP-V1–V7** | 集成深度 · 数据/路由/saga | `v1-*.sh` … `v7-*.sh` |
 | **TP-V9–V11** | Bindings · KV / Queue / Workflow+Cron | `v9-kv.sh` · `v10-queue.sh` · `v11-workflow-cron.sh` |
-| **TP-UI-7..12** | Dashboard Bindings（FE） | Playwright · 见 §F · 未勾直到 FE verify |
+| **TP-UI-7..12** | Dashboard Bindings（FE） | Playwright · 见 §F · 2026-08-30 绿 |
 
 `run-all.sh` 先跑 VE，再跑 V*（MANIFEST：v7 之后为 v9–v11）。
 
@@ -296,9 +301,9 @@
 
 ## I. Bindings（Phase 7 · celld 0.4.0）
 
-> KV / Queue / Workflow / Cron 经 **cellpd `:8790`**。Dashboard 全绿不能代替本表。对齐 [VALIDATION.md V9–V11](../VALIDATION.md) · [phase-7-t5-e2e.md](./plans/phase-7-t5-e2e.md)。
+> KV / Queue / Workflow / Cron 经 **cellpd `:8790`**。 **E2E 全绿：** `docs/evidence/m2-run-all-20260830-190100.log`（`run-all.sh` · 2026-08-30）。Dashboard 全绿不能代替本表。对齐 [VALIDATION.md V9–V11](../VALIDATION.md) · [phase-7-t5-e2e.md](./plans/phase-7-t5-e2e.md)。
 
-### [ ] TP-V9 — celld KV operator（经 cellpd）
+### [x] TP-V9 — celld KV operator（经 cellpd）
 
 | 命令 | `e2e/scripts/v9-kv.sh` |
 | 通过 | bindings 含 kv；put/get 200；子 version GET 同 key **404**；父值不变 |
@@ -306,7 +311,7 @@
 | 对齐 | VALIDATION **V9** |
 | 不做 | bulk · inherit（AD-7） |
 
-### [ ] TP-V10 — celld Queue operator
+### [x] TP-V10 — celld Queue operator
 
 | 命令 | `e2e/scripts/v10-queue.sh` |
 | 通过 | bindings 含 queue；info/peek 200；purge 无 force → **400** |
@@ -315,7 +320,7 @@
 | 缺口 | `celld/examples` 无 queue → 使用 `dev/examples/queue`（producer-only；consumer 不能 `export fetch`） |
 | 不做 | pull consumer · 跨 version 共享 queue |
 
-### [ ] TP-V11 — Workflow 只读 + Cron 清单
+### [x] TP-V11 — Workflow 只读 + Cron 清单
 
 | 命令 | `e2e/scripts/v11-workflow-cron.sh` |
 | 通过 | bindings 含 workflow 与 cron；`GET …/workflows/{name}/instances` 不 500 |
@@ -323,40 +328,41 @@
 | 对齐 | VALIDATION **V11** |
 | 不做 | workflow 控制 · R2 对象浏览器 · Cron 平台调度 |
 
-### [ ] TP-V12 — KV branch（AD-8）
+### [x] TP-V12 — KV branch（AD-8）
 
 | 命令 | `e2e/scripts/v12-kv-branch.sh` |
 | 通过 | 父 put → 子 get 同值；子 put 后父不变 |
 | 证据 | `docs/evidence/v12-kv-branch-e2e.log` |
 
-### [ ] TP-V13 — R2 branch（AD-8）
+### [x] TP-V13 — R2 branch（AD-8）
 
 | 命令 | `e2e/scripts/v13-r2-branch.sh` |
 | 通过 | 子 GET 父对象；子 overwrite 后父不变 |
 | 证据 | `docs/evidence/v13-r2-branch-e2e.log` |
 
-### [ ] TP-V14 — Queue branch（AD-8）
+### [x] TP-V14 — Queue branch（AD-8）
 
 | 命令 | `e2e/scripts/v14-queue-branch.sh` |
 | 通过 | 父 enqueue → 子 peek 见快照 |
 | 证据 | `docs/evidence/v14-queue-branch-e2e.log` |
 
-### [ ] TP-V15 — Version archive / wake（AD-9）
+### [x] TP-V15 — Version archive / wake（AD-9）
 
 | 命令 | `e2e/scripts/v15-archive.sh` |
 | 通过 | 6+ ready 无 429；archive 非 prod → 503 `version_archived`；wake → 200；archive prod → 422 |
 | 证据 | `docs/evidence/v15-archive-e2e.log` |
 
-### [ ] TP-V16 — Worker env
+### [x] TP-V16 — Worker env
 
 | 命令 | `e2e/scripts/v16-worker-env.sh` |
 | 通过 | POST env → Worker `env.GREETING`；PUT 后预览更新；平台键不可覆盖 |
 | 证据 | `docs/evidence/v16-worker-env-e2e.log` |
 
-### [ ] TP-UI-13 — Settings Worker env
+### [x] TP-UI-13 — Settings Worker env
 
 | 检查 | `/projects/:id/settings` 可编辑生产 version env；Save 走 `PUT …/env` |
-| 命令 | `cd web && npm run test:e2e` |
+| 命令 | `cd web && CI=1 npm run test:e2e` |
+| 通过 | `dashboard.spec.ts`「settings edits worker env」· 2026-08-30 |
 
 ### TP-VE-1（路径修订，非新 ID）
 
