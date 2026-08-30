@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,8 +19,7 @@ import (
 )
 
 const (
-	maxReadyVersionsDefault = 5
-	jobLease                = 5 * time.Minute
+	jobLease = 5 * time.Minute
 )
 
 // Orchestrator drives version lifecycle state machine (DESIGN §2.5).
@@ -110,20 +108,6 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		return fmt.Errorf("injected deploy failure")
 	}
 
-	ready, err := o.store.CountReadyVersions(ctx, j.ProjectID)
-	if err != nil {
-		return err
-	}
-	maxReady := maxReadyVersionsDefault
-	if v := os.Getenv("CELLP_MAX_READY_VERSIONS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			maxReady = n
-		}
-	}
-	if ready >= maxReady {
-		return fmt.Errorf("ready version limit exceeded")
-	}
-
 	// fetching
 	if err := o.setStatus(ctx, j, registry.StatusFetching); err != nil {
 		return err
@@ -186,17 +170,32 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if err != nil {
 		return err
 	}
-	if d1Plan.UseBranch {
-		parentDir := filepath.Join(o.cfg.ArtifactsDir, j.ProjectID, d1Plan.ParentID)
-		parentDBID, err := runtime.D1DatabaseID(parentDir)
-		if err != nil {
-			return fmt.Errorf("parent database_id: %w", err)
+	bindingPlan, err := BindingBranchPlanForVersion(v, parent, destDir)
+	if err != nil {
+		return err
+	}
+	if d1Plan.UseBranch || bindingPlan.UseBranch {
+		parentID := d1Plan.ParentID
+		if parentID == "" {
+			parentID = bindingPlan.ParentID
 		}
-		if parentDBID == "" {
-			return fmt.Errorf("parent version %s has no d1_databases database_id", d1Plan.ParentID)
+		parentDir := filepath.Join(o.cfg.ArtifactsDir, j.ProjectID, parentID)
+		if d1Plan.UseBranch {
+			parentDBID, err := runtime.D1DatabaseID(parentDir)
+			if err != nil {
+				return fmt.Errorf("parent database_id: %w", err)
+			}
+			if parentDBID == "" {
+				return fmt.Errorf("parent version %s has no d1_databases database_id", parentID)
+			}
+			if err := runtime.SetD1DatabaseID(destDir, parentDBID); err != nil {
+				return fmt.Errorf("copy parent database_id: %w", err)
+			}
 		}
-		if err := runtime.SetD1DatabaseID(destDir, parentDBID); err != nil {
-			return fmt.Errorf("copy parent database_id: %w", err)
+		if bindingPlan.UseBranch {
+			if err := runtime.CopyBindingIdentitiesFromParent(parentDir, destDir); err != nil {
+				return fmt.Errorf("copy parent binding identities: %w", err)
+			}
 		}
 	}
 
@@ -252,6 +251,11 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 			log.Printf("orch: d1 seed warn after %s: %v", time.Since(t0), err)
 		} else {
 			log.Printf("orch: d1 seed took %s", time.Since(t0))
+		}
+	}
+	if bindingPlan.UseBranch {
+		if err := o.runBindingBranches(ctx, j.ProjectID, j.VersionID, bindingPlan.ParentID, bundleDir); err != nil {
+			return err
 		}
 	}
 
@@ -413,7 +417,20 @@ func (o *Orchestrator) Destroy(ctx context.Context, projectID, versionID string)
 	if v.Status == registry.StatusDestroyed {
 		return nil
 	}
-	if v.Status != registry.StatusReady && v.Status != registry.StatusFailed && v.Status != registry.StatusDraining {
+	n, err := o.store.CountChildVersions(ctx, projectID, versionID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("version has %d ready or archived child version(s)", n)
+	}
+	if v.Status == registry.StatusPending || v.Status == registry.StatusFetching ||
+		v.Status == registry.StatusBranching || v.Status == registry.StatusPreparing ||
+		v.Status == registry.StatusDeploying {
+		return fmt.Errorf("invalid status for destroy: %s", v.Status)
+	}
+	if v.Status != registry.StatusReady && v.Status != registry.StatusFailed &&
+		v.Status != registry.StatusDraining && v.Status != registry.StatusArchived {
 		return fmt.Errorf("invalid status for destroy: %s", v.Status)
 	}
 
@@ -435,6 +452,37 @@ func ValidateForkProd(parentVersionID *string, prodVersionID *string, gitRef str
 	ref := strings.ToLower(gitRef)
 	if strings.HasPrefix(ref, "refs/pull/") || strings.HasPrefix(ref, "pr/") || strings.Contains(ref, "pull/") {
 		return fmt.Errorf("cannot fork prod data for PR preview")
+	}
+	return nil
+}
+
+func (o *Orchestrator) runBindingBranches(ctx context.Context, project, childVersion, parentVersion, bundleDir string) error {
+	bindings, err := runtime.ParseBindings(bundleDir)
+	if err != nil {
+		return err
+	}
+	for _, ns := range bindings.KV {
+		if err := o.runtime.KvBranch(ctx, project, childVersion, parentVersion, ns.ID); err != nil {
+			return fmt.Errorf("kv branch %s: %w", ns.ID, err)
+		}
+	}
+	for _, b := range bindings.R2 {
+		if err := o.runtime.R2Branch(ctx, project, childVersion, parentVersion, b.BucketName); err != nil {
+			return fmt.Errorf("r2 branch %s: %w", b.BucketName, err)
+		}
+	}
+	seen := make(map[string]struct{})
+	for _, q := range bindings.Queues {
+		if q.Name == "" {
+			continue
+		}
+		if _, ok := seen[q.Name]; ok {
+			continue
+		}
+		seen[q.Name] = struct{}{}
+		if err := o.runtime.QueueBranch(ctx, project, childVersion, parentVersion, q.Name); err != nil {
+			return fmt.Errorf("queue branch %s: %w", q.Name, err)
+		}
 	}
 	return nil
 }

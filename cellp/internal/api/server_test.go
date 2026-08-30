@@ -237,30 +237,27 @@ func TestPromoteConflict(t *testing.T) {
 	}
 }
 
-func TestReadyVersionLimitExceeded429(t *testing.T) {
-	t.Setenv("CELLP_MAX_READY_VERSIONS", "5")
+func TestManyReadyVersionsNot429(t *testing.T) {
 	srv, store, _ := testAPI(t, "deploy", "admin")
 	defer store.Close()
 	_, _ = store.CreateProject(context.Background(), registry.CreateProjectInput{ID: "demo"})
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		id := fmt.Sprintf("v%d", i)
 		_, _ = store.CreateVersion(context.Background(), registry.CreateVersionInput{ID: id, ProjectID: "demo"})
 		_ = store.UpdateVersionStatus(context.Background(), "demo", id, registry.StatusReady, nil)
 	}
 
-	body := bytes.NewBufferString(`{"id":"v6","git_ref":"main","git_sha":"abc"}`)
+	body := bytes.NewBufferString(`{"id":"v7","git_ref":"main","git_sha":"abc"}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/projects/demo/versions", body)
 	req.Header.Set("Authorization", "Bearer deploy")
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	if w.Code == http.StatusTooManyRequests {
+		t.Fatalf("unexpected 429 ready_version_limit_exceeded")
 	}
-	var resp map[string]string
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["error"] != "ready_version_limit_exceeded" {
-		t.Fatalf("error = %q", resp["error"])
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
 }
 

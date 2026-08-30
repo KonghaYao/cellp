@@ -101,6 +101,23 @@ CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
 	if err != nil {
 		return err
 	}
+	return s.migrateArchiveColumns()
+}
+
+func (s *SQLiteStore) migrateArchiveColumns() error {
+	alters := []string{
+		`ALTER TABLE versions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE versions ADD COLUMN last_access_at TEXT`,
+		`ALTER TABLE projects ADD COLUMN previous_prod_version_id TEXT`,
+		`ALTER TABLE projects ADD COLUMN previous_prod_at TEXT`,
+	}
+	for _, q := range alters {
+		if _, err := s.db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -166,11 +183,11 @@ func (s *SQLiteStore) CreateProject(ctx context.Context, in CreateProjectInput) 
 func (s *SQLiteStore) GetProject(ctx context.Context, id string) (*Project, error) {
 	return withRetry(func() (*Project, error) {
 		row := s.db.QueryRowContext(ctx,
-			`SELECT id, git_remote, prod_version_id, created_at FROM projects WHERE id = ?`, id)
+			`SELECT id, git_remote, prod_version_id, previous_prod_version_id, previous_prod_at, created_at FROM projects WHERE id = ?`, id)
 		var p Project
-		var gitRemote, prod sql.NullString
+		var gitRemote, prod, prevProd, prevProdAt sql.NullString
 		var created string
-		if err := row.Scan(&p.ID, &gitRemote, &prod, &created); err != nil {
+		if err := row.Scan(&p.ID, &gitRemote, &prod, &prevProd, &prevProdAt, &created); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, nil
 			}
@@ -181,6 +198,13 @@ func (s *SQLiteStore) GetProject(ctx context.Context, id string) (*Project, erro
 		}
 		if prod.Valid {
 			p.ProdVersionID = &prod.String
+		}
+		if prevProd.Valid {
+			p.PreviousProdVersionID = &prevProd.String
+		}
+		if prevProdAt.Valid {
+			t, _ := time.Parse(time.RFC3339Nano, prevProdAt.String)
+			p.PreviousProdAt = &t
 		}
 		p.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
 		return &p, nil
@@ -216,7 +240,7 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 		if opts.Cursor == "" {
 			args := append(queryArgs, fetch)
 			rows, err = s.db.QueryContext(ctx, `
-				SELECT p.id, p.git_remote, p.prod_version_id, p.created_at
+				SELECT p.id, p.git_remote, p.prod_version_id, p.previous_prod_version_id, p.previous_prod_at, p.created_at
 				FROM projects p
 				WHERE 1=1`+queryFilter+`
 				ORDER BY p.created_at ASC, p.id ASC
@@ -230,7 +254,7 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 			args := append([]any{cursorStr, cursorStr, cursorID}, queryArgs...)
 			args = append(args, fetch)
 			rows, err = s.db.QueryContext(ctx, `
-				SELECT p.id, p.git_remote, p.prod_version_id, p.created_at
+				SELECT p.id, p.git_remote, p.prod_version_id, p.previous_prod_version_id, p.previous_prod_at, p.created_at
 				FROM projects p
 				WHERE (p.created_at > ? OR (p.created_at = ? AND p.id > ?))`+queryFilter+`
 				ORDER BY p.created_at ASC, p.id ASC
@@ -244,9 +268,9 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 		var items []ProjectListItem
 		for rows.Next() {
 			var item ProjectListItem
-			var gitRemote, prod sql.NullString
+			var gitRemote, prod, prevProd, prevProdAt sql.NullString
 			var created string
-			if err := rows.Scan(&item.ID, &gitRemote, &prod, &created); err != nil {
+			if err := rows.Scan(&item.ID, &gitRemote, &prod, &prevProd, &prevProdAt, &created); err != nil {
 				return nil, err
 			}
 			if gitRemote.Valid {
@@ -254,6 +278,13 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 			}
 			if prod.Valid {
 				item.ProdVersionID = &prod.String
+			}
+			if prevProd.Valid {
+				item.PreviousProdVersionID = &prevProd.String
+			}
+			if prevProdAt.Valid {
+				t, _ := time.Parse(time.RFC3339Nano, prevProdAt.String)
+				item.PreviousProdAt = &t
 			}
 			item.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
 			items = append(items, item)
@@ -357,7 +388,8 @@ func (s *SQLiteStore) GetVersion(ctx context.Context, projectID, versionID strin
 	return withRetry(func() (*Version, error) {
 		row := s.db.QueryRowContext(ctx, `
 			SELECT id, project_id, parent_version_id, git_ref, git_sha, artifact_uri, artifact_digest,
-				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at
+				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at,
+				pinned, last_access_at
 			FROM versions WHERE project_id = ? AND id = ?`, projectID, versionID)
 		return scanVersion(row)
 	})
@@ -370,7 +402,8 @@ func (s *SQLiteStore) ListVersions(ctx context.Context, projectID string, opts L
 
 		query := `
 			SELECT id, project_id, parent_version_id, git_ref, git_sha, artifact_uri, artifact_digest,
-				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at
+				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at,
+				pinned, last_access_at
 			FROM versions
 			WHERE project_id = ?`
 		args := []interface{}{projectID}
@@ -427,15 +460,18 @@ func (s *SQLiteStore) UpdateVersionStatus(ctx context.Context, projectID, versio
 	return withRetryErr(func() error {
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		var readyAt interface{}
+		var lastAccess interface{}
 		if status == StatusReady {
 			readyAt = now
+			lastAccess = now
 		}
 		_, err := s.db.ExecContext(ctx, `
 			UPDATE versions SET status = ?, error = ?, updated_at = ?,
 				ready_at = COALESCE(?, ready_at),
+				last_access_at = COALESCE(?, last_access_at, ready_at),
 				data_branch = COALESCE(data_branch, ?)
 			WHERE project_id = ? AND id = ?`,
-			status, nullStr(errMsg), now, readyAt,
+			status, nullStr(errMsg), now, readyAt, lastAccess,
 			fmt.Sprintf("%s/%s", projectID, versionID),
 			projectID, versionID)
 		return err
@@ -566,10 +602,19 @@ func (s *SQLiteStore) SetProdVersion(ctx context.Context, projectID, versionID s
 
 func (s *SQLiteStore) SetProdVersionCAS(ctx context.Context, projectID, expected, new string) error {
 	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		var prevProd interface{}
+		var prevAt interface{}
+		if expected != "" {
+			prevProd = expected
+			prevAt = now
+		}
 		res, err := s.db.ExecContext(ctx, `
-			UPDATE projects SET prod_version_id = ?
+			UPDATE projects SET prod_version_id = ?,
+				previous_prod_version_id = CASE WHEN ? = '' THEN previous_prod_version_id ELSE ? END,
+				previous_prod_at = CASE WHEN ? = '' THEN previous_prod_at ELSE ? END
 			WHERE id = ? AND (prod_version_id = ? OR (prod_version_id IS NULL AND ? = ''))`,
-			new, projectID, nullIfEmpty(expected), expected)
+			new, expected, prevProd, expected, prevAt, projectID, nullIfEmpty(expected), expected)
 		if err != nil {
 			return err
 		}
@@ -759,30 +804,32 @@ func (s *SQLiteStore) PurgeDestroyedVersions(ctx context.Context, olderThan time
 
 func scanVersion(row *sql.Row) (*Version, error) {
 	var v Version
-	var parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString
+	var parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready, lastAccess sql.NullString
+	var pinned int
 	if err := row.Scan(&v.ID, &v.ProjectID, &parent, &v.GitRef, &v.GitSHA, &artifactURI, &digest,
-		&branch, &preview, &status, &errMsg, &ttl, &created, &updated, &ready); err != nil {
+		&branch, &preview, &status, &errMsg, &ttl, &created, &updated, &ready, &pinned, &lastAccess); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	fillVersion(&v, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready)
+	fillVersion(&v, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready, pinned, lastAccess)
 	return &v, nil
 }
 
 func scanVersionRows(rows *sql.Rows) (*Version, error) {
 	var v Version
-	var parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString
+	var parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready, lastAccess sql.NullString
+	var pinned int
 	if err := rows.Scan(&v.ID, &v.ProjectID, &parent, &v.GitRef, &v.GitSHA, &artifactURI, &digest,
-		&branch, &preview, &status, &errMsg, &ttl, &created, &updated, &ready); err != nil {
+		&branch, &preview, &status, &errMsg, &ttl, &created, &updated, &ready, &pinned, &lastAccess); err != nil {
 		return nil, err
 	}
-	fillVersion(&v, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready)
+	fillVersion(&v, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready, pinned, lastAccess)
 	return &v, nil
 }
 
-func fillVersion(v *Version, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString) {
+func fillVersion(v *Version, parent, artifactURI, digest, branch, preview, status, errMsg, ttl, created, updated, ready sql.NullString, pinned int, lastAccess sql.NullString) {
 	if parent.Valid {
 		v.ParentVersionID = &parent.String
 	}
@@ -818,6 +865,11 @@ func fillVersion(v *Version, parent, artifactURI, digest, branch, preview, statu
 		t, _ := time.Parse(time.RFC3339Nano, ready.String)
 		v.ReadyAt = &t
 	}
+	v.Pinned = pinned != 0
+	if lastAccess.Valid {
+		t, _ := time.Parse(time.RFC3339Nano, lastAccess.String)
+		v.LastAccessAt = &t
+	}
 }
 
 func nullStr(s *string) interface{} {
@@ -832,4 +884,82 @@ func nullIfEmpty(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// ExecTestSQL runs arbitrary SQL (tests only).
+func (s *SQLiteStore) ExecTestSQL(ctx context.Context, query string, args ...any) error {
+	return withRetryErr(func() error {
+		_, err := s.db.ExecContext(ctx, query, args...)
+		return err
+	})
+}
+
+func (s *SQLiteStore) SetVersionPinned(ctx context.Context, projectID, versionID string, pinned bool) error {
+	return withRetryErr(func() error {
+		p := 0
+		if pinned {
+			p = 1
+		}
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		res, err := s.db.ExecContext(ctx,
+			`UPDATE versions SET pinned = ?, updated_at = ? WHERE project_id = ? AND id = ?`,
+			p, now, projectID, versionID)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("version not found")
+		}
+		return nil
+	})
+}
+
+func (s *SQLiteStore) TouchLastAccess(ctx context.Context, projectID, versionID string) error {
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE versions SET last_access_at = ? WHERE project_id = ? AND id = ?`,
+			now, projectID, versionID)
+		return err
+	})
+}
+
+func (s *SQLiteStore) ListAllReadyVersions(ctx context.Context) ([]Version, error) {
+	return withRetry(func() ([]Version, error) {
+		rows, err := s.db.QueryContext(ctx, `
+			SELECT id, project_id, parent_version_id, git_ref, git_sha, artifact_uri, artifact_digest,
+				data_branch, preview_url, status, error, ttl, created_at, updated_at, ready_at,
+				pinned, last_access_at
+			FROM versions WHERE status = ?`, StatusReady)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []Version
+		for rows.Next() {
+			v, err := scanVersionRows(rows)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, *v)
+		}
+		return out, rows.Err()
+	})
+}
+
+func (s *SQLiteStore) CountChildVersions(ctx context.Context, projectID, parentVersionID string) (int, error) {
+	return withRetry(func() (int, error) {
+		row := s.db.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM versions
+			WHERE project_id = ? AND parent_version_id = ?
+			  AND status IN (?, ?)`,
+			projectID, parentVersionID, StatusReady, StatusArchived)
+		var n int
+		err := row.Scan(&n)
+		return n, err
+	})
 }

@@ -17,3 +17,7 @@ v7-external-ci.sh
 v9-kv.sh
 v10-queue.sh
 v11-workflow-cron.sh
+v12-kv-branch.sh
+v13-r2-branch.sh
+v14-queue-branch.sh
+v15-archive.sh

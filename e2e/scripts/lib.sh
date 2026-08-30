@@ -20,6 +20,7 @@ fi
 : "${GATEWAY_URL:=http://127.0.0.1:8787}"
 : "${PLATFORM_TOKEN:=dev-local-token}"
 : "${ADMIN_TOKEN:=${PLATFORM_TOKEN}}"
+: "${DEPLOY_TOKEN:=${PLATFORM_TOKEN}}"
 : "${DEV_PROJECT:=demo-app}"
 : "${CELLD_PORT:=8792}"
 : "${EVIDENCE_DIR:=docs/evidence}"
@@ -61,6 +62,7 @@ cleanup_e2e_versions() {
 log() { echo "==> $*"; }
 pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
+skip() { echo "SKIP: $*"; exit 0; }
 
 unique_id() {
   echo "v-e2e-$(date +%s)-$RANDOM"
@@ -217,6 +219,42 @@ wait_http_gone() {
     sleep 1
   done
   fail "expected HTTP 404/410/503 from ${url} within ${timeout}s (last=${code})"
+}
+
+# peek_has_marker JSON MARKER — true when any peek message body (incl. bodyBase64) contains MARKER.
+peek_has_marker() {
+  local raw="$1"
+  local marker="$2"
+  python3 -c '
+import json, sys, base64
+raw, marker = sys.argv[1], sys.argv[2]
+try:
+    data = json.loads(raw)
+except Exception:
+    sys.exit(1)
+msgs = data.get("messages", data) if isinstance(data, dict) else data
+if msgs is None:
+    msgs = []
+if isinstance(msgs, dict):
+    msgs = [msgs]
+for m in msgs:
+    if not isinstance(m, dict):
+        continue
+    b64 = m.get("bodyBase64") or m.get("body_base64") or ""
+    if b64:
+        try:
+            body = base64.b64decode(b64).decode("utf-8", "replace")
+        except Exception:
+            body = ""
+        if marker in body:
+            sys.exit(0)
+    blob = json.dumps(m)
+    if marker in blob:
+        sys.exit(0)
+if marker in raw:
+    sys.exit(0)
+sys.exit(1)
+' "$raw" "$marker"
 }
 
 require_celld() {

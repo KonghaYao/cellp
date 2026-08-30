@@ -13,6 +13,7 @@ const (
 	StatusPreparing = "preparing"
 	StatusDeploying = "deploying"
 	StatusReady     = "ready"
+	StatusArchived  = "archived"
 	StatusDraining  = "draining"
 	StatusDestroyed = "destroyed"
 	StatusFailed    = "failed"
@@ -20,10 +21,12 @@ const (
 
 // Project represents a cellp project.
 type Project struct {
-	ID            string    `json:"id"`
-	GitRemote     *string   `json:"git_remote,omitempty"`
-	ProdVersionID *string   `json:"prod_version_id,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID                    string     `json:"id"`
+	GitRemote             *string    `json:"git_remote,omitempty"`
+	ProdVersionID         *string    `json:"prod_version_id,omitempty"`
+	PreviousProdVersionID *string    `json:"previous_prod_version_id,omitempty"`
+	PreviousProdAt        *time.Time `json:"previous_prod_at,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
 }
 
 // Version represents a deployed version.
@@ -43,6 +46,8 @@ type Version struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	ReadyAt         *time.Time `json:"ready_at,omitempty"`
+	Pinned          bool       `json:"pinned"`
+	LastAccessAt    *time.Time `json:"last_access_at,omitempty"`
 }
 
 // Route maps a version to an upstream celld instance.
@@ -134,6 +139,11 @@ type Store interface {
 	CountVersions(ctx context.Context, projectID string) (int, error)
 	UpdateVersionStatus(ctx context.Context, projectID, versionID, status string, errMsg *string) error
 	CountReadyVersions(ctx context.Context, projectID string) (int, error)
+
+	SetVersionPinned(ctx context.Context, projectID, versionID string, pinned bool) error
+	TouchLastAccess(ctx context.Context, projectID, versionID string) error
+	ListAllReadyVersions(ctx context.Context) ([]Version, error)
+	CountChildVersions(ctx context.Context, projectID, parentVersionID string) (int, error)
 
 	SetRoute(ctx context.Context, route Route) error
 	SetRouteActive(ctx context.Context, projectID, versionID string, active bool) error

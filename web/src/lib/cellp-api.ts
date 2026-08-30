@@ -40,6 +40,8 @@ export interface Version {
   created_at: string;
   updated_at: string;
   ready_at: string | null;
+  pinned?: boolean;
+  last_access_at?: string | null;
   error: string | null;
 }
 
@@ -496,6 +498,50 @@ export async function destroyVersion(
     { method: "DELETE" },
   );
   return getProject(projectId);
+}
+
+export async function archiveVersion(
+  projectId: string,
+  versionId: string,
+): Promise<Version> {
+  await request<{ status: string }>(
+    `${versionRoot(projectId, versionId)}/archive`,
+    { method: "POST" },
+  );
+  return getVersion(projectId, versionId);
+}
+
+export async function wakeVersion(
+  projectId: string,
+  versionId: string,
+): Promise<Version> {
+  await request<{ status: string }>(
+    `${versionRoot(projectId, versionId)}/wake`,
+    { method: "POST" },
+  );
+  return getVersion(projectId, versionId);
+}
+
+export async function pinVersion(
+  projectId: string,
+  versionId: string,
+): Promise<Version> {
+  await request<{ pinned: boolean }>(
+    `${versionRoot(projectId, versionId)}/pin`,
+    { method: "POST" },
+  );
+  return getVersion(projectId, versionId);
+}
+
+export async function unpinVersion(
+  projectId: string,
+  versionId: string,
+): Promise<Version> {
+  await request<{ pinned: boolean }>(
+    `${versionRoot(projectId, versionId)}/unpin`,
+    { method: "POST" },
+  );
+  return getVersion(projectId, versionId);
 }
 
 export async function healthCheck(): Promise<{ status: string }> {

@@ -517,7 +517,7 @@ fi
 
 # --- Platform cap note ---
 if curl -sf "${PLATFORM_URL:-http://127.0.0.1:8790}/v1/health" >/dev/null 2>&1; then
-  ob_note "cellpd API up; live ready cap remains CELLP_MAX_READY_VERSIONS (default 5, env 20). Not deploying ${OB_SIZE_MB}MB into celld fleet."
+  ob_note "cellpd API up; ready version count has no hard cap (AD-9). Not deploying ${OB_SIZE_MB}MB into celld fleet."
   ob_record "TP-OB-P" "api_up" 1 "{}"
 else
   ob_note "cellpd API down — platform live track skipped (store-only is the many-branch scenario)."

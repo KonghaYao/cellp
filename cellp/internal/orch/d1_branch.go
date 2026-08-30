@@ -27,8 +27,8 @@ func D1DeployPlanForVersion(v *registry.Version, parent *registry.Version, child
 	if parent == nil {
 		return D1DeployPlan{}, fmt.Errorf("parent version %q not found", *v.ParentVersionID)
 	}
-	if parent.Status != registry.StatusReady {
-		return D1DeployPlan{}, fmt.Errorf("parent version %s not ready: %s", *v.ParentVersionID, parent.Status)
+	if !parentBranchable(parent) {
+		return D1DeployPlan{}, fmt.Errorf("parent version %s not ready or archived: %s", *v.ParentVersionID, parent.Status)
 	}
 	return D1DeployPlan{UseBranch: true, ParentID: *v.ParentVersionID}, nil
 }

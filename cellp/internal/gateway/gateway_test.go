@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/cellp/cellp/internal/gateway"
@@ -42,6 +43,37 @@ func TestHealth(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+func TestArchivedVersion503(t *testing.T) {
+	store, err := registry.Open(t.TempDir() + "/gw-archived.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
+	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
+	_ = store.UpdateVersionStatus(ctx, "demo", "v1", registry.StatusArchived, nil)
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v1", Active: false,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 9999,
+	})
+	gw := gateway.New(store)
+	srv := httptest.NewServer(gw.Handler())
+	defer srv.Close()
+	resp, err := http.Get(srv.URL + "/demo/v1/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "version_archived") {
+		t.Fatalf("body = %q", body)
 	}
 }
 

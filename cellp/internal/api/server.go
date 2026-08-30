@@ -3,9 +3,9 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cellp/cellp/internal/artifact"
@@ -18,21 +18,21 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const maxReadyVersionsDefault = 5
-
 // Server is the cellp REST API (DESIGN §9).
 type Server struct {
 	store   registry.Store
 	queue   job.Queue
 	orch    *orch.Orchestrator
 	runtime *runtime.Manager
-	cfg     config.Config
-	router  chi.Router
+	cfg          config.Config
+	router       chi.Router
+	lastTouchMu  sync.Mutex
+	lastTouchAt  map[string]time.Time
 }
 
 // NewServer creates an API server.
 func NewServer(store registry.Store, queue job.Queue, o *orch.Orchestrator, rm *runtime.Manager, cfg config.Config) *Server {
-	s := &Server{store: store, queue: queue, orch: o, runtime: rm, cfg: cfg}
+	s := &Server{store: store, queue: queue, orch: o, runtime: rm, cfg: cfg, lastTouchAt: make(map[string]time.Time)}
 	s.router = chi.NewRouter()
 	s.routes()
 	return s
@@ -75,8 +75,13 @@ func (s *Server) routes() {
 				r.Post("/", s.requireDeploy(s.handleCreateVersion))
 
 				r.Route("/{versionID}", func(r chi.Router) {
+					r.Use(s.touchVersionAccess)
 					r.Get("/", s.requireAdmin(s.handleGetVersion))
 					r.Post("/promote", s.requireAdmin(s.handlePromote))
+					r.Post("/archive", s.requireAdmin(s.handleArchive))
+					r.Post("/wake", s.requireAdmin(s.handleWake))
+					r.Post("/pin", s.requireAdmin(s.handlePin))
+					r.Post("/unpin", s.requireAdmin(s.handleUnpin))
 					r.Delete("/", s.requireAdmin(s.handleDestroy))
 
 					r.Get("/bindings", s.requireAdmin(s.handleGetBindings))
@@ -321,22 +326,6 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	// TP-SEC-4: strip platform env keys
 	req.Env = config.StripPlatformEnv(req.Env)
 
-	ready, err := s.store.CountReadyVersions(r.Context(), projectID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	maxReady := maxReadyVersionsDefault
-	if v := os.Getenv("CELLP_MAX_READY_VERSIONS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			maxReady = n
-		}
-	}
-	if ready >= maxReady {
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "ready_version_limit_exceeded"})
-		return
-	}
-
 	pending, err := s.store.CountPendingJobs(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -434,6 +423,10 @@ func (s *Server) handleDestroy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.orch.Destroy(r.Context(), projectID, versionID); err != nil {
+		if strings.Contains(err.Error(), "child version") {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

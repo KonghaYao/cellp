@@ -7,6 +7,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/cellp/cellp/internal/metrics"
 	"github.com/cellp/cellp/internal/registry"
@@ -15,14 +17,20 @@ import (
 
 // Gateway is the cellpd built-in reverse proxy (DESIGN §2.3).
 type Gateway struct {
-	store  registry.Store
-	cache  *RouteCache
-	router chi.Router
+	store       registry.Store
+	cache       *RouteCache
+	router      chi.Router
+	lastTouchMu sync.Mutex
+	lastTouchAt map[string]time.Time
 }
 
 // New creates a gateway server with an in-memory route cache.
 func New(store registry.Store) *Gateway {
-	g := &Gateway{store: store, cache: NewRouteCache()}
+	g := &Gateway{
+		store:       store,
+		cache:       NewRouteCache(),
+		lastTouchAt: make(map[string]time.Time),
+	}
 	g.router = chi.NewRouter()
 	g.routes()
 	return g
@@ -90,6 +98,10 @@ func (g *Gateway) handleVersionRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !route.Active {
+		if g.versionInactiveBody(r.Context(), projectID, versionID) == "version_archived" {
+			http.Error(w, "version_archived", http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, "route draining", http.StatusServiceUnavailable)
 		return
 	}
@@ -99,7 +111,7 @@ func (g *Gateway) handleVersionRoute(w http.ResponseWriter, r *http.Request) {
 	if rest == "" {
 		rest = "/"
 	}
-	g.proxy(w, r, route.UpstreamHost, route.UpstreamPort, rest)
+	g.proxy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
 }
 
 func (g *Gateway) handleProdRoute(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +143,18 @@ func (g *Gateway) handleProdRoute(w http.ResponseWriter, r *http.Request) {
 	if rest == "" {
 		rest = "/"
 	}
-	g.proxy(w, r, route.UpstreamHost, route.UpstreamPort, rest)
+	g.proxy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
+}
+
+func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {
+	v, err := g.store.GetVersion(ctx, projectID, versionID)
+	if err != nil || v == nil {
+		return "route draining"
+	}
+	if v.Status == registry.StatusArchived {
+		return "version_archived"
+	}
+	return "route draining"
 }
 
 func (g *Gateway) lookupRoute(ctx context.Context, projectID, versionID string) (*registry.Route, bool) {
@@ -174,7 +197,7 @@ func (g *Gateway) lookupProdVersion(ctx context.Context, projectID string) (stri
 	return *versionID, true
 }
 
-func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, host string, port int, path string) {
+func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, host string, port int, path, projectID, versionID string) {
 	target, err := url.Parse(fmt.Sprintf("http://%s:%d", host, port))
 	if err != nil {
 		http.Error(w, "bad upstream", http.StatusBadGateway)
@@ -185,6 +208,9 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, host string, por
 	r.Host = target.Host
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		metrics.RecordGatewayUpstream(resp.StatusCode)
+		if resp.StatusCode >= 200 && resp.StatusCode < 500 {
+			g.touchLastAccessThrottled(projectID, versionID)
+		}
 		return nil
 	}
 	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, e error) {
@@ -192,4 +218,19 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, host string, por
 		http.Error(rw, "bad gateway", http.StatusBadGateway)
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+func (g *Gateway) touchLastAccessThrottled(projectID, versionID string) {
+	key := projectID + "/" + versionID
+	now := time.Now().UTC()
+	g.lastTouchMu.Lock()
+	if last, ok := g.lastTouchAt[key]; ok && now.Sub(last) < time.Minute {
+		g.lastTouchMu.Unlock()
+		return
+	}
+	g.lastTouchAt[key] = now
+	g.lastTouchMu.Unlock()
+	go func() {
+		_ = g.store.TouchLastAccess(context.Background(), projectID, versionID)
+	}()
 }

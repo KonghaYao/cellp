@@ -55,6 +55,13 @@ func (m *Manager) key(project, version string) string {
 	return project + "/" + version
 }
 
+func processAlive(cmd *exec.Cmd) bool {
+	if cmd == nil || cmd.Process == nil {
+		return false
+	}
+	return cmd.Process.Signal(syscall.Signal(0)) == nil
+}
+
 func (m *Manager) versionBucket(project, version string) string {
 	return fmt.Sprintf("s3://cellp-celld/%s/%s", project, version)
 }
@@ -133,11 +140,19 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 	k := m.key(project, version)
 
 	m.mu.Lock()
-	if p, ok := m.processes[k]; ok && p.cmd != nil && p.cmd.Process != nil {
+	if p, ok := m.processes[k]; ok && processAlive(p.cmd) {
+		runningPort := p.port
 		m.mu.Unlock()
-		return host, p.port, nil
+		return host, runningPort, nil
+	}
+	var staleWatch string
+	if p, ok := m.processes[k]; ok {
+		// Stale map entry after the subprocess exited. Drop it and respawn.
+		staleWatch = p.watchDir
+		delete(m.processes, k)
 	}
 	m.mu.Unlock()
+	removeEphemeralWatch(staleWatch)
 
 	if os.Getenv("CELLP_E2E_INJECT_DEPLOY_FAIL") == "1" {
 		return host, port, nil
@@ -157,7 +172,10 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 		"--region", m.region,
 		"--listen", fmt.Sprintf("%s:%d", host, port),
 	}
-	cmd := exec.CommandContext(ctx, "celld", args...)
+	// celld is a long-lived AD-1 daemon. Do not bind it to the caller
+	// context — HTTP wake handlers cancel when the response is written,
+	// which would SIGKILL the process and 502 the preview.
+	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", args...)
 	watch, err := m.allocateWatchDir(project, version)
 	if err != nil {
 		return "", 0, fmt.Errorf("allocate watch dir: %w", err)

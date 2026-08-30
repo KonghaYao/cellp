@@ -54,6 +54,8 @@
 | 5 | [phase-5-stress.md](./plans/phase-5-stress.md) | M2 | 见 phase2 压测 |
 | 6 | [phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) | M3 / 6A | **6A 实现完成**（SQLite scope；6B–6F OUT OF SCOPE） |
 | 7 | [phase-7-bindings.md](./plans/phase-7-bindings.md) | AD-6 · AD-7 | **计划中** — celld 0.4.0 KV / Queue / Workflow / Cron |
+| 8 | [phase-8-binding-branch.md](./plans/phase-8-binding-branch.md) | AD-8 | **已落地** — KV / R2 / Queue branch |
+| 9 | [phase-9-version-archive.md](./plans/phase-9-version-archive.md) | AD-9 | **已落地** — archived / wake / 取消 5 ready 上限 |
 
 ### v1 收尾（2026-08-29）
 

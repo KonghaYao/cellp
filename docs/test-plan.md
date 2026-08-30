@@ -323,6 +323,30 @@
 | 对齐 | VALIDATION **V11** |
 | 不做 | workflow 控制 · R2 对象浏览器 · Cron 平台调度 |
 
+### [ ] TP-V12 — KV branch（AD-8）
+
+| 命令 | `e2e/scripts/v12-kv-branch.sh` |
+| 通过 | 父 put → 子 get 同值；子 put 后父不变 |
+| 证据 | `docs/evidence/v12-kv-branch-e2e.log` |
+
+### [ ] TP-V13 — R2 branch（AD-8）
+
+| 命令 | `e2e/scripts/v13-r2-branch.sh` |
+| 通过 | 子 GET 父对象；子 overwrite 后父不变 |
+| 证据 | `docs/evidence/v13-r2-branch-e2e.log` |
+
+### [ ] TP-V14 — Queue branch（AD-8）
+
+| 命令 | `e2e/scripts/v14-queue-branch.sh` |
+| 通过 | 父 enqueue → 子 peek 见快照 |
+| 证据 | `docs/evidence/v14-queue-branch-e2e.log` |
+
+### [ ] TP-V15 — Version archive / wake（AD-9）
+
+| 命令 | `e2e/scripts/v15-archive.sh` |
+| 通过 | 6+ ready 无 429；archive 非 prod → 503 `version_archived`；wake → 200；archive prod → 422 |
+| 证据 | `docs/evidence/v15-archive-e2e.log` |
+
 ### TP-VE-1（路径修订，非新 ID）
 
 | 检查 | `:8790/v1/health` · `:8787/health` · `:8792/.well-known/celld/health` → 200 |

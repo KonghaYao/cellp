@@ -66,6 +66,7 @@ func main() {
 
 	go o.Run(ctx)
 	gc.Start(ctx, store, gc.LoadConfig())
+	o.StartArchiveReaper(ctx, orch.LoadArchiveConfig())
 
 	apiSrv := api.NewServer(store, queue, o, rm, cfg)
 

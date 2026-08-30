@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-08-29（含 AD-6 · AD-7）
+> **最后更新：** 2026-08-30（含 AD-6 · AD-7 · AD-8 · AD-9）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -16,8 +16,8 @@
 | **Git / CI** | 外部边界；cellp 只收 artifact + `POST /versions` |
 | **Registry** | SQLite（`cellp-registry.sqlite`，WAL）；**不用 PostgreSQL** |
 | **Gateway** | cellpd **内置** reverse proxy；用户自有 TLS/LB 反代即可 |
-| **一期范围** | CD + Branch + Version + promote/saga；≤5 ready versions / project |
-| **Bindings（本期）** | 沿用 celld 0.4.0 KV / Queue / Workflow / Cron；R2 清单；**无 branch 则空起步**（AD-6 · AD-7） |
+| **一期范围** | CD + Branch + Version + promote/saga；ready 数量**无硬上限**（AD-9，靠封存回收进程） |
+| **Bindings（本期）** | 沿用 celld 0.4.0；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 不 branch |
 
 ---
 
@@ -221,3 +221,31 @@ flowchart LR
 | Workflow 控制 | 无 `celld workflow` | **只读** `cell list` |
 
 等 celld 提供这些资源的 branch / operator CLI 后，**新 ADR** 再开 inherit 专项。产品必须在 UI 标明 preview KV/Queue 不携带 prod 数据。
+
+**修正（2026-08-30）：** AD-8 落地后，KV / R2 / Queue **不再**空起步。AD-7 仅保留 **Workflow 实例**（及 Worker 脚本 / Cron：本就不是可 fork 的数据集）。
+
+---
+
+## 13. AD-8 — KV / R2 / Queue 跨 version branch
+
+**问题：** 子 version 独立 bucket（AD-1）导致 preview 看不到父 KV/R2/Queue。cellp 不得 CopyObject / 循环 dump。
+
+**决策：** 在 celld 对象层做与 D1 同构的 branch（LTX `base.json` + chained restore；KV 大 value 链式读父 `kv/blobs-v2`；R2 前缀 overlay + 墓碑）。cellp 只包装 CLI。一层 fork。身份继承父 wrangler。Worker / Workflow / Cron **不** branch。
+
+**计划：** [phase-8-binding-branch.md](./plans/phase-8-binding-branch.md)
+
+---
+
+## 14. AD-9 — Version archived 与取消 ready 上限
+
+**问题：** `ready` 绑定活进程；promote 只关路由不 Stop；5 槽 429 阻碍快速 CD。
+
+**决策：**
+
+- 新状态 `archived`：Stop 进程、删 watch、route 关、**保留 S3**；可当 branch 父
+- **删除**每 project 5 ready 硬上限
+- 永不 archive prod；grace 15m；idle 45m；promote 后旧 prod 热留 60m 再交 idle
+- 第一期 Gateway 对 archived 回 503，显式 `POST wake`，不同步 wake
+
+**计划：** [phase-9-version-archive.md](./plans/phase-9-version-archive.md)
+

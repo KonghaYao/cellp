@@ -68,7 +68,6 @@ services:
       CELLP_REGISTRY_DB: /data/registry/cellp-registry.sqlite
       CELLP_DEPLOY_TOKEN: ${CELLP_DEPLOY_TOKEN:-dev-local-token}
       CELLP_ADMIN_TOKEN: ${CELLP_ADMIN_TOKEN:-dev-local-token}
-      CELLP_MAX_READY_VERSIONS: ${CELLP_MAX_READY_VERSIONS:-20}
 
       S3_ENDPOINT: http://rustfs:9000
       AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-rustfsadmin}

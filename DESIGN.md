@@ -37,7 +37,7 @@
 
 **不做：** DNS / CDN / WAF / DDoS / Zero Trust / **Git 托管 / CI 引擎**（外部系统负责；cellp 只收 artifact + API 调用）。
 
-**一期诚实范围：** 单节点（或 VIP 单入口）preview/prod 平面，≤5 concurrent ready versions / project。
+**一期诚实范围：** 单节点（或 VIP 单入口）preview/prod 平面。ready version **无数量硬上限**；不活跃 preview 以 **archived** 停进程（AD-9）。
 
 **Bindings 诚实范围：** 沿用 celld 已有 CLI 与 wrangler key；**D1 是唯一有 branch 的绑定**。KV / R2 / Queue / Workflow 在 celld 提供 branch 之前，子 version **空起步**，cellp 不发明 copy / inherit / 共享桶。
 
@@ -252,6 +252,8 @@ stateDiagram-v2
   branching --> preparing: export + env
   preparing --> deploying: celld deploy
   deploying --> ready: health OK
+  ready --> archived: idle reaper / POST archive
+  archived --> ready: POST wake
   ready --> draining: DELETE / TTL
   draining --> destroyed: celld SIGTERM
   destroyed --> [*]
@@ -442,12 +444,15 @@ s3://cellp-celld/{project}/{version}/
   r2/<bucket>/     # R2 对象（同一桶前缀）
 ```
 
-| 数据 | 子 version（有 `parent_version_id`） |
+| 数据 | 子 version（有 `parent_version_id` 且父 `ready\|archived`） |
 |---|---|
 | **D1** | `celld d1 branch`：共享父 LTX 到 `fork_txid`，再写子增量 |
-| **KV / R2 / Queue / Workflow** | **空**。父 version 的 key / object / backlog / 实例 **不可见** |
+| **KV** | `celld kv branch`：cell-branch + 父桶 blob GET |
+| **R2** | `celld r2 branch`：overlay（miss 读父、写子） |
+| **Queue** | `celld queue branch`：cell-branch 快照 |
+| **Workflow / Cron / Worker 脚本** | **不 branch**（空起步或仅 artifact 差异） |
 
-这不是缺陷，是 AD-1 隔离 + celld 尚无这些资源的 branch。产品文案必须写清：「Preview 的 KV/Queue 是新的，不会带上 prod 数据。」等 celld 提供 branch 后再开 inherit 专项（新 ADR）。
+根 version（无 `parent_version_id`）：KV / R2 / Queue **空起步**。Archived 父仍可作为 branch 源（S3 保留）。
 
 ### 8.4 控制面 API（`:8790/v1` · ADMIN_TOKEN）
 

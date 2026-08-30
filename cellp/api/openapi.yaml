@@ -1036,6 +1036,92 @@ paths:
                     type: string
         "409":
           description: Version not ready
+  /projects/{projectID}/versions/{versionID}/archive:
+    post:
+      summary: Archive a ready version (stop celld, keep S3)
+      operationId: archiveVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Archived
+        "409":
+          description: Pinned or not ready
+        "422":
+          description: Cannot archive prod
+  /projects/{projectID}/versions/{versionID}/wake:
+    post:
+      summary: Wake an archived version
+      operationId: wakeVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ready again
+        "409":
+          description: Not archived or not wakeable
+  /projects/{projectID}/versions/{versionID}/pin:
+    post:
+      summary: Pin version (prevents idle archive)
+      operationId: pinVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pinned
+  /projects/{projectID}/versions/{versionID}/unpin:
+    post:
+      summary: Unpin version
+      operationId: unpinVersion
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Unpinned
 components:
   schemas:
     Version:
@@ -1047,6 +1133,13 @@ components:
           type: string
         status:
           type: string
+          enum: [pending, fetching, branching, preparing, deploying, ready, archived, draining, destroyed, failed]
+        pinned:
+          type: boolean
+        last_access_at:
+          type: string
+          format: date-time
+          nullable: true
         preview_url:
           type: string
         created_at:

@@ -115,6 +115,10 @@ function VersionDetailContent({
               </h1>
               <StatusIndicator status={version.status} />
               {isProd && <Badge variant="prod">Production</Badge>}
+              {version.status === "archived" && (
+                <Badge variant="secondary">Archived</Badge>
+              )}
+              {version.pinned && <Badge variant="outline">Pinned</Badge>}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               Deployed {formatRelativeTime(version.created_at)} ·{" "}
@@ -127,6 +131,7 @@ function VersionDetailContent({
             versionId={version.id}
             status={version.status}
             isProd={isProd}
+            pinned={version.pinned}
             previewUrl={version.preview_url}
             onComplete={onRefresh}
           />

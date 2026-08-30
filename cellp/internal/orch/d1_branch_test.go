@@ -66,4 +66,17 @@ func TestD1DeployPlanForVersion(t *testing.T) {
 			t.Fatalf("plan = %+v, want branch from %s", plan, parentID)
 		}
 	})
+
+	t.Run("branch when parent archived", func(t *testing.T) {
+		root := t.TempDir()
+		writeWrangler(t, root, `{"d1_databases":[{"database_name":"guestbook","database_id":"x"}]}`)
+		archived := &registry.Version{ID: parentID, Status: registry.StatusArchived}
+		plan, err := orch.D1DeployPlanForVersion(child, archived, root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !plan.UseBranch {
+			t.Fatal("expected branch from archived parent")
+		}
+	})
 }
