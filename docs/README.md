@@ -20,6 +20,11 @@
 | 跑压测 | [../stress/README.md](../stress/README.md) · [phase6/README.md](../stress/phase6/README.md) |
 | 查历史 VALIDATION 编号 | [../VALIDATION.md](../VALIDATION.md)（仅索引，执行以 test-plan 为准） |
 | 从 Cloudflare Workers 迁移 | [cloudflare-migration.md](./cloudflare-migration.md) |
+| 从 Vercel 迁移 | [vercel-migration.md](./vercel-migration.md) |
+| 生产回滚 | [runbooks/rollback.md](./runbooks/rollback.md) |
+| 可观测性 | [observability.md](./observability.md) |
+| 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |
+| Prod offshoot × RustFS | [runbooks/prod-offshoot-rustfs.md](./runbooks/prod-offshoot-rustfs.md) |
 
 ---
 
@@ -132,7 +137,7 @@
 | **M1** | 后端 + TP-VE-ALL | Dashboard 开工 |
 | **M2** | test-plan 全绿 | 压测 |
 | **M3** | test-plan-phase2 全绿 | 生产 sign-off |
-| **M6–M7** | phase6 Gateway / 千万 | 6A 完成（SQLite）；6F **未 sign-off** |
+| **M6–M7** | phase6 Gateway / 千万 | 6A 完成；**v1 prod path** 见 [scale-report-6F.md](./evidence/scale-report-6F.md)（完整 6F 仍 OUT OF SCOPE） |
 
 ```mermaid
 flowchart LR

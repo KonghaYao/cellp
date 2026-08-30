@@ -139,9 +139,12 @@ export function DeploymentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-heading-24 font-semibold tracking-tight">Deployments</h1>
+        <h1 className="text-heading-24 font-semibold tracking-tight">Versions</h1>
         <p className="mt-1 text-copy-14 text-muted-foreground">
-          All deployments for <span className="font-mono">{id}</span>
+          Immutable deployment versions for{" "}
+          <span className="font-mono">{id}</span> — not Git branch deployments.
+          Each row is a <span className="font-mono">version ID</span> with its own
+          preview URL; production is the promoted version only.
         </p>
       </div>
 

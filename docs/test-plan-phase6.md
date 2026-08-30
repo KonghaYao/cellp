@@ -168,7 +168,7 @@
 | **M4** | 6A 实现 + SQLite 基线 | 分页 + cache + GC + Dashboard | **实现完成**；TP6-A5 ListProjects @10k **SQLite waiver**（p99 238–262ms vs 200ms gate） |
 | **M5** | 6B PG 切换完成 | D2 100 万 project | **OUT OF SCOPE** |
 | **M6** | 6E Gateway 50k RPS | D1 核心 | **OUT OF SCOPE** |
-| **M7** | 6F 千万 sign-off | D1–D4 全绿 | **未达成**（6F OUT OF SCOPE） |
+| **M7** | 6F 千万 sign-off | D1–D4 全绿 | **v1 prod path 签收**（[scale-report-6F.md](./evidence/scale-report-6F.md)）；完整 6F 仍 OUT OF SCOPE |
 
 ---
 

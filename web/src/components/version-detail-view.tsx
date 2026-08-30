@@ -159,6 +159,26 @@ function VersionDetailContent({
         </div>
 
         <StatusTimeline status={version.status} className="mt-8" />
+
+        {version.status === "archived" && (
+          <div className="mt-6 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            <p>
+              This version is <strong className="font-medium text-foreground">archived</strong>:
+              the celld process is stopped and preview URLs return{" "}
+              <span className="font-mono">503 version_archived</span>. Data remains in
+              S3 — use <strong className="font-medium text-foreground">Wake</strong> to
+              restore, or re-promote after wake for production rollback.
+            </p>
+            <p className="mt-2">
+              Ready versions auto-archive after{" "}
+              <span className="font-mono">45m</span> idle (
+              <span className="font-mono">CELLP_ARCHIVE_IDLE</span>).{" "}
+              <strong className="font-medium text-foreground">Pin</strong> to keep a
+              long-lived QA preview; prod keeps a{" "}
+              <span className="font-mono">60m</span> rollback window after promote.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

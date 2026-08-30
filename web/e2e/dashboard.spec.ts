@@ -24,7 +24,7 @@ test.describe("cellp dashboard smoke (TP-UI-1..5)", () => {
   test("version list for project", async ({ page }) => {
     await page.goto("/projects/demo-app/deployments");
     await expect(
-      page.getByRole("heading", { name: "Deployments", level: 1 }),
+      page.getByRole("heading", { name: "Versions", level: 1 }),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "v5" })).toBeVisible();
     await expect(page.getByRole("link", { name: "v4" })).toBeVisible();

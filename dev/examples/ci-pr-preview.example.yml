@@ -1,0 +1,81 @@
+# PR 预览 → cellp version（外部 CI 示例）
+# 与 prod deploy 共用 artifact 上传；差异：parent_version_id + 不自动 promote
+# 见 docs/vercel-migration.md · docs/cloudflare-migration.md
+
+name: PR Preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  PROJECT_ID: my-shop
+  CELLP_URL: ${{ vars.CELLP_URL }}
+  # 指向 seed / staging version，用于 D1+KV+R2+Queue branch（AD-8）
+  PARENT_VERSION_ID: v-staging-seed
+  ARTIFACT_BUCKET: cellp-artifacts
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version_id: ${{ steps.meta.outputs.version_id }}
+      artifact_digest: ${{ steps.upload.outputs.digest }}
+      git_sha: ${{ github.sha }}
+      git_ref: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci && npm run build
+      - id: meta
+        run: |
+          echo "version_id=pr-${{ github.event.pull_request.number }}-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+      - id: upload
+        env:
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          VERSION="${{ steps.meta.outputs.version_id }}"
+          aws --endpoint-url "$S3_ENDPOINT" s3 cp bundle.tar.gz \
+            "s3://${{ env.ARTIFACT_BUCKET }}/${{ env.PROJECT_ID }}/${VERSION}/bundle.tar.gz"
+          echo "digest=sha256:$(sha256sum bundle.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+  preview:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy preview version to cellp
+        env:
+          CELLP_DEPLOY_TOKEN: ${{ secrets.CELLP_DEPLOY_TOKEN }}
+        run: |
+          BODY=$(jq -n \
+            --arg id "${{ needs.build.outputs.version_id }}" \
+            --arg parent "${{ env.PARENT_VERSION_ID }}" \
+            --arg ref "${{ needs.build.outputs.git_ref }}" \
+            --arg sha "${{ needs.build.outputs.git_sha }}" \
+            --arg digest "${{ needs.build.outputs.artifact_digest }}" \
+            '{id:$id, parent_version_id:$parent, git_ref:$ref, git_sha:$sha, artifact:{digest:$digest, package_version:$id}}')
+          RESP=$(curl -sf -X POST "${{ env.CELLP_URL }}/projects/${{ env.PROJECT_ID }}/versions" \
+            -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" \
+            -H "Content-Type: application/json" -d "$BODY")
+          POLL=$(echo "$RESP" | jq -r .poll_url)
+          for i in $(seq 1 120); do
+            V=$(curl -sf -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" "${{ env.CELLP_URL }}$POLL")
+            S=$(echo "$V" | jq -r .status)
+            if [ "$S" = "ready" ]; then
+              echo "Preview URL: $(echo "$V" | jq -r .preview_url)"
+              exit 0
+            fi
+            if [ "$S" = "failed" ]; then
+              echo "$V" | jq .error
+              exit 1
+            fi
+            sleep 5
+          done
+          exit 1
+
+      # 可选：在 PR 上评论 preview URL（需 GITHUB_TOKEN permissions）

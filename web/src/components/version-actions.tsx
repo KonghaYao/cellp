@@ -11,6 +11,7 @@ import {
 } from "@/lib/cellp-api";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 interface VersionActionsProps {
   projectId: string;
@@ -138,10 +139,12 @@ export function VersionActions({
         </span>
       )}
       {canWake && (
-        <Button onClick={handleWake} disabled={pending} size="sm" variant="outline">
-          <Sun className="size-3.5" />
-          Wake
-        </Button>
+        <Tooltip content="Restart celld for this version. Preview URLs work again after status is ready.">
+          <Button onClick={handleWake} disabled={pending} size="sm" variant="outline">
+            <Sun className="size-3.5" />
+            Wake
+          </Button>
+        </Tooltip>
       )}
       {canPromote && (
         <Button onClick={() => setPromoteOpen(true)} disabled={pending} size="sm">
@@ -150,16 +153,20 @@ export function VersionActions({
         </Button>
       )}
       {canArchive && (
-        <Button onClick={() => setArchiveOpen(true)} disabled={pending} size="sm" variant="outline">
-          <Archive className="size-3.5" />
-          Archive
-        </Button>
+        <Tooltip content="Stop celld to save resources. Preview returns 503 until wake. Data is kept in S3.">
+          <Button onClick={() => setArchiveOpen(true)} disabled={pending} size="sm" variant="outline">
+            <Archive className="size-3.5" />
+            Archive
+          </Button>
+        </Tooltip>
       )}
       {canPin && (
-        <Button onClick={handlePin} disabled={pending} size="sm" variant="outline">
-          <Pin className="size-3.5" />
-          Pin
-        </Button>
+        <Tooltip content="Skip idle auto-archive (default 45m) for long-lived QA previews.">
+          <Button onClick={handlePin} disabled={pending} size="sm" variant="outline">
+            <Pin className="size-3.5" />
+            Pin
+          </Button>
+        </Tooltip>
       )}
       {canUnpin && (
         <Button onClick={handleUnpin} disabled={pending} size="sm" variant="outline">
