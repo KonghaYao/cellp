@@ -1,5 +1,6 @@
 name: Docs
 
+# Source in repo Settings → Pages must be "GitHub Actions" (not "Deploy from a branch").
 on:
   push:
     branches: [main]
