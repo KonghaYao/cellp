@@ -5,5 +5,6 @@ cd "$ROOT"
 
 ./dev/scripts/down.sh
 rm -rf dev/data/artifacts dev/data/offshoot-store dev/data/offshoot-checkouts dev/data/celld-watch dev/data/logs dev/data/pids dev/data/registry.json dev/data/platform-registry.json
+rm -f dev/data/cellp-registry.sqlite dev/data/cellp-registry.sqlite-wal dev/data/cellp-registry.sqlite-shm
 mkdir -p dev/data/{artifacts,offshoot-store,offshoot-checkouts,celld-watch,pids,logs}
-echo "dev/data reset. Run ./dev/scripts/up.sh"
+echo "dev/data reset (including registry SQLite). Run ./dev/scripts/up.sh"

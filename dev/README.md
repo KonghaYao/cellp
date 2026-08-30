@@ -3,9 +3,9 @@
 ```bash
 cp dev/.env.example dev/.env
 ./dev/scripts/up.sh
-./dev/scripts/seed-demo.sh    # demo-app v1/v2 + bindings 假数据
+./dev/scripts/seed-commerce-store.sh   # commerce-store v1 + D1 seed
 ./dev/scripts/health.sh
-curl http://127.0.0.1:8787/demo-app/v1/
+curl http://127.0.0.1:8787/commerce-store/v1/stats
 ```
 
 完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策见 **[docs/decisions.md](../docs/decisions.md)** · 验证项见 **[docs/test-plan.md](../docs/test-plan.md)**。
@@ -46,7 +46,8 @@ curl http://127.0.0.1:8787/demo-app/v1/
 | `health.sh` | 探活（agent CI 用） |
 | `reset.sh` | 清空 `dev/data/` |
 | `simulate-cd.sh` | 本地 CD：`simulate-cd.sh <project> <version>` |
-| `seed-demo.sh` | **验收用**：`demo-app` v1/v2，D1/KV/Queue/Workflow 假数据 + Dashboard 链接 |
+| `seed-commerce-store.sh` | **默认验收**：`commerce-store` v1，D1 电商假数据 + Dashboard 链接 |
+| `seed-demo.sh` | Bindings 演示：`demo-app` v1/v2，D1/KV/Queue/Workflow 假数据 |
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
 
