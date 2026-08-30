@@ -38,7 +38,9 @@ Cross-platform archives are published on version tags (`v*`):
 
 https://github.com/KonghaYao/cellp/releases
 
-Names: `cellp_<tag>_<os>_<arch>.tar.gz` (Windows `.zip`).
+Names: `cellp_<tag>_<os>_<arch>.tar.gz` for **linux/darwin** × **amd64/arm64**.
+
+Native Windows is not shipped yet (`celld` is Unix). Use WSL2, macOS, Linux, or [Docker](/guides/self-hosting).
 
 ## Docker
 

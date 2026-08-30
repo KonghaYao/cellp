@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -30,11 +31,25 @@ func TestSeedPortCollision(t *testing.T) {
 }
 
 func TestReconcileFleetSkipsHealthyRoutes(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	bin := t.TempDir()
+	stub := filepath.Join(bin, "celld")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
+	srv.Listener = ln
+	srv.Start()
 	defer srv.Close()
-	host, portStr, err := net.SplitHostPort(srv.Listener.Addr().String())
+
+	host, portStr, err := net.SplitHostPort(ln.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}

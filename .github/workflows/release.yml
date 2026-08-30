@@ -37,12 +37,6 @@ jobs:
             goarch: amd64
             rust_target: x86_64-apple-darwin
             esbuild_pkg: darwin-x64
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            rust_target: x86_64-pc-windows-msvc
-            ext: .exe
-            esbuild_pkg: win32-x64
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -126,24 +120,13 @@ jobs:
           OS="${{ matrix.goos }}"
           ARCH="${{ matrix.goarch }}"
           mkdir -p dist
-          if [ "$OS" != windows ]; then
-            chmod +x dist/cellp dist/cellpd dist/celld dist/offshoot dist/esbuild
-            tar -C dist -czf "cellp_${VER}_${OS}_${ARCH}.tar.gz" cellp cellpd celld offshoot esbuild
-          else
-            (cd dist && 7z a -tzip "../cellp_${VER}_${OS}_${ARCH}.zip" cellp.exe cellpd.exe celld.exe offshoot.exe esbuild.exe)
-          fi
+          chmod +x dist/cellp dist/cellpd dist/celld dist/offshoot dist/esbuild
+          tar -C dist -czf "cellp_${VER}_${OS}_${ARCH}.tar.gz" cellp cellpd celld offshoot esbuild
 
       - uses: actions/upload-artifact@v4
-        if: matrix.goos != 'windows'
         with:
           name: cellp-${{ matrix.goos }}-${{ matrix.goarch }}
           path: cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
-
-      - uses: actions/upload-artifact@v4
-        if: matrix.goos == 'windows'
-        with:
-          name: cellp-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
   publish:
     needs: binaries

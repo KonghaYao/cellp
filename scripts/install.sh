@@ -21,7 +21,7 @@ case "$arch" in
 esac
 case "$os" in
   linux|darwin) ;;
-  mingw*|msys*|cygwin*) echo "use the Windows .zip from GitHub Releases" >&2; exit 1 ;;
+  mingw*|msys*|cygwin*) echo "Windows is not a native celld target yet. Use WSL, macOS, Linux, or Docker." >&2; exit 1 ;;
   *) echo "unsupported os: $os" >&2; exit 1 ;;
 esac
 
