@@ -1,6 +1,6 @@
 # Dashboard
 
-The Dashboard is a Vite SPA (`web/`). It is an operator console, not a second control plane: **every click is a REST call to cellpd**.
+The Dashboard is a Vite SPA (`web/`). It is an operator console for **projects, versions, and data you already declared in wrangler** — not a place to create a Worker. Write the app first: [Write a Worker](/build/).
 
 ## Run it
 

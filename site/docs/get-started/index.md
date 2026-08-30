@@ -75,6 +75,9 @@ Image: `ghcr.io/konghayo/cellp:latest`. Full notes: [Self-hosting](/guides/self-
 
 ## Next
 
+- **[Write a Worker](/build/)** — `index.js` + `wrangler.jsonc` + first version URL
+- **[Configure bindings](/build/wrangler)** — how D1 / KV / R2 / queues get onto `env`
+- **[Platform data](/build/data)** — seed D1, edit KV, fork preview data
 - [Local stack in more detail](/get-started/local)
 - [Example app (commerce)](/get-started/example)
 - [Dashboard](/get-started/dashboard)

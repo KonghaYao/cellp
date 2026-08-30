@@ -35,7 +35,7 @@ export default defineConfig({
     logo: { src: '/logo.svg', alt: 'cellp' },
     siteTitle: 'cellp',
     nav: [
-      { text: 'Docs', link: '/get-started/', activeMatch: '^/(get-started|concepts|guides|bindings)/' },
+      { text: 'Docs', link: '/build/', activeMatch: '^/(build|get-started|concepts|guides|bindings)/' },
       { text: 'Why cellp', link: '/why' },
       { text: 'Migrate', link: '/migrate/cloudflare', activeMatch: '^/migrate/' },
       { text: 'API', link: '/reference/api' },
@@ -62,6 +62,15 @@ export default defineConfig({
             { text: 'Local stack', link: '/get-started/local' },
             { text: 'Example app', link: '/get-started/example' },
             { text: 'Dashboard', link: '/get-started/dashboard' },
+          ],
+        },
+        {
+          text: 'Build your app',
+          items: [
+            { text: 'Write a Worker', link: '/build/' },
+            { text: 'Configure bindings', link: '/build/wrangler' },
+            { text: 'Platform data', link: '/build/data' },
+            { text: 'Handlers', link: '/build/handlers' },
           ],
         },
         {

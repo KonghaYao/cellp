@@ -1,6 +1,8 @@
 # Deploy from CI
 
-cellp never watches your repo. CI is the product: **build → upload → POST version → poll → (optional) promote**.
+You already have a Worker folder (`wrangler.jsonc` + `main`). cellp never watches git. CI is: **put that folder in object storage → POST version → poll → optional promote**.
+
+If you have not written the app yet, start at [Write a Worker](/build/) and [Configure bindings](/build/wrangler).
 
 ## Artifact layout
 

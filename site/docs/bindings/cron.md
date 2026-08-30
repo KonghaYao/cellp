@@ -1,23 +1,32 @@
 # Cron
 
-Cron triggers are declared in wrangler (`triggers.crons`) and **fired by celld**, not by cellp’s orchestrator.
+Cron is declared in wrangler and implemented as `scheduled` on the Worker. celld fires it. cellp only **shows** the expression.
 
-## Branching
+## 1. Declare it
 
-Cron **does not branch**. Each version’s script carries its own trigger list. An archived version does not run cron (the process is gone). Production cron is whatever production version declares.
+```jsonc
+"triggers": { "crons": ["0 * * * *"] }
+```
 
-## Visibility
+## 2. Handle it
 
-`GET …/bindings` includes `crons`. Dashboard shows the expressions. There is no “run now” button in cellp.
+```js
+export default {
+  async fetch(request, env) { /* HTTP */ },
 
-## celld behavior (short)
+  async scheduled(controller, env, ctx) {
+    await env.CACHE.put('cron:last-run', String(controller.scheduledTime))
+  },
+}
+```
 
-- One handler per occurrence across the fleet
-- After downtime, the most recent missed occurrence may run once
-- Some cron syntax Cloudflare allows is rejected (e.g. descending ranges)
+[Handlers](/build/handlers)
 
-Details: [celld cron notes](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md).
+## 3. When it runs
 
-## Timezones / ops
+Only while the version is **ready**. Archive stops the process → no ticks. Production cron is whatever the **promoted** version declared. Cron **does not branch**.
 
-Your machines’ clock is the clock. There is no Cloudflare cron dashboard with per-trigger history. Ship logs to your aggregator if you need an audit trail.
+Dashboard lists expressions; there is no “run now”.
+
+Some Cloudflare cron syntax is rejected (e.g. descending ranges). Details: [celld cron notes](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md).
+

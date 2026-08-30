@@ -1,37 +1,66 @@
 # KV
 
-Workers KV (`env.KV.get` / `put`) is implemented by celld. cellp lists namespaces and offers a key operator for humans and scripts.
+Workers KV on `env.<binding>`.
 
-## Branching
+## 1. Declare it
 
-Child versions **branch** KV from the parent: reads can chain to parent blobs; writes stay on the child. Preview carts and flags do not leak into production.
-
-Root versions start empty (unless you seed via the Worker or API).
-
-## Worker
-
-```js
-await env.CART.put('session:1', JSON.stringify({ items: [] }))
-const raw = await env.CART.get('session:1')
+```jsonc
+"kv_namespaces": [
+  {
+    "binding": "CACHE",
+    "id": "my-shop-cache"
+  }
+]
 ```
 
-Declare `kv_namespaces` in wrangler. Child versions inherit namespace **ids**.
+`id` is the namespace identity — keep it on child wranglers. [Configure bindings](/build/wrangler).
+
+## 2. Use it in the Worker
+
+```js
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url)
+
+    if (url.pathname === '/api/banner' && request.method === 'GET') {
+      const value = (await env.CACHE.get('store:banner')) ?? ''
+      return Response.json({ value })
+    }
+
+    if (url.pathname === '/api/banner' && request.method === 'PUT') {
+      const { value } = await request.json()
+      await env.CACHE.put('store:banner', String(value ?? ''))
+      return Response.json({ ok: true })
+    }
+
+    return new Response('not found', { status: 404 })
+  },
+}
+```
+
+Commerce uses `CACHE` for cart + store banner (`dev/examples/commerce`).
+
+## 3. Put keys in
+
+| Method | When |
+|--------|------|
+| Worker `put` | App logic |
+| Dashboard → Storage → KV | Flags, banners, one-off edits |
+| Child version | **Branch** from parent (preview writes stay isolated) |
+
+Root versions start **empty**. There is no “create namespace” button besides wrangler. [Platform data](/build/data).
 
 ## Operator API
 
 ```
 GET    …/kv
-GET    …/kv/{ns}
+GET    …/kv/{ns}                 # {ns} is the wrangler id
 GET    …/kv/{ns}/keys
 GET    …/kv/{ns}/keys/{key}
 PUT    …/kv/{ns}/keys/{key}
 DELETE …/kv/{ns}/keys/{key}
 ```
 
-Dashboard → Storage → KV.
+## Gaps
 
-## Gaps vs Cloudflare
-
-celld KV is **partial** (see celld compat). Do not assume every CF KV edge-case (limits, metadata, list cursors) matches production Cloudflare. Treat it as “good enough for app state and config,” and verify your list/pagination needs on the example app.
-
-There is no global “copy prod KV into this preview” besides creating a child version.
+celld KV is **partial** vs Cloudflare. Check list/metadata/limits against [celld compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md) if you depend on them.

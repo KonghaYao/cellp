@@ -2,6 +2,8 @@
 
 Public docs live here. The GitHub repo also has **contributor** material (design, ADRs, test gates) that is deliberately *not* this site.
 
+**App authors:** start at [Write a Worker](/build/), then [Configure bindings](/build/wrangler) and [Platform data](/build/data).
+
 ## Layout
 
 | Path | What |

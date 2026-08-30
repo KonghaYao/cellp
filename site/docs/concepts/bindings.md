@@ -1,6 +1,8 @@
 # Bindings
 
-Bindings are how a Worker talks to storage and side systems. cellp does not invent a new binding format: it reads **wrangler** keys from the deploy bundle and asks **celld** to honor them.
+Bindings are how a Worker talks to storage. You **declare** them in `wrangler.jsonc` in the deploy folder. You **fill** them with [platform data](/build/data). cellp does not invent a new format: it reads wrangler keys and asks celld to honor them.
+
+**Start here as an app author:** [Configure bindings](/build/wrangler) (the file) · [Write a Worker](/build/) (`env.*` in code).
 
 ## What is declared vs what is branched
 

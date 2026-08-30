@@ -15,6 +15,8 @@
 
 ## Bindings used
 
+Declared in [`wrangler.jsonc`](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/wrangler.jsonc); used from [`index.js`](https://github.com/KonghaYao/cellp/blob/main/dev/examples/commerce/index.js). Copy those two files as a template. How to declare your own: [Configure bindings](/build/wrangler). How to seed: [Platform data](/build/data).
+
 | Binding | In the app |
 |---------|------------|
 | **D1** | Products, orders, inventory, audit log |

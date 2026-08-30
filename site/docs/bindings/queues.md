@@ -1,14 +1,47 @@
 # Queues
 
-Queues are celld queues: producers from the Worker, consumers on the same script. cellp wraps the operator CLI.
+Produce messages with `env.<binding>.send`. Consume with a **separate** script — not the same module as `fetch`.
 
-## Branching
+## 1. Declare a producer
 
-Child versions **branch** the queue from the parent. Workflow-like in-flight work is still **not** a Workflow branch (see [Workflows](/bindings/workflows)).
+```jsonc
+"queues": {
+  "producers": [{ "binding": "FULFILLMENT", "queue": "fulfillment" }]
+}
+```
 
-## Worker
+`queue` is the resource name (keep it on child wranglers). `binding` is `env.FULFILLMENT`. [Configure bindings](/build/wrangler).
 
-Use the Cloudflare-shaped `env.QUEUE.send(...)` / consumer handler as supported by celld. Declare `queues` in wrangler. Names inherit on branch.
+## 2. Send from the HTTP Worker
+
+```js
+export default {
+  async fetch(request, env) {
+    if (request.method === 'POST' && new URL(request.url).pathname === '/api/orders') {
+      const order = await createOrder(env.DB, await request.json())
+      await env.FULFILLMENT.send({
+        type: 'order.placed',
+        order_id: order.id,
+        at: Date.now(),
+      })
+      return Response.json(order, { status: 201 })
+    }
+    return new Response('ok')
+  },
+}
+```
+
+::: warning `queue()` + `fetch()` on one script
+celld rejects a consumer script that also exports `fetch()`. HTTP API and queue consumer = two Workers. See `dev/examples/queue` (producer-only).
+:::
+
+## 3. What you see after deploy
+
+- Dashboard → Storage → Queues: peek, pause, resume, redrive, purge
+- Child versions **branch** the queue from the parent
+- Root starts empty
+
+[Platform data](/build/data) · [Handlers](/build/handlers)
 
 ## Operator API
 
@@ -22,10 +55,4 @@ POST …/queues/{name}/redrive
 POST …/queues/{name}/purge
 ```
 
-Dashboard → Storage → Queues. Purge is destructive; preview branches make it safer to experiment than on production.
-
-## Gaps
-
-celld Queues are **partial** vs Cloudflare. Confirm batching, retries, and DLQ behavior against celld compat before you bet a billing pipeline on it.
-
-cellp does **not** run a separate Kafka/NATS. The queue is inside the version’s runtime/storage.
+celld Queues are **partial** vs Cloudflare. Confirm batching, retries, and DLQ before a billing pipeline depends on them.

@@ -1,26 +1,28 @@
 # Workflows
 
-Workflows are long-running celld workflows. cellp **lists instances**. It does not pause, resume, or restart them.
+Long-running jobs. You **write a class**, declare it in wrangler, then `create()` from `fetch`.
 
-## Branching
+## 1. Declare it
 
-**Workflow instances do not branch.** A child version starts with no in-flight workflows. That is intentional: a preview should not continue production’s half-finished jobs.
-
-The **script** that *defines* workflows comes from the child artifact.
-
-## Worker
-
-Use celld’s Workflows API as documented in celld. Declare `workflows` in wrangler.
-
-## Operator API
-
-```
-GET …/workflows
-GET …/workflows/{name}/instances
+```jsonc
+"workflows": [
+  {
+    "binding": "REPORTS",
+    "name": "order-report",
+    "class_name": "OrderReport"
+  }
+]
 ```
 
-Dashboard is the same list. Copy ids; do not expect control buttons.
+## 2. Implement and start
 
-## When you need control
+See the copy-paste in [Handlers](/build/handlers). `class_name` must match the exported class. `this.env` inside the workflow is the same binding set as the Worker.
 
-Operate via your Worker (idempotent steps, your own cancel flags) or wait for a future celld workflow CLI. cellp will not add a second orchestrator on top.
+## 3. Data / instances
+
+**Instances do not branch.** A preview version starts with no in-flight jobs. That is so a PR cannot continue production’s half-finished work.
+
+Dashboard → Storage → Workflows lists instances (**read-only**). No pause/resume/restart in cellp.
+
+[Platform data](/build/data)
+

@@ -4,9 +4,9 @@
 
 Every deploy versions **the app and its data**. Preview is a real fork of D1, KV, R2, and Queues. Production is an explicit promote. You keep Git, CI, and TLS; cellp is the control plane in the middle.
 
-**Docs (developers + YC):** **[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**
+**Docs:** **[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**
 
-[Quick start](https://konghayao.github.io/cellp/get-started/) · [Why cellp](https://konghayao.github.io/cellp/why) · [Compare Cloudflare / Vercel](https://konghayao.github.io/cellp/compare) · [REST API](https://konghayao.github.io/cellp/reference/api)
+[Write a Worker](https://konghayao.github.io/cellp/build/) · [Configure bindings](https://konghayao.github.io/cellp/build/wrangler) · [Platform data](https://konghayao.github.io/cellp/build/data) · [Quick start](https://konghayao.github.io/cellp/get-started/) · [Why cellp](https://konghayao.github.io/cellp/why)
 
 ---
 

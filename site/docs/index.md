@@ -6,11 +6,11 @@ hero:
   tagline: A private control plane for Cloudflare-style Workers. Every deploy versions the app and its data. Preview is a real fork. Promote when you are ready.
   actions:
     - theme: brand
-      text: Get started
-      link: /get-started/
+      text: Write a Worker
+      link: /build/
     - theme: alt
-      text: Why cellp
-      link: /why
+      text: Quick start
+      link: /get-started/
     - theme: alt
       text: GitHub
       link: https://github.com/KonghaYao/cellp
@@ -61,4 +61,4 @@ cp dev/.env.example dev/.env && ./dev/scripts/up.sh && ./dev/scripts/seed-commer
 
 Then open `http://127.0.0.1:8787/commerce-store/v1/` — a storefront backed by D1, KV, R2, Queues, Workflows, and Cron.
 
-[Full quick start →](/get-started/) · [What is cellp →](/what-is-cellp) · [Compare Cloudflare & Vercel →](/compare)
+**Write your own:** [Write a Worker](/build/) · [Configure bindings](/build/wrangler) · [Platform data](/build/data) · [Quick start](/get-started/)
