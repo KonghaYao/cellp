@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  GOTOOLCHAIN: local
+  GOTOOLCHAIN: auto
 
 jobs:
   test:
@@ -27,4 +27,6 @@ jobs:
           cache-dependency-path: cellp/go.sum
       - name: Test
         working-directory: cellp
-        run: go test ./...
+        run: |
+          go version
+          go test ./...

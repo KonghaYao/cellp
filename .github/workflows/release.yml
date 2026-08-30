@@ -9,23 +9,10 @@ permissions:
   contents: write
 
 env:
-  GOTOOLCHAIN: local
+  GOTOOLCHAIN: auto
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: cellp/go.mod
-          cache-dependency-path: cellp/go.sum
-      - name: Test
-        working-directory: cellp
-        run: go test ./...
-
   binaries:
-    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -122,14 +109,14 @@ jobs:
         run: |
           EXT="${{ matrix.ext }}"
           PKG="${{ matrix.esbuild_pkg }}"
-          mkdir -p dist /tmp/esbuild-dl
+          mkdir -p dist "$RUNNER_TEMP/esbuild-dl"
           curl -fsSL "https://registry.npmjs.org/@esbuild/${PKG}/-/${PKG}-${ESBUILD_VERSION}.tgz" \
-            -o /tmp/esbuild-dl/esbuild.tgz
-          tar -xzf /tmp/esbuild-dl/esbuild.tgz -C /tmp/esbuild-dl
-          if [ -f /tmp/esbuild-dl/package/bin/esbuild ]; then
-            cp /tmp/esbuild-dl/package/bin/esbuild "dist/esbuild${EXT}"
+            -o "$RUNNER_TEMP/esbuild-dl/esbuild.tgz"
+          tar -xzf "$RUNNER_TEMP/esbuild-dl/esbuild.tgz" -C "$RUNNER_TEMP/esbuild-dl"
+          if [ -f "$RUNNER_TEMP/esbuild-dl/package/bin/esbuild" ]; then
+            cp "$RUNNER_TEMP/esbuild-dl/package/bin/esbuild" "dist/esbuild${EXT}"
           else
-            cp /tmp/esbuild-dl/package/esbuild.exe "dist/esbuild${EXT}"
+            cp "$RUNNER_TEMP/esbuild-dl/package/esbuild.exe" "dist/esbuild${EXT}"
           fi
           chmod +x "dist/esbuild${EXT}" || true
 
