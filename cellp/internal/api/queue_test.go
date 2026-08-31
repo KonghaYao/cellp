@@ -134,3 +134,41 @@ func TestListQueuesEmptyOk(t *testing.T) {
 		t.Fatalf("queues = %v want []", resp.Queues)
 	}
 }
+
+func TestQueueOperatorActions(t *testing.T) {
+	argsLog := installOperatorFakeCelld(t)
+	srv, store, artifactsDir := testAPI(t, "deploy", "admin")
+	defer store.Close()
+	setupKVQueueVersion(t, store, artifactsDir)
+
+	auth := func(method, url string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(method, url, nil)
+		req.Header.Set("Authorization", "Bearer admin")
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w
+	}
+
+	for _, tc := range []struct {
+		method, path string
+	}{
+		{http.MethodGet, "/v1/projects/demo/versions/v1/queues/tasks"},
+		{http.MethodGet, "/v1/projects/demo/versions/v1/queues/tasks/peek?limit=5"},
+		{http.MethodPost, "/v1/projects/demo/versions/v1/queues/tasks/pause"},
+		{http.MethodPost, "/v1/projects/demo/versions/v1/queues/tasks/resume"},
+		{http.MethodPost, "/v1/projects/demo/versions/v1/queues/tasks/redrive?limit=10"},
+	} {
+		w := auth(tc.method, tc.path)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s %s status=%d body=%s", tc.method, tc.path, w.Code, w.Body.String())
+		}
+	}
+	raw, err := os.ReadFile(argsLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "queue") {
+		t.Fatalf("expected queue celld invocations: %s", raw)
+	}
+}

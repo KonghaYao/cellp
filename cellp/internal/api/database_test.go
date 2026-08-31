@@ -42,6 +42,11 @@ if [ "$1" = "d1" ] && [ "$2" = "execute" ]; then
     esac
   done
   case "$SQL" in
+    *name\ =\ \'missing\'*)
+      ;;
+    *SELECT\ 1\ FROM\ sqlite_master*)
+      echo '{"1":1}'
+      ;;
     *sqlite_master*)
       echo '{"name":"_cf_KV","type":"table"}'
       echo '{"name":"users","type":"table"}'
@@ -57,9 +62,6 @@ if [ "$1" = "d1" ] && [ "$2" = "execute" ]; then
     *SELECT\ \*\ FROM\ \"users\"*|*SELECT\ \*\ FROM\ users*)
       echo '{"id":1,"email":"alice@example.com"}'
       echo '{"id":2,"email":"bob@example.com"}'
-      ;;
-    *SELECT\ 1\ FROM\ sqlite_master*)
-      echo '{"1":1}'
       ;;
     *)
       ;;
@@ -275,5 +277,37 @@ func TestDatabaseInvalidTableName(t *testing.T) {
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestDatabaseQueryMissingSQL(t *testing.T) {
+	installFakeCelld(t)
+	srv, store, artifactsDir := testAPI(t, "deploy", "admin")
+	defer store.Close()
+	setupDatabaseVersion(t, store, artifactsDir)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/projects/demo/versions/v1/database/query",
+		bytes.NewBufferString(`{}`))
+	req.Header.Set("Authorization", "Bearer admin")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestDatabaseTableNotFound(t *testing.T) {
+	installFakeCelld(t)
+	srv, store, artifactsDir := testAPI(t, "deploy", "admin")
+	defer store.Close()
+	setupDatabaseVersion(t, store, artifactsDir)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/projects/demo/versions/v1/database/tables/missing/rows", nil)
+	req.Header.Set("Authorization", "Bearer admin")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
 }
