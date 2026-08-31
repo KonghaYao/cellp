@@ -3,6 +3,7 @@ import type { Theme } from 'vitepress'
 import Flow from './components/Flow.vue'
 import CalloutGrid from './components/CalloutGrid.vue'
 import CompareTable from './components/CompareTable.vue'
+import BindingStrip from './components/BindingStrip.vue'
 import './custom.css'
 
 export default {
@@ -11,5 +12,6 @@ export default {
     app.component('Flow', Flow)
     app.component('CalloutGrid', CalloutGrid)
     app.component('CompareTable', CompareTable)
+    app.component('BindingStrip', BindingStrip)
   },
 } satisfies Theme

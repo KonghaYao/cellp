@@ -30,7 +30,7 @@
 }
 
 .VPHero .text {
-  max-width: 18em;
+  max-width: 22em;
   letter-spacing: -0.03em;
 }
 
@@ -72,6 +72,72 @@
   margin: 0 0 0.4rem;
   font-size: 1rem;
   font-weight: 650;
+}
+
+.cellp-badge {
+  display: inline-block;
+  margin-bottom: 0.55rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+}
+
+.cellp-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.55;
+}
+
+.cellp-binding-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.35rem;
+  margin: 0.25rem 0 1.75rem;
+}
+
+.cellp-binding-strip .plus {
+  color: var(--vp-c-text-2);
+  font-weight: 650;
+  padding: 0 0.15rem;
+}
+
+.cellp-binding-strip .pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  text-decoration: none;
+  color: var(--vp-c-text-1);
+  font-weight: 650;
+  font-size: 0.92rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.cellp-binding-strip .pill:hover {
+  border-color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+
+.cellp-binding-strip .pill.forks {
+  border-color: rgba(45, 212, 191, 0.45);
+}
+
+.cellp-binding-strip .mark {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
 }
 
 .cellp-card p {

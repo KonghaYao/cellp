@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: cellp
-  text: Versioned Workers, on your hardware
-  tagline: A private control plane for Cloudflare-style Workers. Every deploy versions the app and its data. Preview is a real fork. Promote when you are ready.
+  text: Fork the Worker and the data
+  tagline: Self-hosted Cloudflare-style Workers. A child version is a real copy-on-write branch of D1, KV, R2, and Queues — not an empty preview that still reads production.
   actions:
     - theme: brand
       text: Install
@@ -15,41 +15,82 @@ hero:
       text: GitHub
       link: https://github.com/KonghaYao/cellp
 features:
-  - title: App + data, same version
-    details: A preview is not just a new Worker. D1, KV, R2, and Queues fork with the deploy so QA hits realistic data without writing into production.
-  - title: Preview, then promote
-    details: "Each version gets its own URL. Production is an explicit promote: drain, cut over, keep a rollback path — not whatever main built last."
-  - title: Workers you already write
-    details: "Workers you already write: fetch handlers plus wrangler bindings. celld runs the isolate. cellp versions, routes, and operates it."
-  - title: 100% self-hosted
-    details: No Cloudflare account, no AWS S3, no Vercel. Laptop path is `curl | sh` then `cellp dev` (no Docker). Production-shaped VMs use RustFS + Docker Compose.
-  - title: Honest product boundary
-    details: cellp does not do Git hosting, user accounts, DNS, CDN, or TLS. Your CI pushes versions. Your load balancer terminates HTTPS.
-  - title: Operator dashboard
-    details: Projects, deployments, D1 browser, KV, queues, env vars — all through the same REST API your CI already calls.
+  - title: Branch
+    details: The thing that is actually new. Child versions copy-on-write from a parent. QA hits realistic data. Preview writes never land in production.
+    link: /concepts/preview
+    linkText: How preview forks
+  - title: Worker
+    details: The same fetch handler and wrangler.jsonc you already write. Each ready version is its own celld process, port, and URL.
+    link: /build/
+    linkText: Write a Worker
+  - title: D1
+    details: SQLite that branches. Root versions import a seed. Children run d1 branch — LTX against the parent bucket, not a dump.
+    link: /bindings/d1
+    linkText: D1
+  - title: R2
+    details: Object prefixes overlay the parent. Preview puts and deletes stay in the child. Production objects are not rewritten.
+    link: /bindings/r2
+    linkText: R2
+  - title: Queue
+    details: Producers and consumers fork with the version. Messages enqueued in preview stay in preview.
+    link: /bindings/queues
+    linkText: Queues
+  - title: KV
+    details: Namespaces branch with the version. `env.CACHE` in a PR is not production's cache.
+    link: /bindings/kv
+    linkText: KV
 ---
 
-<p class="cellp-kicker">For developers · for operators · for YC</p>
+<p class="cellp-kicker">Worker + D1 + KV + R2 + Queue · each one versioned · data bindings branch</p>
+
+<BindingStrip :items="[
+  { name: 'Worker', href: '/build/' },
+  { name: 'D1', href: '/bindings/d1', forks: true },
+  { name: 'KV', href: '/bindings/kv', forks: true },
+  { name: 'R2', href: '/bindings/r2', forks: true },
+  { name: 'Queue', href: '/bindings/queues', forks: true }
+]" />
+
+## What branches with the version
+
+**Branch.** A child version is not a new empty environment that still talks to prod. You pass `parent_version_id`. cellp keeps the **Worker script from this deploy**, and **forks every data binding from the parent**:
+
+<CalloutGrid :items="[
+  { title: 'Worker', badge: 'this artifact', body: 'New isolate, new URL. The script is from this wrangler bundle — not a diff of the parent Worker.' },
+  { title: 'D1', badge: 'branches', body: 'celld d1 branch. Child bucket stores base.json + LTX. Preview SQL writes stay in the preview.' },
+  { title: 'KV', badge: 'branches', body: 'Namespace fork. Large values chain to the parent blob store. Preview puts do not mutate prod keys.' },
+  { title: 'R2', badge: 'branches', body: 'Prefix overlay and tombstones. Preview objects and deletes are local to the version.' },
+  { title: 'Queue', badge: 'branches', body: 'The queue name in wrangler is the same; the data is a branch. Messages enqueued here never drain in prod.' }
+]" />
+
+Workflow instances and Cron are **not** branched — they start from this artifact. That is intentional. [Bindings](/concepts/bindings) · [Preview](/concepts/preview)
 
 ## The idea in one sentence
 
-**cellp is the control plane that makes every Workers deploy a version of both the code and the data**, then gives you a preview URL and a one-shot promote to production.
+**cellp is the control plane that versions the Worker and its D1, KV, R2, and Queues together**, then gives you a preview URL and a one-shot promote to production.
 
 <Flow :steps="[
   'Install (`curl | sh`) and run `cellp dev`, or upload a wrangler bundle to RustFS in CI',
-  'POST /v1/projects/{project}/versions creates a version (optionally forked from a parent)',
-  'cellp starts an isolated runtime, branches D1 / KV / R2 / Queue, and returns a preview URL',
-  'You hit /{project}/{version}/ until you are satisfied',
-  'POST …/promote cuts production traffic to /{project}/'
+  'POST /versions with parent_version_id — Worker from this artifact, D1 / KV / R2 / Queue branched from the parent',
+  'Each version gets its own celld process and /{project}/{version}/',
+  'You hit the preview until you are satisfied. Writes stay in that version.',
+  'POST …/promote cuts /{project}/ to that version. Rollback is promote the previous one.'
 ]" />
 
 ## Who this is for
 
 <CalloutGrid :items="[
-  { title: 'Teams leaving Cloudflare', body: 'You want Workers + D1 + KV semantics on hardware you own, with preview environments that do not share production data.' },
-  { title: 'Platform / infra companies', body: 'You already run Git, CI, and a load balancer. You need a Workers runtime and a versioned control plane — not another PaaS.' },
-  { title: 'YC and technical buyers', body: 'A sharp wedge: App + Data versioning for private Workers. Clear non-goals. Runnable in minutes on a laptop.' }
+  { title: 'Teams leaving Cloudflare', body: 'You want Worker + D1 + KV + R2 + Queue on hardware you own, with previews that actually fork the data.' },
+  { title: 'Platform / infra companies', body: 'You already run Git, CI, and a load balancer. You need a Workers control plane with binding-aware branches — not another PaaS.' },
+  { title: 'YC and technical buyers', body: 'The wedge is branch: App + Data versioning for private Workers. Clear non-goals. Runnable in minutes on a laptop.' }
 ]" />
+
+## Also true (less exciting, still required)
+
+- **Self-hosted.** `curl | sh` then `cellp dev` on a laptop. Docker Compose + RustFS on a VM. No Cloudflare account, no AWS S3.
+- **Promote is explicit.** Production is not “whatever main built last.”
+- **Honest boundary.** No Git hosting, user accounts, DNS, CDN, or TLS. Your CI pushes versions. Your load balancer terminates HTTPS.
+- **Dashboard.** Projects, versions, D1 browser, KV, queues — same REST API as CI.
 
 ## Start in three commands
 
