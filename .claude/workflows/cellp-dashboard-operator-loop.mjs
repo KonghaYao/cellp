@@ -1,110 +1,72 @@
 export const meta = {
   name: 'cellp-dashboard-operator-loop',
   description:
-    'Dashboard 用户闭环 + 巡检：验证 → 分段提交（文档 / Vitest / E2E live / Inspect）',
+    '完成 TP-UI-14/15：并行验证 Vitest/Playwright/verify 脚本 → live E2E → site build → 证据提交',
 }
 
 const cwd = '/Users/mino/code/remote/cellp'
 
-const segments = [
-  {
-    id: 'docs-site',
-    message: 'docs(site): operator journey and closed-loop PM record',
-    paths: [
-      'site/docs/get-started/operator-journey.md',
-      'site/docs/.vitepress/config.ts',
-      'site/docs/get-started/dashboard.md',
-      'site/docs/get-started/index.md',
-      'docs/plans/user-behavior-closed-loop.md',
-    ],
-    verify: null,
-  },
-  {
-    id: 'vitest-flows',
-    message: 'feat(web): vitest user flows and create project UI',
-    paths: [
-      'web/vitest.config.ts',
-      'web/src/test',
-      'web/src/flows',
-      'web/src/lib/cellp-api.ts',
-      'web/src/components/create-project-dialog.tsx',
-      'web/src/pages/ProjectsPage.tsx',
-      'web/e2e/create-project.spec.ts',
-      'web/e2e/mock-api-server.mjs',
-      'web/playwright.config.ts',
-      'web/package.json',
-      'web/package-lock.json',
-      'web/tsconfig.json',
-    ],
-    verify: 'cd web && npm run test',
-  },
-  {
-    id: 'e2e-live-checklist',
-    message: 'feat(web): operator checklist and live Playwright E2E',
-    paths: [
-      'web/playwright.live.config.ts',
-      'web/e2e/live',
-      'web/scripts',
-      'web/src/components/operator-checklist.tsx',
-    ],
-    verify: 'cd web && npm run test',
-  },
-  {
-    id: 'inspect-monitoring',
-    message: 'feat(web): project inspect page and platform monitoring',
-    paths: [
-      'web/src/lib/inspection.ts',
-      'web/src/lib/inspection.test.ts',
-      'web/src/pages/ProjectInspectPage.tsx',
-      'web/src/components/version-runtime-health.tsx',
-      'web/src/components/deployments-status-summary.tsx',
-      'web/src/App.tsx',
-      'web/src/components/layout/app-sidebar.tsx',
-      'web/src/components/version-detail-view.tsx',
-      'web/src/lib/routes.ts',
-      'web/src/pages/DeploymentsPage.tsx',
-      'web/src/pages/PlatformPage.tsx',
-      'web/src/pages/ProjectOverviewPage.tsx',
-    ],
-    verify: 'cd web && npm run test',
-  },
-  {
-    id: 'test-plan-agents',
-    message: 'docs: TP-UI-14/15 test plan and web AGENTS verify commands',
-    paths: ['docs/test-plan.md', 'web/AGENTS.md'],
-    verify: null,
-  },
-]
+phase('verify-parallel')
 
-phase('verify-all')
-const verify = await agent(
-  `在 ${cwd} 运行 \`cd web && npm run test\`，exit 0 才继续。若失败则修复 web/ 相关测试后重跑。不要 commit。`,
-  { label: 'vitest-gate', subagent_type: 'verification', cwd },
-)
-
-phase('commits')
-const commitResults = await pipeline(
-  segments,
-  (seg) =>
+const [vitestGate, verifyLoop, playMock] = await parallel([
+  () =>
     agent(
-      `在 ${cwd} 做**单次** git 提交（仅本 segment）。
-
-Segment id: ${seg.id}
-Commit message（第一行，勿 amend）:
-${seg.message}
-
-仅 stage 这些路径（不存在则跳过）:
-${seg.paths.map((p) => `- ${p}`).join('\n')}
-
-规则:
-- 不要 stage cellp/coverage.out 或 .claude/workflow-runs
-- 不要 amend；新建 commit
-- message 末尾追加:
-Co-Authored-By: composer-2.5-fast <noreply@anthropic.com>
-- 提交前若 verify 命令非空则运行: ${seg.verify ?? '(skip)'}
-- 返回: commit hash 或 SKIP 原因`,
-      { label: `commit-${seg.id}`, subagent_type: 'coder', cwd },
+      `仓库 ${cwd}。运行 \`cd web && npm run test\`。失败则修复 web 测试/源码直至绿。不要 commit。返回测试摘要。`,
+      { label: 'vitest-gate', subagent_type: 'verification', cwd },
     ),
+  () =>
+    agent(
+      `仓库 ${cwd}。运行 \`bash web/scripts/verify-user-loop.sh\`（会写 docs/evidence/user-loop-vitest-*.log）。失败则修 web 直至通过。不要 commit。返回 log 路径。`,
+      { label: 'verify-user-loop', subagent_type: 'verification', cwd },
+    ),
+  () =>
+    agent(
+      `仓库 ${cwd}。运行 \`cd web && CI=1 npm run test:e2e\`。若缺 Playwright 浏览器则 \`npx playwright install chromium\` 后重试一次。失败则修 mock-api 或 spec。不要 commit。返回 pass/fail 计数。`,
+      { label: 'playwright-mock', subagent_type: 'verification', cwd },
+    ),
+])
+
+phase('live-e2e')
+
+const liveE2e = await agent(
+  `仓库 ${cwd}。
+1. \`./dev/scripts/health.sh\` 或 curl :8790/v1/health；若栈未起则 SKIP live（说明需 ./dev/scripts/up.sh），不要强行 up。
+2. 栈健康则 \`cd web && npm run test:e2e:live\`。
+3. 将 stdout 追加写入 docs/evidence/user-loop-live-e2e.log（mkdir -p docs/evidence）。
+不要 commit。返回 SKIP 或 pass/fail。`,
+  { label: 'playwright-live', subagent_type: 'verification', cwd },
 )
 
-return { verify, commitResults, segments: segments.map((s) => s.id) }
+phase('site-build')
+
+const siteBuild = await agent(
+  `仓库 ${cwd}。运行 \`cd site && npm ci && npm run docs:build\`（若 node_modules 已有可省略 ci）。失败则修 site 文档链接/ frontmatter。不要 commit。`,
+  { label: 'site-docs-build', subagent_type: 'verification', cwd },
+)
+
+phase('evidence-commit')
+
+const evidenceCommit = await agent(
+  `仓库 ${cwd}。
+1. \`git status --short docs/evidence web\`
+2. 若有 docs/evidence/user-loop*.log 或其它新证据且未提交，单独 commit：
+   docs(evidence): user-loop vitest and live e2e logs
+   Co-Authored-By: composer-2.5-fast <noreply@anthropic.com>
+3. 若无变更返回 SKIP
+4. 不要 amend 已有 5 个 dashboard commit`,
+  { label: 'commit-evidence', subagent_type: 'coder', cwd },
+)
+
+phase('summary')
+
+const summary = await agent(
+  `仓库 ${cwd}。只读汇总 TP-UI-14/15 完成情况：
+- 读 docs/test-plan.md TP-UI-14/15
+- 读 docs/plans/user-behavior-closed-loop.md
+- 列出 verify/live/playwright 结果（从上一 phase 上下文或 evidence log）
+写入 docs/evidence/user-loop-workflow-summary.md（中文简短）。
+若有未通过门禁，列出阻塞项。可 commit 该 summary 文件（同 Co-Authored-By）。`,
+  { label: 'workflow-summary', subagent_type: 'general-purpose', cwd },
+)
+
+return { vitestGate, verifyLoop, playMock, liveE2e, siteBuild, evidenceCommit, summary }
