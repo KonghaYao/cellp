@@ -41,6 +41,10 @@ For production secrets:
 
 Do not treat Dashboard env as a password manager.
 
+## cellpd deploy policy
+
+By default, deploy is **fail-closed**: if offshoot fork/checkpoint/export, D1 import/branch, or KV/R2/Queue branch fails, the version becomes `failed` and must not serve preview traffic. For local debugging only, set `CELLP_LENIENT_DEPLOY=1` on cellpd to warn and continue (not used in CI or e2e).
+
 ## Compared to Vercel
 
 | Vercel | cellp |

@@ -304,8 +304,9 @@ func (m *Manager) RuntimeHealth(ctx context.Context, routes []registry.Route) []
 	return out
 }
 
-// Deploy runs celld deploy for a bundle directory.
-func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir string) error {
+// Deploy runs celld deploy for a bundle directory. When includeCrons is false, triggers.crons
+// are stripped from a temp copy of the bundle (artifact unchanged); see AD-11.
+func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir string, includeCrons bool) error {
 	if os.Getenv("CELLP_E2E_INJECT_DEPLOY_FAIL") == "1" {
 		return fmt.Errorf("injected deploy failure")
 	}
@@ -315,8 +316,13 @@ func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir strin
 	if err := m.Diagnose(ctx, project, version); err != nil {
 		return err
 	}
+	deployDir, cleanup, err := PrepareDeployBundle(exampleDir, includeCrons)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	bucket := m.versionBucket(project, version)
-	cmd := exec.CommandContext(ctx, "celld", "deploy", exampleDir,
+	cmd := exec.CommandContext(ctx, "celld", "deploy", deployDir,
 		"--bucket", bucket, "--endpoint", m.endpoint, "--region", m.region)
 	env := append(os.Environ(),
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
@@ -359,6 +365,9 @@ func findEsbuild(exampleDir string) string {
 
 // D1Branch links a child version D1 to a parent bucket baseline (celld d1 branch).
 func (m *Manager) D1Branch(ctx context.Context, project, childVersion, parentVersion, projectDir string) error {
+	if os.Getenv("CELLP_E2E_INJECT_D1_BRANCH_FAIL") == "1" {
+		return fmt.Errorf("injected d1 branch failure")
+	}
 	if _, err := exec.LookPath("celld"); err != nil {
 		return nil
 	}

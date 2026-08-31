@@ -51,7 +51,7 @@ forward:  validate → drain_old → deactivate_old_route → offshoot_promote �
 compensate: 任一步失败按逆序 idempotent 回滚
 ```
 
-`SetProdVersionCAS(project, expected, new)` 为 Registry 必交付。
+`offshoot_promote` 失败则中止 saga（不 CAS）；`SetProdVersionCAS(project, expected, new)` 为 Registry 必交付。
 
 ## 修正清单（v1 → v2）
 

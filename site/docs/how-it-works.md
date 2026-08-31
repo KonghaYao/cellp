@@ -65,6 +65,8 @@ Promote is a saga, not a DNS flip:
 
 If a step fails, the orchestrator compensates in reverse. Window target is a couple of seconds, not a blue-green cluster dance.
 
+Promote **only** moves the production pointer to the promoted version’s bucket. It does **not** merge data from the old prod line into that bucket after a fork. See [What promote does not do](/concepts/promote#what-promote-does-not-do).
+
 Rollback is the same API: promote the previous version (wake it first if it was archived). See [Rollback](/guides/rollback).
 
 ## Idle versions

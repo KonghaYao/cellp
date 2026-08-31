@@ -448,7 +448,7 @@ celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Work
 |---|---|---|
 | **P1 沿用 celld** | 运行时以 `celld deploy` 为准 | wrangler 已声明的 `kv_namespaces` / `queues` / `workflows` / `r2_buckets` / `triggers` **原样进入 deploy**；cellp 不剥 key、不改 binding |
 | **P2 包 CLI，不发明协议** | 与 D1 同一模式 | Dashboard → cellpd `:8790` → `celld <noun> … --bucket s3://cellp-celld/{project}/{version}`；**禁止** Dashboard 直连 `:8792` / S3 |
-| **P3 无 branch 就等** | 不发明 inherit | **只有 D1** 有 `celld d1 branch`。KV / R2 / Queue / Workflow 在 celld 提供等价 branch 之前：**子 version 空起步**（AD-1 独立 bucket 已经隔离）。不做 copy、不做挂父桶 |
+| **P3 子 version 数据 branch** | 不发明 inherit | **子 version**（有 `parent_version_id`）经 `celld d1/kv/r2/queue branch` 做 CoW；**仅 Workflow / Cron / Worker 脚本不 branch**（AD-8）。根 version 仍空起步。不做 cellp 侧 CopyObject / 挂父桶 |
 | **P4 没有 CLI 就没有管理面** | 诚实缺口 | 无 `celld r2` → R2 只出现在 bindings 清单；无 `celld workflow` → Workflow 实例只读（`celld cell list`），不做 pause/resume/restart 控制台 |
 
 ### 8.2 能力矩阵
@@ -471,9 +471,9 @@ celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Work
 - R2：绑定使用本 fleet bucket 前缀；multipart 不能跨节点恢复
 - Cron：fleet 内每 occurrence 跑一次；downtime 后只补最近一次 missed
 
-### 8.3 Version 数据面（为何空起步）
+### 8.3 Version 数据面
 
-每个 ready version 已是独立 celld fleet（AD-1）：
+**根 version**（无 `parent_version_id`）的 KV / R2 / Queue **空起步**；**子 version** 从父 branch（下表）。每个 ready version 已是独立 celld fleet（AD-1）：
 
 ```
 s3://cellp-celld/{project}/{version}/
@@ -579,7 +579,7 @@ celld 0.4.0 公共健康路径是 **`/.well-known/celld/health`**（不再是 `/
 - R2 对象 list/get/put（等 `celld r2` 或单独契约）
 - Workflow 控制动作
 - Queue pull consumer、手动 attach consumer、R2 event notification
-- Cron 平台级「只让 prod 跑 / 多 version 选举」
+- Cron 平台级「只让 prod 跑」→ **已由 AD-11 覆盖**（仅 prod arm manifest crons）；多 version **选举**仍二期
 - Dashboard 直连 celld 或 RustFS
 
 ---

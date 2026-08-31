@@ -66,6 +66,16 @@ Details: [Auth](/reference/auth).
 
 Poll until `status` is `ready` or `failed`.
 
+### GET /versions/{v} fields (snapshot semantics)
+
+| Field | Meaning |
+|-------|---------|
+| `parent_version_id` | When set, this version **branched data** (D1/KV/R2/Queue) from that parent at deploy time. The child does not see parent writes after the fork cut (`fork_txid` in D1; not exposed in JSON). `null` = root version. |
+| `ready_at` | When the version became `ready` (deploy + branch pipeline finished). |
+| `preview_url` | Gateway URL for `/{project}/{version}/`. |
+
+Concepts: [Preview data timeline](/concepts/preview#data-snapshot-timeline) · [Promote](/concepts/promote).
+
 ## Bindings & data
 
 Prefix: `/projects/{p}/versions/{v}`

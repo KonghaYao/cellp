@@ -87,6 +87,8 @@ Keep `ADMIN_TOKEN` out of PR workflows from forks.
 
 Avoid parenting every PR at live production.
 
+PR previews inherit the parent’s data **at fork time** only. Orders or config written to **production after** the preview was created are **not** merged in when you later promote that preview — see [Preview data timeline](/concepts/preview#data-snapshot-timeline).
+
 ## Local stand-in
 
 ```bash

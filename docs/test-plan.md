@@ -80,10 +80,20 @@
 | 命令 | `e2e/scripts/v4-promote-cutover.sh` |
 | 通过 | `/{project}/` → 新 prod body；旧 prod 显式 version 路径 **404 或 410**；无双写窗口 > **2s** |
 
+### [x] TP-V4b — Promote offshoot 硬门禁
+
+| 命令 | `e2e/scripts/v4b-promote-offshoot-fail.sh` |
+| 通过 | 注入 offshoot promote 失败 → **非 200** + `offshoot_promote_failed`；`prod_version_id` 与 prod URL body **不变** |
+
 ### [x] TP-V5 — Orchestrator 失败补偿
 
 | 命令 | `e2e/scripts/v5-saga-compensate.sh` |
 | 通过 | 注入 deploy 失败 → `failed`；Registry 无泄漏 route；offshoot branch 已 GC |
+
+### [x] TP-V5B — Deploy 默认 fail-closed（D1 branch）
+
+| 命令 | `e2e/scripts/v5b-deploy-d1-branch-fail.sh` |
+| 通过 | `CELLP_E2E_INJECT_D1_BRANCH_FAIL=1` 下子 version D1 branch 失败 → `failed`；preview 非 200。默认 cellpd **不**设 `CELLP_LENIENT_DEPLOY` |
 
 ### [x] TP-V6 — Schema migration × fork 顺序
 
@@ -357,6 +367,18 @@
 | 命令 | `e2e/scripts/v16-worker-env.sh` |
 | 通过 | POST env → Worker `env.GREETING`；PUT 后预览更新；平台键不可覆盖 |
 | 证据 | `docs/evidence/v16-worker-env-e2e.log` |
+
+### [x] TP-V17 — Cron 仅 prod arm（AD-11）
+
+| 命令 | `e2e/scripts/v17-cron-prod-only.sh` |
+| 通过 | 两 ready + 同 wrangler crons；bindings 均可见；90s 内仅 prod celld 日志出现 `e2e-cron-tick` |
+| 证据 | `docs/evidence/v17-cron-prod-only-e2e.log` |
+
+### [x] TP-V18 — Promote 换指针非 merge（ISSUE-03）
+
+| 命令 | `e2e/scripts/v17-promote-no-merge.sh` |
+| 通过 | 子 version fork 后仅在 prod 写入的行；promote 子 version 后 prod D1 **不含**该行（证明未 merge fork 后 prod 写入） |
+| 证据 | `docs/evidence/v17-promote-no-merge-e2e.log` |
 
 ### [x] TP-UI-13 — Settings Worker env
 

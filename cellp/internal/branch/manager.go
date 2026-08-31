@@ -100,6 +100,9 @@ func (m *Manager) Checkpoint(ctx context.Context, project, branch, name string) 
 
 // Promote marks version as production data branch.
 func (m *Manager) Promote(ctx context.Context, project, version string) error {
+	if os.Getenv("CELLP_E2E_INJECT_OFFSHOOT_PROMOTE_FAIL") == "1" {
+		return fmt.Errorf("injected offshoot promote failure")
+	}
 	if !m.hasOffshoot() {
 		return nil
 	}

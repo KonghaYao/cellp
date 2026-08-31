@@ -225,7 +225,12 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if abs, err := filepath.Abs(bundleDir); err == nil {
 		bundleDir = abs
 	}
-	if err := o.runtime.Deploy(ctx, j.ProjectID, j.VersionID, bundleDir); err != nil {
+	proj, perr := o.store.GetProject(ctx, j.ProjectID)
+	if perr != nil {
+		return fmt.Errorf("project: %w", perr)
+	}
+	armCron := CronShouldArm(proj, j.VersionID)
+	if err := o.runtime.Deploy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
 		return fmt.Errorf("deploy: %w", err)
 	}
 	host, port, err := o.runtime.Start(ctx, j.ProjectID, j.VersionID)
@@ -235,7 +240,7 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if d1Plan.UseBranch {
 		t0 := time.Now()
 		if err := o.runtime.D1Branch(ctx, j.ProjectID, j.VersionID, d1Plan.ParentID, bundleDir); err != nil {
-			if strictOffshoot() {
+			if deployFailClosed() {
 				return fmt.Errorf("d1 branch: %w", err)
 			}
 			log.Printf("orch: d1 branch warn after %s: %v", time.Since(t0), err)
@@ -245,7 +250,7 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	} else if _, err := os.Stat(seedPath); err == nil {
 		t0 := time.Now()
 		if err := o.runtime.D1Execute(ctx, j.ProjectID, j.VersionID, bundleDir, seedPath); err != nil {
-			if strictOffshoot() {
+			if deployFailClosed() {
 				return fmt.Errorf("d1 seed: %w", err)
 			}
 			log.Printf("orch: d1 seed warn after %s: %v", time.Since(t0), err)
@@ -286,7 +291,6 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	}
 
 	// Set initial prod if none
-	proj, _ := o.store.GetProject(ctx, j.ProjectID)
 	if proj != nil && proj.ProdVersionID == nil {
 		_ = o.store.SetProdVersionCAS(ctx, j.ProjectID, "", j.VersionID)
 	}
@@ -300,10 +304,6 @@ func (o *Orchestrator) setStatus(ctx context.Context, j *registry.Job, status st
 	return o.store.UpdateJobStep(ctx, j.ID, status)
 }
 
-func strictOffshoot() bool {
-	return os.Getenv("CELLP_STRICT_OFFSHOOT_FORK") == "1"
-}
-
 func (o *Orchestrator) branchStep(ctx context.Context, step string, fn func() error) error {
 	t0 := time.Now()
 	err := fn()
@@ -311,7 +311,7 @@ func (o *Orchestrator) branchStep(ctx context.Context, step string, fn func() er
 	if err == nil {
 		return nil
 	}
-	if strictOffshoot() {
+	if deployFailClosed() {
 		return fmt.Errorf("offshoot %s: %w", step, err)
 	}
 	log.Printf("orch: %s warn: %v", step, err)
@@ -376,13 +376,11 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		})
 	}
 
-	// offshoot_promote
+	// offshoot_promote (hard gate: no CAS / prod route activation on failure)
 	if err := o.branch.Promote(ctx, projectID, versionID); err != nil {
-		log.Printf("orch: promote branch warn: %v", err)
+		o.runCompensation(ctx, compensated)
+		return fmt.Errorf("%w: %v", ErrOffshootPromote, err)
 	}
-	compensated = append(compensated, func() {
-		// idempotent: no reverse promote in dev
-	})
 
 	// CAS_prod
 	if err := o.store.SetProdVersionCAS(ctx, projectID, oldProd, versionID); err != nil {
@@ -396,6 +394,11 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 	// activate_prod_route
 	if err := o.store.SetRouteActive(ctx, projectID, versionID, true); err != nil {
 		o.runCompensation(ctx, compensated)
+		return err
+	}
+
+	if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
+		log.Printf("orch: cron reconcile after promote warn: %v", err)
 		return err
 	}
 
@@ -456,6 +459,7 @@ func ValidateForkProd(parentVersionID *string, prodVersionID *string, gitRef str
 	return nil
 }
 
+// runBindingBranches always fail-closed (same as deployFailClosed default); no lenient path.
 func (o *Orchestrator) runBindingBranches(ctx context.Context, project, childVersion, parentVersion, bundleDir string) error {
 	bindings, err := runtime.ParseBindings(bundleDir)
 	if err != nil {

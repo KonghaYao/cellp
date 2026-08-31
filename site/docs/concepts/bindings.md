@@ -24,7 +24,7 @@ When you create a **child** version (`parent_version_id` set):
 | R2 | Yes (overlay + tombstones) |
 | Queue | Yes |
 | Workflow **instances** | **No** — empty |
-| Cron | **No** — follows **this** script |
+| Cron | **No** — follows **this** script; **scheduling** only on **prod** ready version (AD-11) |
 | Worker script | **No** — this artifact |
 
 Binding **identities** (`database_id`, KV namespace id, queue name, R2 bucket name) are inherited from the parent wrangler so the Worker code keeps working.

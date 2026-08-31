@@ -27,6 +27,7 @@ e2e/scripts/
   v1-d1-branch-multi-100mb.sh  # 100 MB parent + 3 sibling branches (manual; heavy)
   ve-cd-loop.sh              # POST version → poll ready → curl gateway
   ve-promote.sh              # promote → 验证 prod 切换
+  v4b-promote-offshoot-fail.sh  # promote 在 offshoot 失败时不切 prod
   v9-kv.sh                   # KV put/get + sibling isolation (:8790)
   v10-queue.sh               # Queue info/peek/purge (producer-only)
   v11-workflow-cron.sh       # Workflow instances ≠ 500 + cron bindings

@@ -63,6 +63,19 @@ test.describe("cellp dashboard smoke (TP-UI-1..5)", () => {
     await expect(page.getByTestId("worker-env-editor")).toBeVisible();
   });
 
+  test("preview branch shows snapshot notice (ISSUE-03)", async ({ page }) => {
+    await page.goto("/projects/demo-app/versions/v2");
+    const notice = page.getByTestId("preview-snapshot-notice");
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText("Promote does not merge");
+    await expect(notice).toContainText("branch time");
+  });
+
+  test("root version hides snapshot notice", async ({ page }) => {
+    await page.goto("/projects/demo-app/versions/v1");
+    await expect(page.getByTestId("preview-snapshot-notice")).toHaveCount(0);
+  });
+
   test("settings edits worker env", async ({ page }) => {
     await page.goto("/projects/demo-app/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();

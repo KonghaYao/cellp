@@ -222,6 +222,33 @@ func TestRejectForkProd(t *testing.T) {
 	}
 }
 
+func TestGetVersion_JSONIncludesParentVersionID(t *testing.T) {
+	srv, store, _ := testAPI(t, "deploy", "admin")
+	defer store.Close()
+	parent := "v-parent"
+	child := "v-child"
+	_, _ = store.CreateProject(context.Background(), registry.CreateProjectInput{ID: "demo"})
+	_, _ = store.CreateVersion(context.Background(), registry.CreateVersionInput{
+		ID: child, ProjectID: "demo", ParentVersionID: &parent,
+	})
+	_ = store.UpdateVersionStatus(context.Background(), "demo", child, registry.StatusReady, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/projects/demo/versions/"+child, nil)
+	req.Header.Set("Authorization", "Bearer admin")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET version: status = %d body=%s", w.Code, w.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["parent_version_id"] != parent {
+		t.Fatalf("parent_version_id = %v want %q", body["parent_version_id"], parent)
+	}
+}
+
 func TestPromoteConflict(t *testing.T) {
 	srv, store, _ := testAPI(t, "deploy", "admin")
 	defer store.Close()

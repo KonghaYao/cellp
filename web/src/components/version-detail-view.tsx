@@ -160,6 +160,23 @@ function VersionDetailContent({
 
         <StatusTimeline status={version.status} className="mt-8" />
 
+        {isPreview && (
+          <p
+            role="note"
+            data-testid="preview-snapshot-notice"
+            className="mt-6 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
+            Data bindings (D1, KV, R2, Queue) were forked from the parent at
+            branch time. This preview does not see writes on the parent after
+            that snapshot.{" "}
+            <strong className="font-medium text-foreground">
+              Promote does not merge
+            </strong>{" "}
+            production writes that happened after the fork — it only switches
+            the prod pointer to this version&apos;s bucket.
+          </p>
+        )}
+
         {version.status === "archived" && (
           <div className="mt-6 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
             <p>

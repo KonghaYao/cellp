@@ -1111,6 +1111,18 @@ paths:
                     type: string
         "409":
           description: Version not ready
+        "502":
+          description: Offshoot promote failed (prod not switched)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum: [offshoot_promote_failed]
+                  message:
+                    type: string
   /projects/{projectID}/versions/{versionID}/archive:
     post:
       summary: Archive a ready version (stop celld, keep S3)
@@ -1206,6 +1218,13 @@ components:
           type: string
         project_id:
           type: string
+        parent_version_id:
+          type: string
+          nullable: true
+          description: >
+            When set, this version was forked from the parent at deploy time (celld D1/KV/R2/Queue branch).
+            Preview data is a point-in-time snapshot of the parent bucket, not live prod after fork.
+            Promote switches prod to this version's isolated bucket; it does not merge writes made on prod after fork.
         status:
           type: string
           enum: [pending, fetching, branching, preparing, deploying, ready, archived, draining, destroyed, failed]
@@ -1217,6 +1236,10 @@ components:
           nullable: true
         preview_url:
           type: string
+        ready_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time

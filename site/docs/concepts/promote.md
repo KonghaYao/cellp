@@ -28,6 +28,16 @@ If a step fails, cellp rolls the saga back in reverse. You should not see a spli
 
 Cutover is designed to be **short** (seconds), not a multi-minute mesh drain.
 
+## What promote does not do
+
+Promote is **not** a data merge:
+
+- It does **not** copy rows or keys from the **current** production version into the version you promote if those writes happened **after** that version was forked.
+- It does **not** rebase preview onto prod or replay prod traffic.
+- It **does** point `/{project}/` at the promoted version’s **existing** D1/KV/R2/Queue state (whatever that version already had at preview time plus preview-only writes).
+
+Example: prod takes orders after you opened a PR preview. Promoting the PR makes those new prod-only orders **disappear** from production — because prod becomes the preview bucket, not a merge of both. Design previews from **staging**, and read [Preview data timeline](/concepts/preview#data-snapshot-timeline).
+
 ## After promote
 
 - Old production stays around (ready or later idle-archived). It is your [rollback](/guides/rollback) candidate.

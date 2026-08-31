@@ -11,7 +11,9 @@ v1-d1-branch.sh
 v2-quiesce-fork.sh
 v3-dual-route.sh
 v4-promote-cutover.sh
+v4b-promote-offshoot-fail.sh
 v5-saga-compensate.sh
+v5b-deploy-d1-branch-fail.sh
 v6-migrate-order.sh
 v7-external-ci.sh
 v9-kv.sh
@@ -22,3 +24,5 @@ v13-r2-branch.sh
 v14-queue-branch.sh
 v15-archive.sh
 v16-worker-env.sh
+v17-cron-prod-only.sh
+v17-promote-no-merge.sh

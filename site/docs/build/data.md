@@ -10,7 +10,7 @@ first version      →  empty resources, unless you seed
 your Worker / UI   →  writes rows, keys, objects
 child version      →  copy-on-write fork of D1 + KV + R2 + Queue
 Dashboard          →  look at / patch data on a ready version
-promote            →  that version’s data becomes production
+promote            →  prod pointer switches to that version’s bucket (not a merge)
 ```
 
 Production does **not** share a database with a PR. A PR with `parent_version_id` gets its **own** fork.
@@ -99,7 +99,15 @@ See [Environment variables](/guides/environment-variables).
 
 ## Promote and rollback
 
-Promote switches the production **pointer**. The data that goes live is whatever that version already has (its D1/KV/…). Rolling back is promoting an older version — its data comes back with it. [Rollback](/guides/rollback).
+Promote switches the production **pointer** to a ready version’s **existing** bucket. It is **not** a merge: writes that landed on the **previous** prod version **after** you forked the promoted version are **not** combined in.
+
+Timeline example:
+
+1. `v-staging` has 100 orders; you fork PR version `pr-9` from it (preview sees 100).
+2. Live prod (`v-prod`) gets 5 more orders while you test `pr-9`.
+3. You promote `pr-9`. Production now shows what `pr-9` had (e.g. 100 + preview test orders), **not** the 5 prod-only rows unless you wrote them in preview too.
+
+Rolling back is promoting an older version — its frozen bucket comes back with it. [Rollback](/guides/rollback). See also [What promote does not do](/concepts/promote#what-promote-does-not-do).
 
 ## Checklist for a new app
 

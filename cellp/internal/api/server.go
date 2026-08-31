@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -414,6 +415,13 @@ func (s *Server) handlePromote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.orch.Promote(r.Context(), projectID, versionID); err != nil {
+		if errors.Is(err, orch.ErrOffshootPromote) {
+			writeJSON(w, http.StatusBadGateway, map[string]string{
+				"error":   "offshoot_promote_failed",
+				"message": err.Error(),
+			})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

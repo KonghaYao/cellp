@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-08-30（含 AD-6 · AD-7 · AD-8 · AD-9 · **AD-10**）
+> **最后更新：** 2026-08-31（含 AD-6 · AD-7 · AD-8 · AD-9 · AD-10 · **AD-11**）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -78,9 +78,11 @@ forward:  validate → drain_old → deactivate_old_route → offshoot_promote �
 compensate: 任一步失败按逆序 idempotent 回滚
 ```
 
+**`offshoot_promote` 为硬门禁：** 失败则不执行 `CAS_prod`、不激活新 prod 路由，并对已执行步骤做补偿（恢复旧 prod 路由等）。
+
 Registry 必交付 `SetProdVersionCAS(project, expected, new)`。
 
-**证据：** `e2e/scripts/v5-saga-compensate.sh`
+**证据：** `e2e/scripts/v5-saga-compensate.sh` · `e2e/scripts/v4b-promote-offshoot-fail.sh`
 
 ---
 
@@ -238,6 +240,8 @@ flowchart LR
 
 **决策：** 在 celld 对象层做与 D1 同构的 branch（LTX `base.json` + chained restore；KV 大 value 链式读父 `kv/blobs-v2`；R2 前缀 overlay + 墓碑）。cellp 只包装 CLI。一层 fork。身份继承父 wrangler。Worker / Workflow / Cron **不** branch。
 
+**产品不变量（ISSUE-03）：** 子 version 的 D1/KV/R2/Queue = 父 bucket 在 fork 时刻的快照 + 子侧写入；**promote** = 切换 `prod_version_id` 到该 version 已有 bucket，**不**合并 fork 之后 prod 线上的写入。
+
 **计划：** [phase-8-binding-branch.md](./plans/phase-8-binding-branch.md)
 
 ---
@@ -321,4 +325,19 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 **不是 cellp：** 自托管 Cloudflare、自托管 Vercel、PaaS 托管、Git 平台、账号中心、边缘 CDN。
 
 **证据与契约：** `DESIGN.md` · `D1-*-RPC.md` · `test-plan.md` TP-V* / TP-UI-*
+
+---
+
+## 16. AD-11 — Cron 仅 prod version 武装调度
+
+**问题：** 每个 ready version 独立 celld（AD-1）；`celld deploy` 将 `triggers.crons` 写入 fleet manifest 后节点会 `arm` 调度。多 ready preview + prod 会导致同一表达式 N 倍 `scheduled` 副作用。
+
+**决策：**
+
+- 仅当 `versions.id == projects.prod_version_id`（或项目尚无 prod、首版 deploy 前）时，cellp 对 celld 的 deploy **保留** `triggers.crons`。
+- 其余 ready preview：deploy 使用**临时** wrangler 视图（剥离 `triggers.crons`），**不修改** artifact 原件；`GET …/bindings` 仍反映 artifact 声明。
+- **Promote：** `CAS_prod` 成功后对旧 prod / 新 prod（若仍 ready）分别 **redeploy + Restart**，使仅新 prod manifest 含 crons。
+- **Defer：** 分布式 cron 选举；`CELLP_PREVIEW_CRON=1` 双 arm；celld `CELLD_CRON_ARM=0` 补强。
+
+**实现：** `cellp/internal/orch/cron_policy.go` · `cellp/internal/runtime/wrangler_cron.go` · e2e `v17-cron-prod-only.sh`。
 

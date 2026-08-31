@@ -26,14 +26,14 @@ if [[ -d "$store_path" || -f "$store_path/offshoot.json" ]]; then
   chmod -R u-w "$store_path" 2>/dev/null || true
 fi
 
-# Restart cellpd with strict fork so read-only store fails the deploy saga
+# Restart cellpd — default deploy is fail-closed (offshoot fork failure aborts saga)
 cellpd_bin="${STRESS_ROOT}/dev/data/cellpd"
 if [[ -x "$cellpd_bin" ]]; then
   if [[ -f "${STRESS_ROOT}/dev/data/pids/platform.pid" ]]; then
     kill "$(cat "${STRESS_ROOT}/dev/data/pids/platform.pid")" 2>/dev/null || true
     sleep 1
   fi
-  CELLP_STRICT_OFFSHOOT_FORK=1 "$cellpd_bin" >>"${STRESS_ROOT}/dev/data/logs/cellpd.log" 2>&1 &
+  "$cellpd_bin" >>"${STRESS_ROOT}/dev/data/logs/cellpd.log" 2>&1 &
   echo $! > "${STRESS_ROOT}/dev/data/pids/platform.pid"
   for _ in $(seq 1 30); do
     stress_api_health && break

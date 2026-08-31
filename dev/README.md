@@ -72,5 +72,6 @@ cellpd 启动后按 `CELLP_GC_INTERVAL` 后台清理：
 |---|---|---|
 | `CELLP_ORCH_WORKERS` | `1` | Orchestrator 并行 worker goroutine 数（SQLite dev 仍为单写；PostgreSQL prod 配合 `SKIP LOCKED`） |
 | `CELLP_QUEUE_MAX` | `10000` | 部署队列 pending jobs 上限；超过后 `POST /versions` 返回 **503** |
+| `CELLP_LENIENT_DEPLOY` | （未设） | 设为 `1` 时 offshoot / D1 seed&branch 失败仅 warn 仍尝试 ready；**默认关闭（fail-closed）**。`CELLP_STRICT_OFFSHOOT_FORK=1` 已废弃，与默认等价 |
 
 队列深度探针：`GET /v1/health/deep`（返回 `pending_jobs` · `queue_max`）。
