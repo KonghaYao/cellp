@@ -26,7 +26,9 @@ API 默认 `http://127.0.0.1:8790`（见 `web/src/lib/cellp-api.ts`）。
 
 ```bash
 cd web && npm run lint
-cd web && npm run test:e2e    # Playwright smoke（TP-UI-5）
+cd web && npm run test          # Vitest 用户心流 + 巡检（mock API，快）
+cd web && npm run test:e2e    # Playwright smoke（TP-UI-5，mock API）
+cd web && npm run test:e2e:live  # TP-UI-14：真 cellpd :8790（需 ./dev/scripts/up.sh）
 cd web && npm run build       # 产物 web/dist/
 ```
 
