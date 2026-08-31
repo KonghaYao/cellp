@@ -9,7 +9,7 @@
 |------|------|
 | Vitest `npm run test` | **17/17 通过** |
 | `verify-user-loop.sh` | Vitest 绿；live 依赖栈与 Chromium |
-| Playwright mock `test:e2e` | 本地需空闲 `:4173` 或 `reuseExistingServer` |
+| Playwright mock `test:e2e` | **32/32 通过**（28.0s） |
 | Playwright live `test:e2e:live` | **1/1 通过**（修复：动态 project、搜索分页、Inspect 替代 D1 Schema） |
 | `site/docs:build` | **通过** |
 
@@ -22,6 +22,9 @@
 ## 证据
 
 - `docs/evidence/user-loop-vitest-20260831.log`
+- `docs/evidence/user-loop-playwright-mock.log`
+
+**2026-08-31：** Playwright mock `npm run test:e2e` 32/32 通过（Chromium，mock API）。
 
 ## 仍可选
 
