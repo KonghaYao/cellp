@@ -7,13 +7,17 @@ test.describe("cellp dashboard smoke (TP-UI-1..5)", () => {
   test("project list renders", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-    await expect(page.getByText("demo-app")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "demo-app", exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("5 deployments")).toBeVisible();
   });
 
   test("project list cursor pagination", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("demo-app")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "demo-app", exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("extra-app")).toBeVisible();
     await expect(page.getByText("third-app")).not.toBeVisible();
 

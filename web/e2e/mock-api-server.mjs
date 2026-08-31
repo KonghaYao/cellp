@@ -590,6 +590,26 @@ function executeQuery(tableData, sql) {
   };
 }
 
+const E2E_INITIAL = {
+  projects: JSON.parse(JSON.stringify(state.projects)),
+  versionEnv: JSON.parse(JSON.stringify(VERSION_ENV)),
+  versionRowCounts: JSON.parse(JSON.stringify(VERSION_ROW_COUNTS)),
+};
+
+function resetE2eState() {
+  state.projects = JSON.parse(JSON.stringify(E2E_INITIAL.projects));
+  for (const key of Object.keys(VERSION_ENV)) delete VERSION_ENV[key];
+  Object.assign(VERSION_ENV, JSON.parse(JSON.stringify(E2E_INITIAL.versionEnv)));
+  for (const key of Object.keys(VERSION_ROW_COUNTS)) delete VERSION_ROW_COUNTS[key];
+  Object.assign(
+    VERSION_ROW_COUNTS,
+    JSON.parse(JSON.stringify(E2E_INITIAL.versionRowCounts)),
+  );
+  for (const key of Object.keys(kvStores)) delete kvStores[key];
+  for (const key of Object.keys(queueStores)) delete queueStores[key];
+  for (const key of Object.keys(workflowStores)) delete workflowStores[key];
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
@@ -606,6 +626,11 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/v1/health") {
     return json(res, 200, { status: "ok" });
+  }
+
+  if (req.method === "POST" && url.pathname === "/v1/__e2e_reset__") {
+    resetE2eState();
+    return json(res, 200, { reset: true });
   }
 
   if (req.method === "GET" && url.pathname === "/v1/health/deep") {
