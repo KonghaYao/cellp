@@ -430,6 +430,22 @@ function versionRoot(projectId: string, versionId: string): string {
   return `/v1/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`;
 }
 
+export interface CreateProjectInput {
+  id: string;
+  git_remote?: string;
+}
+
+export async function createProject(
+  input: CreateProjectInput,
+): Promise<ProjectDetail> {
+  const body: { id: string; git_remote?: string } = { id: input.id };
+  if (input.git_remote) body.git_remote = input.git_remote;
+  return request<ProjectDetail>("/v1/projects", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function listProjects(
   options: ListProjectsOptions = {},
 ): Promise<PaginatedProjects> {

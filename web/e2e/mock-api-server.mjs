@@ -670,6 +670,34 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  if (parts[1] === "projects" && parts.length === 2 && req.method === "POST") {
+    let body;
+    try {
+      body = await parseBody(req);
+    } catch {
+      return json(res, 400, { error: "id required" });
+    }
+    const id = body?.id?.trim();
+    if (!id) return json(res, 400, { error: "id required" });
+    if (state.projects[id]) {
+      return json(res, 409, { error: "project already exists" });
+    }
+    const created_at = new Date().toISOString();
+    state.projects[id] = {
+      id,
+      prod_version_id: null,
+      git_remote: body.git_remote ?? null,
+      created_at,
+      versions: {},
+    };
+    return json(res, 201, {
+      id,
+      git_remote: body.git_remote ?? null,
+      prod_version_id: null,
+      created_at,
+    });
+  }
+
   if (parts[1] === "projects" && parts.length === 2 && req.method === "GET") {
     const limit = Number(url.searchParams.get("limit")) || DEFAULT_LIMIT;
     const cursor = url.searchParams.get("cursor");

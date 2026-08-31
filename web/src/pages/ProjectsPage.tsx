@@ -8,6 +8,7 @@ import {
   type ProjectSummary,
 } from "@/lib/cellp-api";
 import { formatRelativeTime } from "@/lib/format";
+import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -133,12 +134,15 @@ export function ProjectsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <Breadcrumbs items={[{ label: "Projects" }]} className="mb-4" />
-        <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage deployments across your cellp projects.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Breadcrumbs items={[{ label: "Projects" }]} className="mb-4" />
+          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage deployments across your cellp projects.
+          </p>
+        </div>
+        <CreateProjectDialog onCreated={() => loadPage(null, searchQuery)} />
       </div>
 
       {loading && (

@@ -7,6 +7,7 @@ const PREVIEW_PORT = "4173";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
+  testIgnore: "**/live/**",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
