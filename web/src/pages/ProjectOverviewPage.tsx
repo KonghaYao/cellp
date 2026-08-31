@@ -11,10 +11,11 @@ import {
   type Version,
 } from "@/lib/cellp-api";
 import { resolveProdUrl, formatRelativeTime, truncateSha } from "@/lib/format";
-import { deploymentsHref, storageBrowserHref } from "@/lib/routes";
+import { deploymentsHref, inspectHref, storageBrowserHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { DeploymentsTable } from "@/components/deployments-table";
 import { CommerceStorefrontEmbed } from "@/components/commerce-storefront-embed";
+import { OperatorChecklist } from "@/components/operator-checklist";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
@@ -36,6 +37,7 @@ export function ProjectOverviewPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [prodVersion, setProdVersion] = useState<Version | null>(null);
   const [recentVersions, setRecentVersions] = useState<Version[]>([]);
+  const [activeVersions, setActiveVersions] = useState<Version[]>([]);
   const [prodDatabase, setProdDatabase] = useState<DatabaseAvailability | null>(
     null,
   );
@@ -67,7 +69,9 @@ export function ProjectOverviewPage() {
         if (cancelled) return;
         setProject(data);
         setProdVersion(prod);
-        setRecentVersions(sortVersionsNewestFirst(activeVersions).slice(0, 5));
+        const sorted = sortVersionsNewestFirst(activeVersions);
+        setActiveVersions(sorted);
+        setRecentVersions(sorted.slice(0, 5));
         setProdDatabase(dbAvailability);
         setError(null);
         setNotFound(false);
@@ -132,6 +136,12 @@ export function ProjectOverviewPage() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to={inspectHref(id)}
+            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
+          >
+            Inspect
+          </Link>
           {project?.prod_version_id && prodDbAvailable && (
             <Link
               to={storageBrowserHref(id, project.prod_version_id)}
@@ -142,6 +152,14 @@ export function ProjectOverviewPage() {
           )}
         </div>
       </div>
+
+      {!loading && (
+        <OperatorChecklist
+          projectId={id}
+          prodVersionId={project?.prod_version_id ?? null}
+          versions={activeVersions}
+        />
+      )}
 
       {loading ? (
         <Skeleton className="h-40 w-full rounded-md" />

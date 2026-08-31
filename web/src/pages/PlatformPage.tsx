@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Activity, RefreshCw } from "lucide-react";
 import {
   CellpApiError,
@@ -22,6 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { pickPlatformMetrics } from "@/lib/inspection";
+import { versionHref } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const REFRESH_MS = 15_000;
@@ -79,12 +82,27 @@ function checkStatus(checks: Record<string, unknown> | undefined, key: string): 
 }
 
 export function PlatformPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectFilter = searchParams.get("project")?.trim() ?? "";
+  const unhealthyOnly = searchParams.get("unhealthy") === "1";
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [apiHealth, setApiHealth] = useState<DeepHealth | null>(null);
   const [gatewayHealth, setGatewayHealth] = useState<DeepHealth | null>(null);
   const [routes, setRoutes] = useState<RuntimeRoutesResponse | null>(null);
   const [metrics, setMetrics] = useState<Record<string, number>>({});
+
+  const platformMetrics = useMemo(() => pickPlatformMetrics(metrics), [metrics]);
+
+  const visibleRoutes = useMemo(() => {
+    if (!routes?.routes) return [];
+    return routes.routes.filter((row) => {
+      if (projectFilter && row.project_id !== projectFilter) return false;
+      if (unhealthyOnly && row.celld_health === "ok") return false;
+      return true;
+    });
+  }, [routes, projectFilter, unhealthyOnly]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -143,7 +161,7 @@ export function PlatformPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {loading && !apiHealth ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-lg" />
@@ -169,10 +187,50 @@ export function PlatformPage() {
             />
             <StatCard
               label="Gateway requests"
-              value={metrics.cellp_gateway_requests_total ?? "—"}
+              value={platformMetrics.gatewayRequests ?? "—"}
+            />
+            <StatCard
+              label="Gateway 5xx"
+              value={platformMetrics.gateway5xx ?? "—"}
+              hint={
+                platformMetrics.gatewayUpstream5xx != null
+                  ? `upstream ${platformMetrics.gatewayUpstream5xx}`
+                  : undefined
+              }
             />
           </>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-border bg-muted/20 px-4 py-3">
+        <label className="flex min-w-[12rem] flex-col gap-1 text-sm">
+          <span className="text-muted-foreground">Filter project</span>
+          <input
+            className="h-9 rounded-md border border-border bg-background px-3 font-mono text-sm"
+            value={projectFilter}
+            onChange={(e) => {
+              const next = new URLSearchParams(searchParams);
+              const v = e.target.value.trim();
+              if (v) next.set("project", v);
+              else next.delete("project");
+              setSearchParams(next, { replace: true });
+            }}
+            placeholder="demo-app"
+          />
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={unhealthyOnly}
+            onChange={(e) => {
+              const next = new URLSearchParams(searchParams);
+              if (e.target.checked) next.set("unhealthy", "1");
+              else next.delete("unhealthy");
+              setSearchParams(next, { replace: true });
+            }}
+          />
+          Unhealthy celld only
+        </label>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -236,7 +294,7 @@ export function PlatformPage() {
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
             </div>
-          ) : routes && routes.routes.length > 0 ? (
+          ) : visibleRoutes.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -248,10 +306,17 @@ export function PlatformPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {routes.routes.map((row) => (
+                {visibleRoutes.map((row) => (
                   <TableRow key={`${row.project_id}/${row.version_id}`}>
                     <TableCell className="font-mono text-xs">{row.project_id}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.version_id}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      <Link
+                        to={versionHref(row.project_id, row.version_id)}
+                        className="hover:underline"
+                      >
+                        {row.version_id}
+                      </Link>
+                    </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {row.upstream}
                     </TableCell>
@@ -271,7 +336,11 @@ export function PlatformPage() {
               </TableBody>
             </Table>
           ) : (
-            <p className="px-6 py-4 text-sm text-muted-foreground">No active routes.</p>
+            <p className="px-6 py-4 text-sm text-muted-foreground">
+              {routes && routes.routes.length > 0
+                ? "No routes match the current filters."
+                : "No active routes."}
+            </p>
           )}
         </CardContent>
       </Card>

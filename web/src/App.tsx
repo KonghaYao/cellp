@@ -5,7 +5,7 @@ import { DatabasePage } from "@/pages/DatabasePage";
 import { DeploymentsPage } from "@/pages/DeploymentsPage";
 import { KvPage } from "@/pages/KvPage";
 import { PlatformPage } from "@/pages/PlatformPage";
-import { ProjectOverviewPage } from "@/pages/ProjectOverviewPage";
+import { ProjectInspectPage } from "@/pages/ProjectInspectPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { QueuesPage } from "@/pages/QueuesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -99,6 +99,7 @@ export default function App() {
           </Route>
           <Route path="/projects/:id" element={<ProjectLayout />}>
             <Route index element={<ProjectOverviewPage />} />
+            <Route path="inspect" element={<ProjectInspectPage />} />
             <Route path="deployments" element={<DeploymentsPage />} />
             <Route path="bindings" element={<BindingsRedirect />} />
             <Route path="storage" element={<StoragePage />} />

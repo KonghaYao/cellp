@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   ListOrdered,
   Rocket,
+  ScanSearch,
   Settings,
   Workflow,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
   bindingsR2Href,
   bindingsWorkflowsHref,
   deploymentsHref,
+  inspectHref,
   platformHref,
   projectOverviewHref,
   settingsHref,
@@ -59,6 +61,13 @@ function projectNav(projectId: string) {
       label: "Overview",
       icon: LayoutDashboard,
       to: projectOverviewHref(projectId),
+      end: true,
+    },
+    {
+      key: "inspect",
+      label: "Inspect",
+      icon: ScanSearch,
+      to: inspectHref(projectId),
       end: true,
     },
     {

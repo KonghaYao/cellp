@@ -29,6 +29,7 @@ import {
 import { storageBrowserHref, versionHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { StatusIndicator } from "@/components/status-indicator";
+import { VersionRuntimeHealth } from "@/components/version-runtime-health";
 import { VersionActions } from "@/components/version-actions";
 import { VersionPolling } from "@/components/version-polling";
 import { EnvEditor } from "@/components/env-editor";
@@ -159,6 +160,16 @@ function VersionDetailContent({
         </div>
 
         <StatusTimeline status={version.status} className="mt-8" />
+
+        {(version.status === "ready" || version.status === "archived") && (
+          <div className="mt-6">
+            <VersionRuntimeHealth
+              projectId={projectId}
+              versionId={version.id}
+              versionStatus={version.status}
+            />
+          </div>
+        )}
 
         {isPreview && (
           <p

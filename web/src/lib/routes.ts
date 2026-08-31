@@ -37,8 +37,13 @@ export function settingsHref(projectId: string): string {
   return `/projects/${projectId}/settings`;
 }
 
-export function platformHref(): string {
-  return "/platform";
+export function inspectHref(projectId: string): string {
+  return `/projects/${projectId}/inspect`;
+}
+
+export function platformHref(projectFilter?: string): string {
+  if (!projectFilter) return "/platform";
+  return `/platform?project=${encodeURIComponent(projectFilter)}`;
 }
 
 export function bindingsHubHref(): string {

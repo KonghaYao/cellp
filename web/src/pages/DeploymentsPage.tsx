@@ -8,6 +8,7 @@ import {
   type Version,
 } from "@/lib/cellp-api";
 import { resolveProdUrl } from "@/lib/format";
+import { DeploymentsStatusSummary } from "@/components/deployments-status-summary";
 import { DeploymentsTable } from "@/components/deployments-table";
 import { DeploymentsFilterBar } from "@/components/deployments-filter-bar";
 import { EmptyState } from "@/components/empty-state";
@@ -147,6 +148,16 @@ export function DeploymentsPage() {
           preview URL; production is the promoted version only.
         </p>
       </div>
+
+      {!loading && versions.length > 0 ? (
+        <DeploymentsStatusSummary
+          projectId={id}
+          versions={versions.filter(
+            (v) => v.status !== "destroyed" && v.status !== "draining",
+          )}
+          prodVersionId={project?.prod_version_id ?? null}
+        />
+      ) : null}
 
       <DeploymentsFilterBar
         branches={branches}
