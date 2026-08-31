@@ -147,14 +147,14 @@ export function AppSidebar({ projectId }: AppSidebarProps) {
   return (
     <nav className="flex flex-1 flex-col gap-6 overflow-y-auto p-2">
       <NavSection title="Workspace">
-        {GLOBAL_NAV.map((item) => (
-          <NavItem key={item.key} {...item} />
+        {GLOBAL_NAV.map(({ key, ...item }) => (
+          <NavItem key={key} {...item} />
         ))}
       </NavSection>
 
       <NavSection title="Bindings">
-        {BINDINGS_NAV.map((item) => (
-          <NavItem key={item.key} {...item} end />
+        {BINDINGS_NAV.map(({ key, ...item }) => (
+          <NavItem key={key} {...item} end />
         ))}
       </NavSection>
 
@@ -167,8 +167,8 @@ export function AppSidebar({ projectId }: AppSidebarProps) {
             {projectId}
           </p>
           <ul className="space-y-0.5">
-            {projectNav(projectId).map((item) => (
-              <NavItem key={item.key} {...item} />
+            {projectNav(projectId).map(({ key, ...item }) => (
+              <NavItem key={key} {...item} />
             ))}
           </ul>
         </div>

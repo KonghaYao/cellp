@@ -32,7 +32,7 @@ export default defineConfig({
     {
       command: "VITE_BASE=/ npm run build && npm run preview",
       url: `http://127.0.0.1:${PREVIEW_PORT}`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       env: {
         VITE_BASE: "/",
         VITE_CELLP_API_URL: API_URL,

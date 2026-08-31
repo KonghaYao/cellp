@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import {
-  liveProjectId,
+  resolveLiveProjectId,
   skipUnlessLiveStack,
 } from "./helpers";
 
@@ -16,18 +16,24 @@ test.describe("Operator loop (live cellpd)", () => {
   test("projects → deployments → version → storage → platform", async ({
     page,
   }) => {
-    const projectId = liveProjectId();
+    const projectId = await resolveLiveProjectId();
 
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText(projectId)).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("link", { name: projectId }).click();
+    const projectLink = page.getByRole("link", { name: projectId, exact: true });
+    if (!(await projectLink.isVisible().catch(() => false))) {
+      await page.getByPlaceholder("Search projects…").fill(projectId);
+      await page.waitForTimeout(400);
+      await expect(projectLink).toBeVisible({ timeout: 15_000 });
+    }
+
+    await projectLink.click();
     await expect(page.getByRole("heading", { name: projectId })).toBeVisible();
 
-    await page.getByRole("link", { name: "Deployments" }).click();
+    await page.getByRole("link", { name: "Deployments" }).first().click();
     await expect(
       page.getByRole("heading", { name: "Versions", level: 1 }),
     ).toBeVisible();
@@ -44,15 +50,16 @@ test.describe("Operator loop (live cellpd)", () => {
     await firstVersionLink.click();
     await expect(page.getByRole("heading", { name: versionId })).toBeVisible();
 
-    await page.getByRole("link", { name: "Storage" }).click();
+    await page.getByRole("link", { name: "Storage" }).first().click();
     await expect(
       page.getByRole("heading", { name: "Storage", level: 1 }),
     ).toBeVisible();
 
-    await page.goto(`/projects/${projectId}/storage/${versionId}/browser`);
-    await expect(page.getByRole("tab", { name: "Schema" })).toBeVisible({
-      timeout: 15_000,
-    });
+    await page.goto(`/projects/${projectId}/inspect`);
+    await expect(
+      page.getByRole("heading", { name: "Inspect", level: 1 }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Ready versions")).toBeVisible();
 
     await page.goto("/platform");
     await expect(

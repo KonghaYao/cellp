@@ -6,6 +6,7 @@ import { DeploymentsPage } from "@/pages/DeploymentsPage";
 import { KvPage } from "@/pages/KvPage";
 import { PlatformPage } from "@/pages/PlatformPage";
 import { ProjectInspectPage } from "@/pages/ProjectInspectPage";
+import { ProjectOverviewPage } from "@/pages/ProjectOverviewPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { QueuesPage } from "@/pages/QueuesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
