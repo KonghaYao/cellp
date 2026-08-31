@@ -44,6 +44,12 @@ func TestInferColumnType(t *testing.T) {
 	if inferColumnType("x") != "TEXT" {
 		t.Fatal("expected TEXT")
 	}
+	if inferColumnType(true) != "INTEGER" {
+		t.Fatal("bool")
+	}
+	if inferColumnType(nil) != "TEXT" {
+		t.Fatal("nil")
+	}
 }
 
 func TestEnsureSQLSemicolon(t *testing.T) {
