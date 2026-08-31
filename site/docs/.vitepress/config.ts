@@ -62,6 +62,7 @@ export default defineConfig({
             { text: 'Local stack', link: '/get-started/local' },
             { text: 'Example app', link: '/get-started/example' },
             { text: 'Dashboard', link: '/get-started/dashboard' },
+            { text: 'Operator journey', link: '/get-started/operator-journey' },
           ],
         },
         {

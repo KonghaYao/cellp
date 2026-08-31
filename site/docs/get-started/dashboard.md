@@ -11,12 +11,15 @@ cd web && npm install && npm run dev
 
 Open `http://127.0.0.1:5190`. Point it at your API with `VITE_CELLP_*` (see `web/.env.example`). Auth is the **admin token**.
 
+For the full click-path from deploy to promote, see [Operator journey](/get-started/operator-journey).
+
 ## What you will find
 
 | Area | You can |
 |------|---------|
 | **Projects** | List / create projects |
-| **Overview** | Prod pointer, version counts, entry links |
+| **Overview** | Prod pointer, version counts, operator checklist, **Inspect** entry |
+| **Inspect** | Per-project fleet, runtime routes, prod bindings snapshot, attention list |
 | **Deployments / Versions** | Status, preview URL, parent, pin, archive, wake, promote |
 | **Storage** | Bindings hub for a version |
 | **D1 browser** | Tables, rows, SQL |
@@ -24,7 +27,7 @@ Open `http://127.0.0.1:5190`. Point it at your API with `VITE_CELLP_*` (see `web
 | **Queues** | Peek, pause, resume, redrive, purge |
 | **Workflows** | Instance list (read-only) |
 | **Settings** | Per-version Worker env overrides |
-| **Platform** | Runtime / route health |
+| **Platform** | Global metrics, deep health, runtime routes (filter by project) |
 
 R2 is **visible on the bindings list**. There is no object browser (the runtime has no `celld r2` operator yet).
 

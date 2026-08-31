@@ -2,6 +2,8 @@
 
 Install the CLI, start a local platform (**no Docker**), deploy a Worker.
 
+> **Operator checklist:** Step through deploy → Dashboard inspection → promote with Bearer admin token only (no login). Use the [Operator journey checklist](/get-started/operator-journey#operator-checklist) as your source of truth.
+
 ## 1. Install
 
 ```bash
@@ -60,6 +62,7 @@ Image `ghcr.io/konghayo/cellp`. [Self-hosting](/guides/self-hosting).
 
 ## Next
 
+- [Operator journey (CLI → Dashboard → promote)](/get-started/operator-journey)
 - [cellp dev](/guides/dev)
 - [Write a Worker](/build/)
 - [Configure bindings](/build/wrangler)
