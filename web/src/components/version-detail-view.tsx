@@ -19,8 +19,13 @@ import {
   formatRelativeTime,
   previewOpenUrl as buildPreviewOpenUrl,
   productionOpenUrl,
+  productionPrimaryLinkLabel,
+  previewPrimaryLinkLabel,
+  workerPreviewGatewayUrl,
+  workerProductionGatewayUrl,
   ingressDisplayUrl,
   isAppInternalPath,
+  workerHasHtmlStorefront,
   truncateSha,
 } from "@/lib/format";
 import {
@@ -98,6 +103,13 @@ function VersionDetailContent({
     version.id,
     version.preview_url,
   );
+  const previewGateway = workerPreviewGatewayUrl(
+    projectId,
+    version.id,
+    version.preview_url,
+  );
+  const prodGateway = workerProductionGatewayUrl(projectId, projectProdUrl);
+  const htmlStorefront = workerHasHtmlStorefront(projectId);
   const [databaseAvailability, setDatabaseAvailability] =
     useState<DatabaseAvailability | null>(null);
   const [parentDatabaseAvailability, setParentDatabaseAvailability] =
@@ -339,17 +351,77 @@ function VersionDetailContent({
         </MetadataSection>
 
         <MetadataSection title="URLs" icon={<Globe className="size-4" />}>
-          <MetadataRow label="Preview" copyable copyValue={ingressDisplayUrl(projectId, version.id, version.preview_url)}>
-            <BrowseHref href={previewLink} className="inline-flex items-center gap-1 text-sm text-foreground hover:underline">
-              {ingressDisplayUrl(projectId, version.id, version.preview_url)}
-              <ExternalLink className="size-3 text-muted-foreground" />
-            </BrowseHref>
+          <MetadataRow
+            label="Preview"
+            copyable
+            copyValue={ingressDisplayUrl(
+              projectId,
+              version.id,
+              version.preview_url,
+            )}
+          >
+            <div className="flex flex-col items-end gap-1">
+              <BrowseHref
+                href={previewLink}
+                className="inline-flex items-center gap-1 text-sm text-foreground hover:underline"
+              >
+                {previewPrimaryLinkLabel(
+                  projectId,
+                  version.id,
+                  version.preview_url,
+                )}
+                <ExternalLink className="size-3 text-muted-foreground" />
+              </BrowseHref>
+              {!htmlStorefront ? (
+                <a
+                  href={previewGateway}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Gateway:{" "}
+                  {ingressDisplayUrl(
+                    projectId,
+                    version.id,
+                    version.preview_url,
+                  )}
+                </a>
+              ) : null}
+            </div>
           </MetadataRow>
-          <MetadataRow label="Production" copyable copyValue={ingressDisplayUrl(projectId, undefined, projectProdUrl ?? undefined)}>
-            <BrowseHref href={prodLink} className="inline-flex items-center gap-1 text-sm text-foreground hover:underline">
-              {ingressDisplayUrl(projectId, undefined, projectProdUrl ?? undefined)}
-              <ExternalLink className="size-3 text-muted-foreground" />
-            </BrowseHref>
+          <MetadataRow
+            label="Production"
+            copyable
+            copyValue={ingressDisplayUrl(
+              projectId,
+              undefined,
+              projectProdUrl ?? undefined,
+            )}
+          >
+            <div className="flex flex-col items-end gap-1">
+              <BrowseHref
+                href={prodLink}
+                className="inline-flex items-center gap-1 text-sm text-foreground hover:underline"
+              >
+                {productionPrimaryLinkLabel(projectId, projectProdUrl)}
+                <ExternalLink className="size-3 text-muted-foreground" />
+              </BrowseHref>
+              {!htmlStorefront ? (
+                <a
+                  href={prodGateway}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Gateway:{" "}
+                  {ingressDisplayUrl(
+                    projectId,
+                    undefined,
+                    projectProdUrl ?? undefined,
+                  )}
+                </a>
+              ) : null}
+            </div>
           </MetadataRow>
         </MetadataSection>
 

@@ -1,0 +1,9 @@
+{
+  "name": "support-kukuroo",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-03-17",
+  "kv_namespaces": [{ "binding": "KUKUROO_SUBS", "id": "00000000-0000-0000-0000-00000000000c" }],
+  "vars": {
+    "KUKUROO_NAVIGATE_ORIGIN": "http://127.0.0.1:8787/support-kukuroo"
+  }
+}

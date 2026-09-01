@@ -1,0 +1,23 @@
+{
+  "name": "support-edgeever",
+  "main": ".wrangler/edgeever-worker/index.js",
+  "base_dir": ".wrangler/edgeever-worker",
+  "no_bundle": true,
+  "find_additional_modules": true,
+  "compatibility_date": "2026-06-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "rules": [{"type": "ESModule", "globs": ["modules/*.js"], "fallthrough": true}],
+  "assets": {
+    "directory": "apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/", "/mcp", "/__scheduled"]
+  },
+  "d1_databases": [{"binding": "DB", "database_name": "edgeever", "database_id": "00000000-0000-0000-0000-000000000008", "migrations_dir": "migrations"}],
+  "r2_buckets": [{"binding": "RESOURCES", "bucket_name": "support-edgeever-resources"}],
+  "vars": {
+    "EDGE_EVER_AUTH_USERNAME": "admin",
+    "EDGE_EVER_AUTH_PASSWORD": "cellp-dev-edgeever",
+    "EDGE_EVER_SESSION_TTL_DAYS": "30"
+  }
+}

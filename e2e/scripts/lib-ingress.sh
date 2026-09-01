@@ -23,16 +23,25 @@ version_preview_url() {
   api_get "/v1/projects/${project}/versions/${version}" "$ADMIN_TOKEN" | jq -r '.preview_url // empty'
 }
 
+# Dev Gateway TLS (mkcert): curl needs -k when GATEWAY_URL is https.
+gateway_curl_tls_flags() {
+  if [[ "${CELLP_GATEWAY_CURL_INSECURE:-}" == "1" || "${GATEWAY_URL}" == https://* ]]; then
+    echo -k
+  fi
+}
+
 curl_gateway_host() {
   local host="$1"
   local path="${2:-/}"
-  curl -sf -H "Host: ${host}" "${GATEWAY_URL}${path}"
+  # shellcheck disable=SC2046
+  curl -sf $(gateway_curl_tls_flags) -H "Host: ${host}" "${GATEWAY_URL}${path}"
 }
 
 http_code_gateway_host() {
   local host="$1"
   local path="${2:-/}"
-  curl -s -o /dev/null -w '%{http_code}' -H "Host: ${host}" "${GATEWAY_URL}${path}" 2>/dev/null || echo "000"
+  # shellcheck disable=SC2046
+  curl -s -o /dev/null -w '%{http_code}' $(gateway_curl_tls_flags) -H "Host: ${host}" "${GATEWAY_URL}${path}" 2>/dev/null || echo "000"
 }
 
 wait_http_200_host() {
@@ -75,7 +84,7 @@ curl_version_method() {
   local version="$3"
   local path="${4:-/}"
   shift 4
-  curl -fsS -X "$method" -H "Host: $(preview_host "$project" "$version")" "${GATEWAY_URL}${path}" "$@"
+  curl -fsS -X "$method" $(gateway_curl_tls_flags) -H "Host: $(preview_host "$project" "$version")" "${GATEWAY_URL}${path}" "$@"
 }
 
 http_code_version() {

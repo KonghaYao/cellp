@@ -20,10 +20,10 @@ export function ingressBaseDomain(): string {
   const fromEnv = import.meta.env.VITE_CELLP_INGRESS_BASE_DOMAIN as
     | string
     | undefined;
-  return (fromEnv?.trim() || "ingress.local").toLowerCase();
+  return (fromEnv?.trim() || "lvh.me").toLowerCase();
 }
 
-/** nip.io / sslip.io — public DNS embeds LAN IP; colleagues skip /etc/hosts. */
+/** Legacy nip/sslip LAN sharing (deprecated in dev docs). */
 export function ingressUsesMagicDns(): boolean {
   const base = ingressBaseDomain();
   return (

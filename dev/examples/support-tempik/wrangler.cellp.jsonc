@@ -1,0 +1,14 @@
+{
+  "name": "support-tempik",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "d1_databases": [
+    { "binding": "DB", "database_name": "tempik-db", "database_id": "00000000-0000-0000-0000-00000000000d" }
+  ],
+  "assets": { "directory": "./src/web", "binding": "ASSETS" },
+  "vars": {
+    "APP_NAME": "Tempik",
+    "MAIL_DOMAIN": "local.dev",
+    "WEB_HOST": "127.0.0.1:8787"
+  }
+}

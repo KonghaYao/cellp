@@ -80,6 +80,10 @@ if [[ -n "$CELLPD_BIN" ]]; then
     echo "==> restart cellpd (new binary)"
     stop_platform
   fi
+  if platform_running && [[ "${CELLP_RESTART_CELLPD:-0}" == "1" ]]; then
+    echo "==> restart cellpd (CELLP_RESTART_CELLPD=1)"
+    stop_platform
+  fi
   if platform_running; then
     echo "==> cellpd already running (pid $(cat dev/data/pids/platform.pid))"
   else
@@ -89,6 +93,7 @@ if [[ -n "$CELLPD_BIN" ]]; then
     export CELLP_DEPLOY_TOKEN="${CELLP_DEPLOY_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
     export CELLP_ADMIN_TOKEN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
     export S3_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION RUSTFS_ACCESS_KEY RUSTFS_SECRET_KEY OFFSHOOT_STORE
+    export GATEWAY_TLS_PORT GATEWAY_TLS_CERT GATEWAY_TLS_KEY CELLP_PUBLIC_SCHEME_PREVIEW CELLP_PUBLIC_SCHEME_PROD CELLP_INGRESS_BASE_DOMAIN GATEWAY_URL
     nohup "$CELLPD_BIN" >>dev/data/logs/cellpd.log 2>&1 &
     echo $! > dev/data/pids/platform.pid
   fi

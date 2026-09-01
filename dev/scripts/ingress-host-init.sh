@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# Unify AD-12 dev host mode: sync dev/.env + web/.env (local vs magic DNS).
-# Usage: ./dev/scripts/ingress-host-init.sh [local|magic] [LAN_IP]
+# AD-12 dev ingress: lvh.me (loopback). Sync dev/.env + web/.env.
+# Usage: ./dev/scripts/ingress-host-init.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-
-MODE="${1:-local}"
-LAN_IP="${2:-}"
 
 [[ -f dev/.env ]] || cp dev/.env.example dev/.env
 
@@ -23,48 +20,23 @@ set_env_kv() {
   fi
 }
 
-ensure_public_schemes() {
-  set_env_kv dev/.env CELLP_PUBLIC_SCHEME_PREVIEW http
-  set_env_kv dev/.env CELLP_PUBLIC_SCHEME_PROD http
-}
+set_env_kv dev/.env CELLP_INGRESS_BASE_DOMAIN lvh.me
+set_env_kv dev/.env GATEWAY_URL "http://127.0.0.1:8787"
+set_env_kv dev/.env CELLP_PUBLIC_SCHEME_PREVIEW http
+set_env_kv dev/.env CELLP_PUBLIC_SCHEME_PROD http
+touch web/.env 2>/dev/null || true
+[[ -f web/.env ]] || cp web/.env.example web/.env 2>/dev/null || touch web/.env
+set_env_kv web/.env VITE_CELLP_INGRESS_BASE_DOMAIN lvh.me
 
-sync_web_ingress_domain() {
-  local base="$1"
-  touch web/.env 2>/dev/null || true
-  [[ -f web/.env ]] || cp web/.env.example web/.env 2>/dev/null || touch web/.env
-  set_env_kv web/.env VITE_CELLP_INGRESS_BASE_DOMAIN "$base"
-}
+cat <<EOF
 
-case "$MODE" in
-  local | ingress.local)
-    set_env_kv dev/.env CELLP_INGRESS_BASE_DOMAIN ingress.local
-    set_env_kv dev/.env GATEWAY_URL "http://127.0.0.1:8787"
-    ensure_public_schemes
-    sync_web_ingress_domain ingress.local
-    cat <<EOF
+cellp ingress: lvh.me → 127.0.0.1 (stable when LAN IP changes)
+==============================================================
+  http://demo-app.lvh.me:8787/
 
-cellp ingress: mode **local** (ingress.local)
-============================================
-Add to /etc/hosts (127.0.0.1 or your LAN IP for colleagues):
-
-  127.0.0.1 demo-app.ingress.local v1.demo-app.ingress.local
-
-Browser: http://demo-app.ingress.local:8787/
+  ./dev/scripts/restart-cellpd.sh
+  ./dev/scripts/ingress-repromote-support.sh
 
 Doc: dev/INGRESS-HOST.md
 
-Then: ./dev/scripts/reset.sh && ./dev/scripts/up.sh && ./dev/scripts/seed-demo.sh
-
 EOF
-    ;;
-  magic | nip | sslip)
-    args=()
-    [[ "$MODE" == nip ]] && args=(--nip)
-    [[ "$MODE" == sslip ]] && args=(--sslip)
-    exec "$ROOT/dev/scripts/ingress-magic-dns-enable.sh" "${args[@]}" ${LAN_IP:+"$LAN_IP"}
-    ;;
-  *)
-    echo "Usage: $0 [local|magic|nip|sslip] [LAN_IP]" >&2
-    exit 1
-    ;;
-esac

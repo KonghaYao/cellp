@@ -1,0 +1,25 @@
+{
+  "name": "support-pastebin",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-04-24",
+  "assets": {
+    "directory": "dist/frontend",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [{ "binding": "PB", "id": "support-pastebin-pb" }],
+  "r2_buckets": [{ "binding": "R2", "bucket_name": "support-pastebin-r2" }],
+  "triggers": { "crons": ["0 0 * * *"] },
+  "vars": {
+    "DEPLOY_URL": "__CELLP_DEPLOY_URL__",
+    "REPO": "https:\u002f\u002fgithub.com\u002fSharzyL\u002fpastebin-worker",
+    "INDEX_PAGE_TITLE": "Pastebin Worker (cellp)",
+    "TOS_MAINTAINER": "Sharzy",
+    "TOS_MAIL": "pb@example.com",
+    "CACHE_STATIC_PAGE_AGE": "7200",
+    "CACHE_PASTE_AGE": "600",
+    "DEFAULT_EXPIRATION": "7d",
+    "MAX_EXPIRATION": "90d",
+    "R2_THRESHOLD": "20K",
+    "R2_MAX_ALLOWED": "256M"
+  }
+}

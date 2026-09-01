@@ -1,11 +1,7 @@
-# cellp dev — prepend to Clash Verge rules profile (rdJemN9Rlqs6.yaml)
-# Merge into existing file; keep append/delete as-is.
+# cellp dev — prepend to Clash Verge rules profile
 
 prepend:
-  - DOMAIN-SUFFIX,nip.io,🎯 直连
-  - DOMAIN-SUFFIX,sslip.io,🎯 直连
-  - DOMAIN-SUFFIX,ingress.local,🎯 直连
-  - DOMAIN-SUFFIX,xip.io,🎯 直连
+  - DOMAIN-SUFFIX,lvh.me,🎯 直连
 
 append: []
 

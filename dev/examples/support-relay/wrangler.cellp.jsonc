@@ -1,0 +1,22 @@
+{
+  "name": "support-relay",
+  "main": "worker.js",
+  "compatibility_date": "2024-09-23",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "relay",
+      "database_id": "00000000-0000-0000-0000-00000000000a"
+    }
+  ],
+  "assets": {
+    "directory": "./static",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash"
+  },
+  "vars": {
+    "DASH_ORIGIN": "*",
+    "TZ_OFFSET": "8",
+    "ADMIN_TOKEN": "cellp-dev-relay-admin"
+  }
+}

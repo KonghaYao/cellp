@@ -1,10 +1,7 @@
 import { CopyButton } from "@/components/copy-button";
 import {
   gatewayPublicPort,
-  ingressBaseDomain,
   ingressDisplayUrl,
-  ingressLanHostsLine,
-  ingressUsesMagicDns,
   previewHost,
   prodHost,
 } from "@/lib/format";
@@ -21,90 +18,51 @@ export function IngressAccessHint({
   prodUrl?: string | null;
 }) {
   const port = gatewayPublicPort();
-  const magicDns = ingressUsesMagicDns();
   const previewLabel = ingressDisplayUrl(
     projectId,
     versionId,
     previewUrl ?? undefined,
   );
   const prodLabel = ingressDisplayUrl(projectId, undefined, prodUrl ?? undefined);
-  const hostsLine = ingressLanHostsLine(projectId, versionId);
 
   return (
     <div
       className="rounded-md border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground"
       data-testid="ingress-lan-hint"
     >
-      <p className="font-medium text-foreground">
-        {magicDns ? "局域网 Preview（magic DNS / 免 hosts）" : "局域网 Preview / Prod（Gateway）"}
-      </p>
+      <p className="font-medium text-foreground">Gateway（lvh.me）</p>
       <p className="mt-1">
-        Gateway 按 <span className="font-mono">Host</span> 选版本，默认端口{" "}
-        <span className="font-mono">{port}</span>。cellpd 监听{" "}
-        <span className="font-mono">0.0.0.0:{port}</span>，同事需能访问你机器的该端口。
+        按 <span className="font-mono">Host</span> 选版本，端口{" "}
+        <span className="font-mono">{port}</span>。浏览器用{" "}
+        <span className="font-mono">http://…lvh.me:{port}/</span>，不要用裸{" "}
+        <span className="font-mono">127.0.0.1</span>。
       </p>
-      {magicDns ? (
-        <p className="mt-2">
-          Base domain <span className="font-mono">{ingressBaseDomain()}</span>
-          ：公网 DNS 会把 Host 解析到你的局域网 IP，同事
-          <strong className="font-medium text-foreground">不必改 /etc/hosts</strong>
-          （需能解析 nip.io / sslip.io；不行可{" "}
-          <span className="font-mono">ingress.local</span> + hosts）。
-        </p>
-      ) : null}
       <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-foreground/90">
-        必须用 <span className="font-mono">http://</span> 且 URL 里要带{" "}
-        <span className="font-mono">:{port}</span>。省略端口会连到 80，页面会打不开；不要用{" "}
-        <span className="font-mono">https://</span>。
-        {magicDns ? (
-          <>
-            {" "}
-            若 Chrome 显示 <span className="font-mono">HTTP ERROR 502</span> 而{" "}
-            <span className="font-mono">curl</span> 正常，多半是系统代理（如 Clash{" "}
-            <span className="font-mono">127.0.0.1:7897</span>）把{" "}
-            <span className="font-mono">nip.io</span> 走了代理；在代理里加{" "}
-            <span className="font-mono">DOMAIN-SUFFIX,nip.io,DIRECT</span>，或改用{" "}
-            <span className="font-mono">ingress.local</span> + hosts（<span className="font-mono">*.local</span>{" "}
-            常在绕过列表里）。
-          </>
-        ) : null}
+        Clash 需直连 <span className="font-mono">lvh.me</span>（见{" "}
+        <span className="font-mono">dev/clash/README.md</span>），否则浏览器可能 502。
       </p>
       <ul className="mt-2 list-inside list-disc space-y-1 font-mono text-[11px] text-foreground/90">
         {versionId ? (
           <li>
-            Preview Host: {previewHost(projectId, versionId)} → {previewLabel}
+            Preview: {previewHost(projectId, versionId)} → {previewLabel}
           </li>
         ) : null}
         <li>
-          Prod Host: {prodHost(projectId)} → {prodLabel}
+          Prod: {prodHost(projectId)} → {prodLabel}
         </li>
       </ul>
-      {!magicDns ? (
-        <>
-          <p className="mt-2">
-            同事在本机 <span className="font-mono">/etc/hosts</span> 增加一行（把 IP
-            换成你的局域网地址）：
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <code className="break-all rounded bg-background px-2 py-1 font-mono text-[11px]">
-              {hostsLine}
-            </code>
-            <CopyButton value={hostsLine} label="Copy hosts line" />
-          </div>
-        </>
-      ) : (
-        <p className="mt-2">
-          同事浏览器直接打开上列 URL。本机切换 magic DNS：{" "}
-          <span className="font-mono">./dev/scripts/ingress-magic-dns-enable.sh --sslip</span>
-          {" "}或{" "}
-          <span className="font-mono">--nip</span>；不行则{" "}
-          <span className="font-mono">./dev/scripts/ingress-local-revert.sh</span>
-        </p>
-      )}
       <p className="mt-2">
-        然后在浏览器打开上列带 <span className="font-mono">:{port}</span>{" "}
-        的 URL（不要用裸 IP，除非 Host 头正确）。
+        换 ingress base 后：{" "}
+        <span className="font-mono">./dev/scripts/ingress-host-init.sh</span>
+        {" · "}
+        <span className="font-mono">./dev/scripts/ingress-repromote-support.sh</span>
       </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <CopyButton value={prodLabel} label="Copy prod URL" />
+        {versionId ? (
+          <CopyButton value={previewLabel} label="Copy preview URL" />
+        ) : null}
+      </div>
     </div>
   );
 }

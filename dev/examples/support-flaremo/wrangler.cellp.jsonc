@@ -1,0 +1,27 @@
+{
+  "name": "support-flaremo",
+  "main": "./apps/worker/src/index.ts",
+  "compatibility_date": "2026-07-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "flaremo",
+    "database_id": "00000000-0000-0000-0000-000000000005",
+    "migrations_dir": "./migrations"
+  }],
+  "r2_buckets": [{ "binding": "ATTACHMENTS", "bucket_name": "support-flaremo-attachments" }],
+  "vars": {
+    "FLAREMO_PUBLIC_URL": "__CELLP_DEPLOY_URL__",
+    "FLAREMO_SINGLE_USER_EMAIL": "owner@flaremo.local",
+    "FLAREMO_SINGLE_USER_NAME": "FlareMo Owner",
+    "FLAREMO_TRUSTED_ORIGINS": "",
+    "FLAREMO_EMBEDDING_PROVIDER": "none",
+    "FLAREMO_EMBEDDING_MODEL": "",
+    "FLAREMO_EMBEDDING_DIMENSIONS": "1024"
+  }
+}

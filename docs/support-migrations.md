@@ -44,7 +44,7 @@ cellp **不是**「Worker 占一个固定端口」。浏览器只认 **Gateway**
 |------|------|
 | 前端 API | 相对路径 `/api/…`（推荐）；或 `PUBLIC_BASE_URL` / env 前缀 |
 | 前端静态资源 | Vite `base: './'`（见 S17） |
-| Clash + nip.io | [dev/clash/README.md](../dev/clash/README.md) DIRECT 规则 |
+| Clash + lvh.me | [dev/clash/README.md](../dev/clash/README.md) 直连规则 |
 | Worker 生成绝对链接 | 配置 **`PUBLIC_BASE_URL`**（wrangler `vars`）= Gateway 完整前缀；或读 `X-Forwarded-*`（**cellp 若未注入则只能 vars**） |
 | 误连 `:8792` / `:8809` | 视为部署/配置错误，不是「改端口」能永久解决 |
 
@@ -92,8 +92,8 @@ cellp **不是**「Worker 占一个固定端口」。浏览器只认 **Gateway**
 | 去掉 `triggers.crons` | overlay | 非 prod 时走 cron strip 拷贝；也可直接不写 cron |
 | D1 | `dev/examples/support-r2filebox/seed.sh` | 合并 `worker/migrations/*.sql` → `seed.db` |
 | API 前缀 | `patch-frontend.sh` | `CELLp_API_PREFIX` + axios `baseURL`（Gateway `/support-r2filebox/vN`） |
-| **Vite 静态资源** | `patch-vite.sh` | `base: './'` — 避免 `/assets/…` 打到 Gateway 根路径 404 |
-| **端口 / 公开 URL** | — | **机制问题**：Worker 内 `origin` 为 upstream `:8809`；分享链等应等 Gateway 转发头，**不在 support 项目里 patch** |
+| **分片校验** | `patch-crypto-fallback.sh` | celld **R2 multipart 曾返回 `etag: ""`** → 前端勿要求非空 etag；有 **signed receipt** 即可；**celld** 现已返回 S3 风格 part MD5 etag（需重建 celld + 重启 cellpd） |
+| **端口 / 公开 URL** | `public-origin.ts` | 分享链用 Referer/Origin；**勿**在 `wrangler.jsonc` 写 `http://…` 的 `PUBLIC_BASE_URL`（`stripJSONC` 会截断 → D1 seed 失败 → `/api/config` **503**） |
 | artifact 体积 | stage | **不** rsync 全量 `node_modules`；只带 `node_modules/hono` + `package.json` |
 | **RustFS 上传** | `e2e/scripts/lib.sh` → `sync_artifact_to_rustfs` | `POST /versions` 前 **必须** `s3 sync`（本机无 `aws` 时用 **docker amazon/aws-cli**） |
 | deploy 脚本 | `deploy-support-app.sh` | 已调用 `sync_artifact_to_rustfs` + 正确 `artifact_uri` |
@@ -106,7 +106,36 @@ cellp **不是**「Worker 占一个固定端口」。浏览器只认 **Gateway**
 
 ## S16 pastebin-worker
 
-（待部署）
+**状态：** blocked（**A 类** · celld 打包链）
+
+| 改造 | 说明 |
+|------|------|
+| overlay | `dev/examples/support-pastebin/wrangler.cellp.jsonc`（KV/R2/ASSETS、`DEPLOY_URL` 占位） |
+| build | `npm install && npm run build:frontend`（勿删 corpus 内 `wrangler.toml`，overlay 在 stage 前执行） |
+| DEPLOY_URL | 注入时用 `\u002f` 转义，避免 cellp `stripJSONC` 把 `http://` 当注释 |
+| vars | celld 要求 **字符串**（如 `"7200"` 非数字） |
+
+**未解决：** Worker 依赖 wrangler 规则 + `.md` import + 前端 SSR（`worker/pages/index.ts` → `PasteBin.tsx` → `tailwindcss`）。`celld deploy` 默认 esbuild 二次打包失败；`no_bundle` 仅单文件，wrangler `--dry-run` 的 `dist/index.js` 仍引用 sibling `.md`。
+
+**证据：** `docs/evidence/support-S16.log`（v6 典型错误：`No loader for .md` / `Could not resolve tailwindcss`）
+
+---
+
+## S05 FlareMo
+
+**状态：** ready · **验证 URL：** `https://v3.support-flaremo.<CELLP_INGRESS_BASE_DOMAIN>:8788/`（promote 后 `https://support-flaremo.<domain>:8788/`）  
+**脚本：** `./dev/scripts/deploy-support-app.sh S05`（`SUPPORT_SKIP_BUILD=1` 可跳过 pnpm 若 corpus 已构建）
+
+| 改造 | 文件/脚本 | 说明 |
+|------|-----------|------|
+| pnpm monorepo | `deploy-support-app.sh` | `pnpm install --ignore-scripts` + `@flaremo/web` build（勿 `npm ci`） |
+| wrangler bundle | `prepare-artifact.sh` | `wrangler deploy --dry-run --outdir .cellp-bundle` → `main` + `no_bundle: true` |
+| overlay | `wrangler.cellp.jsonc` | D1/R2/assets；去掉 Vectorize/AI；`FLAREMO_EMBEDDING_PROVIDER=none` |
+| **禁止** `run_worker_first` 含 `/*` | overlay | cellp `stripJSONC` 会把 `"/api/*"` 当块注释 → **parse wrangler: unexpected end** |
+| slim artifact | `deploy-support-app.sh` | `SUPPORT_RSYNC_NO_NODE=1` 时只 stage：`wrangler.jsonc`、`.cellp-bundle/`、`apps/web/dist/`、`migrations/` |
+| DEPLOY_URL | inject | `\u002f` 转义 `https://` |
+
+**浏览器：** 单用户模式默认 `owner@flaremo.local`（见 vars）；需在 UI 走登录/初始化流程。
 
 ---
 

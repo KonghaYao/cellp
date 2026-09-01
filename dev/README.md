@@ -11,10 +11,8 @@ cp dev/.env.example dev/.env
 ./dev/scripts/up.sh
 ./dev/scripts/seed-commerce-store.sh   # commerce-store v1 + D1 seed
 ./dev/scripts/health.sh
-# AD-12 Host 路由（path /{project}/{version}/ 已废弃）— 见 docs/plans/INGRESS-ROUTING.md
-# /etc/hosts 一行示例（默认 CELLP_INGRESS_BASE_DOMAIN=ingress.local）：
-#   127.0.0.1 v1.commerce-store.ingress.local commerce-store.ingress.local
-curl -H "Host: commerce-store.ingress.local" http://127.0.0.1:8787/stats
+# AD-12 Host — 见 INGRESS-HOST.md（lvh.me）
+curl -H "Host: commerce-store.lvh.me" http://127.0.0.1:8787/stats
 ```
 
 完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策 **[AD-12](../docs/decisions.md#17-ad-12--hostname--port-ingress废弃-path-选-version)** · Ingress **[INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)** · 验证 **[docs/test-plan.md](../docs/test-plan.md)**。
@@ -23,12 +21,10 @@ curl -H "Host: commerce-store.ingress.local" http://127.0.0.1:8787/stats
 
 | 角色 | Host 形态 |
 |------|-----------|
-| Preview | `{version}.{project}.ingress.local` |
-| Prod | `{project}.ingress.local` |
+| Preview | `{version}.{project}.lvh.me` |
+| Prod | `{project}.lvh.me` |
 
-Gateway **:8787** 按 **Host** 选 version，业务 path 从 `/` 起、**不** strip。本机无 DNS 时在 **`/etc/hosts`** 把上述 Host 指到 **`127.0.0.1`**（`dev/.env` 里 `CELLP_INGRESS_BASE_DOMAIN` 可改后缀）。`/{project}/{version}/*` path 选路 **deprecated**。
-
-**局域网免每人改 hosts：** `./dev/scripts/ingress-nip-enable.sh` 将 base domain 设为 `{你的IP用横线}.nip.io`（例如 `192-168-1-10.nip.io`），然后 **`reset.sh` → `up.sh` → seed**。同事用 Dashboard 里带 `:8787` 的 URL 即可（需能解析 nip.io）。
+Gateway **:8787** 按 **Host** 选 version。`*.lvh.me` → `127.0.0.1`。`./dev/scripts/ingress-host-init.sh`。
 
 ## 端口
 
@@ -68,10 +64,8 @@ Gateway **:8787** 按 **Host** 选 version，业务 path 从 `/` 起、**不** s
 | `simulate-cd.sh` | 本地 CD：`simulate-cd.sh <project> <version>` |
 | `seed-commerce-store.sh` | **默认验收**：`commerce-store` v1，D1 电商假数据 + Dashboard 链接 |
 | `seed-demo.sh` | Bindings 演示：`demo-app` v1/v2，D1/KV/Queue/Workflow 假数据 |
-| `ingress-host-init.sh` | **统一** Host 模式：`local`（ingress.local）或 `magic`（nip/sslip） |
-| `ingress-magic-dns-enable.sh` | magic DNS 细节（`--nip` / `--sslip`） |
-| `ingress-local-revert.sh` | 改回 `ingress.local` |
-| `ingress-nip-enable.sh` | 等同 `ingress-magic-dns-enable.sh --nip` |
+| `ingress-host-init.sh` | 设置 **lvh.me** ingress |
+| `ingress-repromote-support.sh` | 换 base 后重绑 support 项目 prod Host |
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
 

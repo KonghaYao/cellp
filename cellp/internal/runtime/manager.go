@@ -260,6 +260,9 @@ func CelldInstalled() bool {
 
 // Diagnose runs celld storage probe for a version bucket before deploy/start.
 func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
+	if os.Getenv("CELLP_SKIP_CELLD_DIAGNOSE") == "1" {
+		return nil
+	}
 	if !CelldInstalled() {
 		return nil
 	}

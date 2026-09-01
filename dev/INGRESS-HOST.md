@@ -1,81 +1,59 @@
-# Dev Ingress Host（AD-12 本机 / 局域网）
+# Dev Ingress Host（AD-12）
 
-> 权威路由设计：[../docs/plans/INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)
+> 设计：[../docs/plans/INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)  
+> 踩坑：[../docs/evidence/support-validation-lessons.md](../docs/evidence/support-validation-lessons.md)
 
-## 统一约定
+## 约定
 
 | 项 | 值 |
 |----|-----|
-| Gateway | `http://<host>:8787/`（**必须带端口**，dev 无 TLS） |
-| Preview Host | `{version}.{project}.{baseDomain}` |
-| Prod Host | `{project}.{baseDomain}` |
-| 选路 | **Host 头** → `ingress_bindings` → celld upstream |
+| Gateway | `http://<host>:8787/`（**必须带端口**） |
+| Preview Host | `{version}.{project}.lvh.me` |
+| Prod Host | `{project}.lvh.me` |
+| DNS | `*.lvh.me` → `127.0.0.1`（本机，**与 LAN IP 变化无关**） |
 
-**两种 base domain 模式（二选一，改后需 `reset.sh` + `up.sh` + seed）：**
-
-| 模式 | `CELLP_INGRESS_BASE_DOMAIN` | 本机 | 局域网同事 | Clash |
-|------|----------------------------|------|------------|-------|
-| **A. local（默认）** | `ingress.local` | `/etc/hosts` → `127.0.0.1` | 每人 hosts → 你的 LAN IP | `*.local` 通常已直连 |
-| **B. magic DNS** | `{ip-dashes}.nip.io` 或 `{ip}.sslip.io` | 免 hosts | 免 hosts，开 URL 即可 | 需 [clash 直连规则](./clash/README.md) |
-
-初始化（同步 `dev/.env` + `web/.env`）：
+## 一次性初始化
 
 ```bash
-./dev/scripts/ingress-host-init.sh local    # 默认
-./dev/scripts/ingress-host-init.sh magic    # 自动 sslip / nip + 打印 Clash 说明
-./dev/scripts/reset.sh && ./dev/scripts/up.sh && ./dev/scripts/seed-demo.sh
+./dev/scripts/ingress-host-init.sh          # 默认 loopback = lvh.me
+./dev/scripts/restart-cellpd.sh
+./dev/scripts/ingress-repromote-support.sh  # 换 base 后必跑；或 reset+up+seed
 ```
 
-## 模式 A：`ingress.local`（推荐本机 + 已用 Clash 的开发者）
+浏览器示例：
 
-`/etc/hosts` 一行（示例）：
+- `http://support-flaremo.lvh.me:8787/`
+- `http://v3.support-flaremo.lvh.me:8787/`（preview 若 404 先用 prod）
 
-```text
-127.0.0.1 demo-app.ingress.local v1.demo-app.ingress.local commerce-store.ingress.local v1.commerce-store.ingress.local
-```
+**不要**在地址栏使用裸 `http://127.0.0.1:8787/`（无匹配 Host → 404）。
 
-浏览器：`http://demo-app.ingress.local:8787/`
+## Clash
 
-局域网：把 `127.0.0.1` 换成你的 **LAN IP**，同事各自加同样 hosts 行。
+合并 [clash/cellp-verge-rules-prepend.yaml](./clash/cellp-verge-rules-prepend.yaml) 与 [cellp-verge-merge-dns.yaml](./clash/cellp-verge-merge-dns.yaml)（仅 `lvh.me`），重载配置。见 [clash/README.md](./clash/README.md)。
 
-## 模式 B：magic DNS（局域网免 hosts）
+## `dev/.env`
 
 ```bash
-./dev/scripts/ingress-host-init.sh magic
-# 或 ./dev/scripts/ingress-magic-dns-enable.sh --nip
-```
-
-示例 URL：`http://demo-app.192-168-12-36.nip.io:8787/`
-
-**Clash / 系统代理：** 未直连时浏览器会 **502**，curl 仍 200。见 [dev/clash/README.md](./clash/README.md)。
-
-## 环境变量（`dev/.env`）
-
-```bash
-CELLP_INGRESS_BASE_DOMAIN=ingress.local
+CELLP_INGRESS_BASE_DOMAIN=lvh.me
 GATEWAY_URL=http://127.0.0.1:8787
 CELLP_PUBLIC_SCHEME_PREVIEW=http
-CELLP_PUBLIC_SCHEME_PROD=http   # 非 443 端口时 API 勿生成 https://…:8787
+CELLP_PUBLIC_SCHEME_PROD=http
 INGRESS_HOST_ONLY=1
 ```
 
-Dashboard 同步：
-
-```bash
-VITE_CELLP_INGRESS_BASE_DOMAIN=ingress.local   # 与 cellpd 一致
-VITE_CELLP_GATEWAY_URL=http://127.0.0.1:8787
-```
-
-## Dashboard 与 Worker
-
-- **API-only**（如 `demo-app`）：Production 链到 Dashboard，不打开 gateway 根 JSON。
-- **HTML  storefront**（`commerce-store`）：开发态走 Vite `/__gateway?__cellp_host=…`。
-- 面板 **「局域网 Preview」** 块：可复制 URL、hosts 行、Clash 提示。
+`web/.env`：`VITE_CELLP_INGRESS_BASE_DOMAIN=lvh.me`
 
 ## 验证
 
 ```bash
+curl -sS -o /dev/null -w '%{http_code}\n' 'http://support-flaremo.lvh.me:8787/'
 ./dev/scripts/health.sh
-curl -sS -H "Host: demo-app.ingress.local" http://127.0.0.1:8787/health
-# magic 模式把 Host 换成 API 返回的 prod/preview 主机名
 ```
+
+## 可选：dev HTTPS（8788）
+
+见原 AD-10 外层 TLS；本地 `ingress-tls-init.sh` + `ingress-tls-enable.sh`。`lvh.me` 需 mkcert 或 `CELLP_TLS_EXTRA_SAN`。
+
+## 局域网同事
+
+`lvh.me` 只解析到**本机**。同事访问你的机器需其浏览器指向你的 **LAN IP:8787** 且 Host 仍为 `{project}.lvh.me`（通常需在你机器上 hosts 或自建 DNS），或另行约定；**不再维护 nip/sslip 脚本**。

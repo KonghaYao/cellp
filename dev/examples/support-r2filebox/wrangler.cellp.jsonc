@@ -1,0 +1,28 @@
+{
+  "name": "support-r2filebox",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-07-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/", "/admin"]
+  },
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "r2filebox-files" }],
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "r2filebox-db",
+    "database_id": "00000000-0000-0000-0000-00000000000b"
+  }],
+  "vars": {
+    "APP_VERSION": "2.5.1-cellp",
+    "R2_BUCKET_NAME": "r2filebox-files",
+    "D1_DATABASE_NAME": "r2filebox-db",
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "cellp-dev-r2filebox",
+    "CODE_HASH_PEPPER": "cellp-dev-pepper-do-not-rotate-0000000000000001",
+    "SESSION_SECRET": "cellp-dev-session-secret-000000000000000000000001",
+    "PUBLIC_BASE_URL": "__CELLP_DEPLOY_URL__"
+  }
+}

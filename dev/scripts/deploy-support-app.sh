@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+# Deploy a community Workers repo onto local cellp for support validation.
+# Usage: deploy-support-app.sh <S-id>   e.g. S01
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+
+SUPPORT_MD="${ROOT}/docs/support-todos.md"
+CORPUS="${ROOT}/dev/support-corpus"
+EVIDENCE="${ROOT}/docs/evidence"
+
+# shellcheck disable=SC1091
+source dev/.env 2>/dev/null || { echo "FAIL: dev/.env"; exit 1; }
+# shellcheck disable=SC1091
+source e2e/scripts/lib.sh
+
+SID="${1:?S-id e.g. S01}"
+LOG="${EVIDENCE}/support-${SID}.log"
+mkdir -p "$EVIDENCE" "$CORPUS"
+
+exec > >(tee -a "$LOG") 2>&1
+echo "=== deploy-support-app ${SID} $(date -Iseconds) ==="
+
+lookup() {
+  case "$SID" in
+    S01) PROJECT=support-relay; REPO_URL=https://github.com/YuriCrystal/relay.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S02) PROJECT=support-nimail; REPO_URL=https://github.com/mskatoni/ni-mail.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S03) PROJECT=support-tempik; REPO_URL=https://github.com/hirotomasato/tempik.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci" ;;
+    S04) PROJECT=support-kukuroo; REPO_URL=https://github.com/saiday/kukuroo.git; WORKDIR_SUB=templates/standalone; BUILD_STEPS="npm install" ;;
+    S05) PROJECT=support-flaremo; REPO_URL=https://github.com/realchendahuang/FlareMo.git; WORKDIR_SUB=.; BUILD_STEPS="corepack enable 2>/dev/null || true; pnpm install --ignore-scripts && pnpm --filter @flaremo/web build" ;;
+    S06) PROJECT=support-memos; REPO_URL=https://github.com/souvenp/memos-worker.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S07) PROJECT=support-monolith; REPO_URL=https://github.com/one-ea/Monolith.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S08) PROJECT=support-edgeever; REPO_URL=https://github.com/tianma-if/edgeever.git; WORKDIR_SUB=.; BUILD_STEPS="bun install && bun run build:web && bun run build:worker" ;;
+    S09) PROJECT=support-sonicjs; REPO_URL=https://github.com/SonicJs-Org/sonicjs.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S10) PROJECT=support-nodewarden; REPO_URL=https://github.com/shuaiplus/nodewarden.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S11) PROJECT=support-sink; REPO_URL=https://github.com/miantiao-me/Sink.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S12) PROJECT=support-inkstone; REPO_URL=https://github.com/shuaiplus/inkstone.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S13) PROJECT=support-saasmail; REPO_URL=https://github.com/choyiny/saasmail.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S14) PROJECT=support-cfbase; REPO_URL=https://github.com/cloudflarebase/cloudflarebase.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S15) PROJECT=support-workflows; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=workflows-starter-template; BUILD_STEPS="npm ci && npm run build" ;;
+    S16) PROJECT=support-pastebin; REPO_URL=https://github.com/SharzyL/pastebin-worker.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npm run build:frontend" ;;
+    S17) PROJECT=support-r2filebox; REPO_URL=https://github.com/workHMZ/r2filebox.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    S18) PROJECT=support-webhookflare; REPO_URL=https://github.com/fayazara/webhookflare.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    S19) PROJECT=support-requestbin; REPO_URL=https://github.com/ghostdevv/request-bin.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    S20) PROJECT=support-r2explorer; REPO_URL=https://github.com/G4brym/R2-Explorer.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    S21) PROJECT=support-fileworker; REPO_URL=https://github.com/woaiqjj/FileWorker.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    *) echo "Unknown ${SID}"; exit 1 ;;
+  esac
+}
+lookup
+
+# GitHub clone: direct often fails in CN; default ghfast mirror (override in dev/.env).
+#   GITHUB_CLONE_MIRROR=https://ghfast.top/https://github.com/   (default)
+#   GITHUB_CLONE_DIRECT=1   skip mirror, use REPO_URL as-is
+#   http_proxy / https_proxy   also applied to git when set
+clone_git_url() {
+  local url="$1"
+  if [[ "${GITHUB_CLONE_DIRECT:-}" == "1" ]]; then
+    echo "$url"
+    return
+  fi
+  local mirror="${GITHUB_CLONE_MIRROR:-https://ghfast.top/https://github.com/}"
+  if [[ "$url" =~ ^https://github.com/(.+)$ ]]; then
+    echo "${mirror}${BASH_REMATCH[1]}"
+  else
+    echo "$url"
+  fi
+}
+
+VERSION="${SUPPORT_VERSION:-v1}"
+pick_support_version() {
+  local n v st
+  for n in 1 2 3 4 5 6 7 8 9 10; do
+    v="v${n}"
+    st="$(api_get "/v1/projects/${PROJECT}/versions/${v}" 2>/dev/null | jq -r .status 2>/dev/null || echo absent)"
+    case "$st" in
+      absent|null|gone) VERSION="$v"; return ;;
+      ready) VERSION="$v"; return ;;
+      deploying|pending|starting) VERSION="$v"; return ;;
+      failed|destroyed|draining) continue ;;
+      *) VERSION="$v"; return ;;
+    esac
+  done
+  VERSION="v10"
+}
+pick_support_version
+log "deploy version ${VERSION}"
+
+CLONE_DIR="${CORPUS}/${PROJECT}"
+
+require_platform
+require_celld
+
+log "clone/update ${REPO_URL}"
+CLONE_URL="$(clone_git_url "$REPO_URL")"
+[[ "$CLONE_URL" != "$REPO_URL" ]] && log "mirror clone: ${CLONE_URL}"
+if [[ -d "${CLONE_DIR}/.git" ]]; then
+  git -C "$CLONE_DIR" fetch --depth 1 origin 2>/dev/null || true
+  git -C "$CLONE_DIR" pull --ff-only 2>/dev/null || true
+else
+  rm -rf "$CLONE_DIR"
+  GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$CLONE_URL" "$CLONE_DIR"
+fi
+
+APP_DIR="${CLONE_DIR}"
+[[ "$WORKDIR_SUB" != "." ]] && APP_DIR="${CLONE_DIR}/${WORKDIR_SUB}"
+cd "$APP_DIR"
+
+if [[ -n "$BUILD_STEPS" && "${SUPPORT_SKIP_BUILD:-}" != "1" ]]; then
+  log "build: ${BUILD_STEPS}"
+  export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
+  export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
+  bash -lc "$BUILD_STEPS" || { echo "FAIL: build (${SID})"; exit 1; }
+fi
+
+if [[ ! -f wrangler.jsonc && ! -f wrangler.json && ! -f wrangler.toml ]]; then
+  if [[ -f worker.js ]]; then
+    log "synthesize wrangler.jsonc for worker.js"
+    cat > wrangler.jsonc <<EOF
+{
+  "name": "${PROJECT}",
+  "main": "worker.js",
+  "compatibility_date": "2026-01-01"
+}
+EOF
+  else
+    echo "FAIL: no wrangler config in ${APP_DIR}"
+    exit 1
+  fi
+fi
+
+strip_wrangler_toml() {
+  local dir="$1"
+  local f="${dir}/wrangler.toml"
+  [[ -f "$f" ]] || return 0
+  log "strip wrangler.toml (routes, email, observability)"
+  perl -0777 -i -pe '
+    s/\n\[\[routes\]\][^\[]*//g;
+    s/\n\[observability\][^\[]*//g;
+    s/\n\[email\][^\[]*//g;
+    s/workers_dev\s*=\s*false/workers_dev = true/g;
+    s/database_id\s*=\s*""/database_id = "00000000-0000-0000-0000-00000000000b"/g;
+  ' "$f"
+}
+
+strip_wrangler_for_celld() {
+  local dir="$1"
+  strip_wrangler_toml "$dir"
+  if ! command -v node >/dev/null; then
+    return 0
+  fi
+  log "strip wrangler.json(c) keys unsupported by celld"
+  STRIP_DIR="$dir" node <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const dir = process.env.STRIP_DIR;
+const drop = new Set(['observability', 'upload_source_maps', 'dispatch_namespaces', 'placement', 'limits', 'routes', 'preview_urls', 'email', 'workers_dev', '$schema']);
+for (const f of ['wrangler.jsonc', 'wrangler.json']) {
+  const p = path.join(dir, f);
+  if (!fs.existsSync(p)) continue;
+  let raw = fs.readFileSync(p, 'utf8');
+  raw = raw.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  raw = raw.replace(/,(\s*[}\]])/g, '$1');
+  raw = raw.replace(/"preview_urls"\s*:\s*[^,\n]+,?\s*/g, '');
+  raw = raw.replace(/"workers_dev"\s*:\s*[^,\n]+,?\s*/g, '');
+  raw = raw.replace(/"routes"\s*:\s*\[[^\]]*\],?\s*/g, '');
+  let j;
+  try { j = JSON.parse(raw); } catch (e) { console.error('wrangler parse failed', e.message); continue; }
+  for (const k of drop) delete j[k];
+  j.name = j.name || 'worker';
+  fs.writeFileSync(p.replace(/\.json$/, '.jsonc'), JSON.stringify(j, null, 2) + '\n');
+  if (p.endsWith('.json')) fs.unlinkSync(p);
+  break;
+}
+NODE
+}
+
+OVERLAY="${ROOT}/dev/examples/${PROJECT}/wrangler.cellp.jsonc"
+if [[ -f "$OVERLAY" ]]; then
+  log "apply cellp wrangler overlay ${OVERLAY}"
+  cp "$OVERLAY" "$APP_DIR/wrangler.jsonc"
+  rm -f "$APP_DIR/wrangler.toml"
+  if grep -q '__CELLP_DEPLOY_URL__' "$APP_DIR/wrangler.jsonc" 2>/dev/null || grep -q '__CELLP_DEPLOY_URL__' "$APP_DIR/wrangler.jsonc" 2>/dev/null; then
+    gw_port="${GATEWAY_URL##*:}"
+    gw_port="${gw_port%%/*}"
+    gw_port="${gw_port:-8787}"
+    scheme="${CELLP_PUBLIC_SCHEME_PREVIEW:-http}"
+    deploy_url="${scheme}://$(preview_host "$PROJECT" "$VERSION"):${gw_port}"
+    log "inject DEPLOY_URL=${deploy_url}"
+    node -e "
+const fs = require('fs');
+const p = process.argv[1];
+const url = process.argv[2];
+let j = JSON.parse(fs.readFileSync(p, 'utf8'));
+const keys = ['DEPLOY_URL', 'FLAREMO_PUBLIC_URL', 'PUBLIC_BASE_URL'];
+for (const k of keys) {
+  if (j.vars && k in j.vars) j.vars[k] = url;
+}
+let raw = JSON.stringify(j, null, 2) + '\n';
+raw = raw.replace(/:\\/\\//g, ':\\\\u002f\\\\u002f');
+fs.writeFileSync(p, raw);
+" "$APP_DIR/wrangler.jsonc" "$deploy_url"
+  fi
+else
+  strip_wrangler_for_celld "$APP_DIR"
+  if [[ -f "$APP_DIR/wrangler.toml" && ! -f "$APP_DIR/wrangler.jsonc" ]]; then
+    echo "FAIL: ${SID} has wrangler.toml only; add dev/examples/${PROJECT}/wrangler.cellp.jsonc or wrangler.json(c)"
+    exit 1
+  fi
+fi
+
+CELLP_PREPARE="${ROOT}/dev/examples/${PROJECT}/prepare-artifact.sh"
+if [[ -f "$CELLP_PREPARE" ]]; then
+  log "prepare artifact: ${CELLP_PREPARE}"
+  bash "$CELLP_PREPARE" "$APP_DIR"
+  SUPPORT_RSYNC_NO_NODE=1
+fi
+
+ensure_project "$PROJECT"
+# 仅回收 ready/failed 的同 id 重部署；destroyed 由 pick_support_version 换 id
+if [[ "${SUPPORT_DESTROY_FIRST:-}" == "1" ]]; then
+  curl -sf -X DELETE "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${VERSION}" \
+    -H "$(api_auth "$ADMIN_TOKEN")" >/dev/null 2>&1 || true
+  sleep 1
+fi
+DEST="${ARTIFACTS_DIR}/${PROJECT}/${VERSION}"
+rm -rf "$DEST"
+mkdir -p "$DEST"
+
+log "stage artifact → ${DEST}"
+if [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.cellp-bundle/index.js && -f ./wrangler.jsonc ]]; then
+  log "stage slim artifact (wrangler + bundle + static + migrations; no node_modules)"
+  cp ./wrangler.jsonc "$DEST/"
+  rsync -a ./.cellp-bundle/ "$DEST/.cellp-bundle/"
+  if [[ -d ./apps/web/dist ]]; then
+    mkdir -p "$DEST/apps/web"
+    rsync -a ./apps/web/dist/ "$DEST/apps/web/dist/"
+  fi
+  if [[ -d ./migrations ]]; then
+    rsync -a ./migrations/ "$DEST/migrations/"
+  fi
+  STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
+  if [[ -f "$STAGE_HOOK" ]]; then
+    log "stage extra: ${STAGE_HOOK}"
+    bash "$STAGE_HOOK" "$APP_DIR" "$DEST"
+  fi
+elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.wrangler/edgeever-worker/index.js && -f ./wrangler.jsonc ]]; then
+  log "stage slim artifact (edgeever worker + web dist + migrations)"
+  cp ./wrangler.jsonc "$DEST/"
+  mkdir -p "$DEST/.wrangler"
+  rsync -a ./.wrangler/edgeever-worker/ "$DEST/.wrangler/edgeever-worker/"
+  mkdir -p "$DEST/apps/web"
+  rsync -a ./apps/web/dist/ "$DEST/apps/web/dist/"
+  rsync -a ./migrations/ "$DEST/migrations/"
+else
+  RSYNC_EX=(--exclude .git)
+  [[ -z "$BUILD_STEPS" ]] && RSYNC_EX+=(--exclude node_modules)
+  [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" ]] && RSYNC_EX+=(--exclude node_modules --exclude packages --exclude tests --exclude docs --exclude scripts --exclude .github --exclude apps/worker --exclude apps/site --exclude apps/telegram-bot)
+  if command -v rsync >/dev/null; then
+    rsync -a "${RSYNC_EX[@]}" ./ "$DEST/"
+  else
+    tar -cf - --exclude .git ${BUILD_STEPS:+} . | tar -xf - -C "$DEST"
+  fi
+fi
+
+sync_artifact_to_rustfs "$PROJECT" "$VERSION"
+
+create_version "$PROJECT" "$VERSION" "" "{\"artifact_uri\":\"s3://cellp-artifacts/${PROJECT}/${VERSION}/\"}" \
+  | jq -r .preview_url >/tmp/support-preview-url.txt 2>/dev/null || true
+
+log "poll ready (timeout ${SUPPORT_POLL_SECS:-120}s)"
+if ! poll_version "$PROJECT" "$VERSION" ready "${SUPPORT_POLL_SECS:-120}" >/dev/null; then
+  api_get "/v1/projects/${PROJECT}/versions/${VERSION}" | jq -r '.status,.error' 2>/dev/null || true
+  echo "FAIL: version ${VERSION} failed (wanted ready)"
+  exit 1
+fi
+
+PREVIEW="$(version_preview_url "$PROJECT" "$VERSION" 2>/dev/null || true)"
+if [[ -z "$PREVIEW" ]]; then
+  PREVIEW="${GATEWAY_URL}/${PROJECT}/${VERSION}/"
+  [[ -f /tmp/support-preview-url.txt ]] && PREVIEW=$(cat /tmp/support-preview-url.txt)
+fi
+PREVIEW="${PREVIEW%/}/"
+
+if [[ "${INGRESS_HOST_ONLY:-1}" != "0" ]]; then
+  CODE=$(http_code_version "$PROJECT" "$VERSION" "/")
+  log "smoke GET Host=$(preview_host "$PROJECT" "$VERSION") ${GATEWAY_URL}/ → HTTP ${CODE}"
+else
+  CODE=$(http_code "$PREVIEW")
+  log "smoke GET ${PREVIEW} → HTTP ${CODE}"
+fi
+
+curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${VERSION}/promote" \
+  -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' >/dev/null 2>&1 || true
+if [[ "${INGRESS_HOST_ONLY:-1}" != "0" ]]; then
+  PROD_CODE=$(http_code_prod "$PROJECT" "/")
+  gw_port="${GATEWAY_URL##*:}"
+  gw_port="${gw_port%%/*}"
+  PROD="${CELLP_PUBLIC_SCHEME_PREVIEW:-http}://$(prod_host "$PROJECT"):${gw_port:-8787}/"
+else
+  PROD="${GATEWAY_URL}/${PROJECT}/"
+  PROD_CODE=$(http_code "$PROD")
+fi
+
+echo ""
+echo "OK ${SID} project=${PROJECT} version=${VERSION}"
+echo "PREVIEW_URL=${PREVIEW}"
+echo "PROD_URL=${PROD}"
+echo "PREVIEW_HTTP=${CODE}"
+echo "PROD_HTTP=${PROD_CODE}"
+echo "DASHBOARD=http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}"
+echo "LOG=${LOG}"
+
+exit 0
