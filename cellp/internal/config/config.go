@@ -61,6 +61,7 @@ func Load() Config {
 		CelldBucket:     envOr("CELLD_BUCKET", "s3://cellp-celld/demo-app"),
 		ArtifactsDir:    envOr("ARTIFACTS_DIR", "./dev/data/artifacts"),
 	}
+	cfg.Ingress = loadIngressConfig()
 	return cfg
 }
 
