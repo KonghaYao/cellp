@@ -34,9 +34,29 @@ ip_to_nip_domain() {
   echo "${ip//./-}.nip.io"
 }
 
-nip_domain_to_ip() {
-  local domain="$1"
-  if [[ "$domain" =~ ^([0-9-]+)\.nip\.io$ ]]; then
-    echo "${BASH_REMATCH[1]//-/.}"
-  fi
+ip_to_sslip_domain() {
+  local ip="$1"
+  echo "${ip}.sslip.io"
+}
+
+magic_dns_domain() {
+  local ip="$1"
+  local provider="${2:-sslip}"
+  case "$provider" in
+    nip | nip.io) ip_to_nip_domain "$ip" ;;
+    sslip | sslip.io) ip_to_sslip_domain "$ip" ;;
+    *)
+      echo "unknown magic DNS provider: $provider (use nip or sslip)" >&2
+      return 1
+      ;;
+  esac
+}
+
+probe_magic_dns() {
+  local ip="$1"
+  local provider="$2"
+  local domain
+  domain="$(magic_dns_domain "$ip" "$provider")"
+  command -v dig >/dev/null 2>&1 || return 1
+  dig +short +time=2 +tries=1 "probe.${domain}" A 2>/dev/null | grep -qx "$ip"
 }

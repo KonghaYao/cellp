@@ -36,7 +36,7 @@ export function IngressAccessHint({
       data-testid="ingress-lan-hint"
     >
       <p className="font-medium text-foreground">
-        {magicDns ? "局域网 Preview（nip.io / 免 hosts）" : "局域网 Preview / Prod（Gateway）"}
+        {magicDns ? "局域网 Preview（magic DNS / 免 hosts）" : "局域网 Preview / Prod（Gateway）"}
       </p>
       <p className="mt-1">
         Gateway 按 <span className="font-mono">Host</span> 选版本，默认端口{" "}
@@ -48,10 +48,15 @@ export function IngressAccessHint({
           Base domain <span className="font-mono">{ingressBaseDomain()}</span>
           ：公网 DNS 会把 Host 解析到你的局域网 IP，同事
           <strong className="font-medium text-foreground">不必改 /etc/hosts</strong>
-          （需能解析 nip.io；公司网若拦截可改回{" "}
+          （需能解析 nip.io / sslip.io；不行可{" "}
           <span className="font-mono">ingress.local</span> + hosts）。
         </p>
       ) : null}
+      <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-foreground/90">
+        必须用 <span className="font-mono">http://</span> 且 URL 里要带{" "}
+        <span className="font-mono">:{port}</span>。省略端口会连到 80，页面会打不开；不要用{" "}
+        <span className="font-mono">https://</span>。
+      </p>
       <ul className="mt-2 list-inside list-disc space-y-1 font-mono text-[11px] text-foreground/90">
         {versionId ? (
           <li>
@@ -77,9 +82,11 @@ export function IngressAccessHint({
         </>
       ) : (
         <p className="mt-2">
-          同事浏览器直接打开上列 URL（含 <span className="font-mono">:{port}</span>
-          ）。本机启用 nip.io：{" "}
-          <span className="font-mono">./dev/scripts/ingress-nip-enable.sh</span>
+          同事浏览器直接打开上列 URL。本机切换 magic DNS：{" "}
+          <span className="font-mono">./dev/scripts/ingress-magic-dns-enable.sh --sslip</span>
+          {" "}或{" "}
+          <span className="font-mono">--nip</span>；不行则{" "}
+          <span className="font-mono">./dev/scripts/ingress-local-revert.sh</span>
         </p>
       )}
       <p className="mt-2">
