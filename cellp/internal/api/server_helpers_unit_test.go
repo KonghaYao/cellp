@@ -37,7 +37,7 @@ func TestProdURLFromConfig(t *testing.T) {
 	t.Setenv("CELLP_PUBLIC_SCHEME_PROD", "http")
 	cfg := config.Load()
 	got := cfg.ProdURL("demo-app")
-	want := "http://demo-app.ingress.local/"
+	want := "http://demo-app.ingress.local:8787/"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   gatewayBrowseUrl,
+  ingressDisplayUrl,
   previewBrowseUrl,
   previewOpenUrl,
   productionOpenUrl,
@@ -49,5 +50,14 @@ describe("format AD-12 browse URLs", () => {
     const url = gatewayBrowseUrl("demo-app.ingress.local", "/count");
     expect(url).toContain("__cellp_host=demo-app.ingress.local");
     expect(url).toContain("/count");
+  });
+
+  it("ingressDisplayUrl appends gateway port in dev", () => {
+    const url = ingressDisplayUrl(
+      "demo-app",
+      "v1",
+      "http://v1.demo-app.ingress.local/",
+    );
+    expect(url).toContain(":8787");
   });
 });

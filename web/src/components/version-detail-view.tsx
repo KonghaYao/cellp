@@ -33,6 +33,7 @@ import { storageBrowserHref, versionHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { StatusIndicator } from "@/components/status-indicator";
 import { VersionRuntimeHealth } from "@/components/version-runtime-health";
+import { IngressAccessHint } from "@/components/ingress-access-hint";
 import { VersionActions } from "@/components/version-actions";
 import { VersionPolling } from "@/components/version-polling";
 import { EnvEditor } from "@/components/env-editor";
@@ -338,19 +339,28 @@ function VersionDetailContent({
         </MetadataSection>
 
         <MetadataSection title="URLs" icon={<Globe className="size-4" />}>
-          <MetadataRow label="Preview" copyable copyValue={version.preview_url}>
+          <MetadataRow label="Preview" copyable copyValue={ingressDisplayUrl(projectId, version.id, version.preview_url)}>
             <BrowseHref href={previewLink} className="inline-flex items-center gap-1 text-sm text-foreground hover:underline">
-              {version.preview_url || previewLink}
+              {ingressDisplayUrl(projectId, version.id, version.preview_url)}
               <ExternalLink className="size-3 text-muted-foreground" />
             </BrowseHref>
           </MetadataRow>
-          <MetadataRow label="Production" copyable copyValue={projectProdUrl ?? undefined}>
+          <MetadataRow label="Production" copyable copyValue={ingressDisplayUrl(projectId, undefined, projectProdUrl ?? undefined)}>
             <BrowseHref href={prodLink} className="inline-flex items-center gap-1 text-sm text-foreground hover:underline">
               {ingressDisplayUrl(projectId, undefined, projectProdUrl ?? undefined)}
               <ExternalLink className="size-3 text-muted-foreground" />
             </BrowseHref>
           </MetadataRow>
         </MetadataSection>
+
+        {(version.status === "ready" || version.status === "archived") && (
+          <IngressAccessHint
+            projectId={projectId}
+            versionId={version.id}
+            previewUrl={version.preview_url}
+            prodUrl={projectProdUrl}
+          />
+        )}
       </div>
 
       {(version.status === "ready" ||

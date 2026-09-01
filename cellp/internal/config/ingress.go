@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -54,14 +57,18 @@ func (c Config) ProdSyntheticHost(projectID string) string {
 // FormatPreviewURL builds the outward preview URL (INGRESS-ROUTING §3.4).
 func (c Config) FormatPreviewURL(host string, listenPort *int) string {
 	if tpl := strings.TrimSpace(c.Ingress.PreviewURLTemplate); tpl != "" {
-		return strings.ReplaceAll(strings.ReplaceAll(tpl, "{host}", host), "{port}", fmt.Sprintf("%d", derefPort(listenPort)))
+		port := derefPort(listenPort)
+		if port <= 0 {
+			port = c.outwardGatewayPort()
+		}
+		return strings.ReplaceAll(strings.ReplaceAll(tpl, "{host}", host), "{port}", fmt.Sprintf("%d", port))
 	}
 	if host != "" {
 		scheme := strings.TrimSpace(c.Ingress.PublicSchemePreview)
 		if scheme == "" {
 			scheme = "http"
 		}
-		return scheme + "://" + host + "/"
+		return c.formatIngressHostURL(scheme, host)
 	}
 	if listenPort != nil && *listenPort > 0 {
 		return fmt.Sprintf("http://127.0.0.1:%d/", *listenPort)
@@ -76,7 +83,60 @@ func (c Config) ProdURL(projectID string) string {
 	if scheme == "" {
 		scheme = "https"
 	}
-	return scheme + "://" + host + "/"
+	return c.formatIngressHostURL(scheme, host)
+}
+
+// OutwardGatewayPort is the TCP port clients use to reach Gateway (from GATEWAY_URL or GATEWAY_PORT).
+func (c Config) OutwardGatewayPort() int {
+	return c.outwardGatewayPort()
+}
+
+func (c Config) outwardGatewayPort() int {
+	if raw := strings.TrimSpace(c.GatewayURL); raw != "" {
+		if u, err := url.Parse(raw); err == nil {
+			if u.Port() != "" {
+				if p, err := strconv.Atoi(u.Port()); err == nil && p > 0 {
+					return p
+				}
+			}
+			if u.Scheme == "https" {
+				return 443
+			}
+			if u.Scheme == "http" {
+				return 80
+			}
+		}
+	}
+	if c.GatewayPort > 0 {
+		return c.GatewayPort
+	}
+	return 8787
+}
+
+func (c Config) formatIngressHostURL(scheme, host string) string {
+	scheme = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(scheme)), ":")
+	if scheme == "" {
+		scheme = "http"
+	}
+	port := c.outwardGatewayPort()
+	authority := host
+	if shouldAppendGatewayPort(scheme, port) {
+		authority = net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	return scheme + "://" + authority + "/"
+}
+
+func shouldAppendGatewayPort(scheme string, port int) bool {
+	if port <= 0 {
+		return false
+	}
+	if scheme == "http" && port == 80 {
+		return false
+	}
+	if scheme == "https" && port == 443 {
+		return false
+	}
+	return true
 }
 
 func derefPort(p *int) int {

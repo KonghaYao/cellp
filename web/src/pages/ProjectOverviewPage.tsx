@@ -15,6 +15,7 @@ import { deploymentsHref, inspectHref, storageBrowserHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { DeploymentsTable } from "@/components/deployments-table";
 import { CommerceStorefrontEmbed } from "@/components/commerce-storefront-embed";
+import { IngressAccessHint } from "@/components/ingress-access-hint";
 import { OperatorChecklist } from "@/components/operator-checklist";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -231,6 +232,14 @@ export function ProjectOverviewPage() {
           )}
           </div>
         </div>
+      )}
+
+      {!loading && project?.prod_version_id && (
+        <IngressAccessHint
+          projectId={id}
+          versionId={project.prod_version_id}
+          prodUrl={project.prod_url}
+        />
       )}
 
       {!loading && id === "commerce-store" && project?.prod_version_id && (

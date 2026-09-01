@@ -122,7 +122,7 @@ export function gatewayBrowseUrl(
   const scheme =
     (import.meta.env.VITE_CELLP_PUBLIC_SCHEME_PREVIEW as string | undefined) ||
     "http";
-  return `${scheme}://${h}${normalizedPath}`;
+  return withGatewayPortIfNeeded(`${scheme}://${h}${normalizedPath}`);
 }
 
 export function previewBrowseUrl(
@@ -178,15 +178,65 @@ export function resolveProdUrl(
   return productionOpenUrl(projectId, prodUrl);
 }
 
-/** Human-readable URL for UI labels (not for href). */
+/** TCP port on which clients reach Gateway (dev default 8787). */
+export function gatewayPublicPort(): number {
+  const configured = import.meta.env.VITE_CELLP_GATEWAY_URL as string | undefined;
+  const fallback =
+    configured?.trim() ||
+    (import.meta.env.DEV ? "http://127.0.0.1:8787" : GATEWAY_DEFAULT);
+  try {
+    const u = new URL(fallback);
+    if (u.port) return Number.parseInt(u.port, 10);
+    return u.protocol === "https:" ? 443 : 80;
+  } catch {
+    return 8787;
+  }
+}
+
+/** Append Gateway port when API URL omits it (non-80/443). */
+export function withGatewayPortIfNeeded(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.port) return url.trim();
+    const port = gatewayPublicPort();
+    const scheme = u.protocol.replace(":", "");
+    if (
+      (scheme === "http" && port === 80) ||
+      (scheme === "https" && port === 443)
+    ) {
+      return url.trim();
+    }
+    u.port = String(port);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** Suggested /etc/hosts line for LAN colleagues (Host → your machine). */
+export function ingressLanHostsLine(
+  projectId: string,
+  versionId?: string,
+  lanIp = "<你的局域网 IP>",
+): string {
+  const hosts = versionId
+    ? `${previewHost(projectId, versionId)} ${prodHost(projectId)}`
+    : prodHost(projectId);
+  return `${lanIp} ${hosts}`;
+}
+/** Human-readable URL for UI labels (not for href). Includes Gateway port when non-default. */
 export function ingressDisplayUrl(
   projectId: string,
   versionId?: string,
   apiUrl?: string | null,
 ): string {
-  if (apiUrl?.trim()) return apiUrl.trim();
-  if (versionId) return `http://${previewHost(projectId, versionId)}/`;
-  return `http://${prodHost(projectId)}/`;
+  if (apiUrl?.trim()) return withGatewayPortIfNeeded(apiUrl.trim());
+  if (versionId) {
+    return withGatewayPortIfNeeded(
+      `http://${previewHost(projectId, versionId)}/`,
+    );
+  }
+  return withGatewayPortIfNeeded(`http://${prodHost(projectId)}/`);
 }
 
 export function truncateSha(sha: string, length = 7): string {
