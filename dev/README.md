@@ -4,6 +4,8 @@
 
 使用者本机无 Docker：`curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh` 然后 `cellp dev`。下面是**贡献者**本地栈（Docker RustFS）。
 
+**Preview/Prod Host 统一配置：** [INGRESS-HOST.md](./INGRESS-HOST.md) · `./dev/scripts/ingress-host-init.sh` · Clash [clash/README.md](./clash/README.md)
+
 ```bash
 cp dev/.env.example dev/.env
 ./dev/scripts/up.sh
@@ -66,7 +68,10 @@ Gateway **:8787** 按 **Host** 选 version，业务 path 从 `/` 起、**不** s
 | `simulate-cd.sh` | 本地 CD：`simulate-cd.sh <project> <version>` |
 | `seed-commerce-store.sh` | **默认验收**：`commerce-store` v1，D1 电商假数据 + Dashboard 链接 |
 | `seed-demo.sh` | Bindings 演示：`demo-app` v1/v2，D1/KV/Queue/Workflow 假数据 |
-| `ingress-nip-enable.sh` | 局域网免 hosts：把 `CELLP_INGRESS_BASE_DOMAIN` 设为 `{IP-dashes}.nip.io`（需 reset + up + seed） |
+| `ingress-host-init.sh` | **统一** Host 模式：`local`（ingress.local）或 `magic`（nip/sslip） |
+| `ingress-magic-dns-enable.sh` | magic DNS 细节（`--nip` / `--sslip`） |
+| `ingress-local-revert.sh` | 改回 `ingress.local` |
+| `ingress-nip-enable.sh` | 等同 `ingress-magic-dns-enable.sh --nip` |
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
 

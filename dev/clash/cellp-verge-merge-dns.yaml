@@ -1,0 +1,10 @@
+# cellp dev — merge snippet for Clash Verge (mgOdLjTomcVb.yaml or Merge profile)
+
+profile:
+  store-selected: true
+
+dns:
+  fake-ip-filter:
+    - '+.nip.io'
+    - '+.sslip.io'
+    - '+.ingress.local'

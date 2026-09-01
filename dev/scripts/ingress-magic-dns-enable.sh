@@ -104,6 +104,7 @@ Open in browser (required):
 Common mistakes:
   - Omitting :8787 (browser uses port 80 → connection failed)
   - Using https:// (Gateway dev is http only unless you add TLS)
+  - Clash proxy without DIRECT for nip.io/sslip.io → HTTP 502 (see dev/clash/README.md)
 
 Next (rebind Registry hostnames):
   ./dev/scripts/reset.sh
