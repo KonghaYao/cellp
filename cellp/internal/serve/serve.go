@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +24,9 @@ import (
 // Run starts the cellpd API + gateway until ctx is cancelled.
 func Run(ctx context.Context) error {
 	cfg := config.Load()
+	if err := cfg.Ingress.Validate(); err != nil {
+		return fmt.Errorf("ingress config: %w", err)
+	}
 
 	if err := os.MkdirAll(filepath.Dir(cfg.RegistryDB), 0o755); err != nil {
 		return err
@@ -36,6 +40,7 @@ func Run(ctx context.Context) error {
 
 	gw := gateway.New(baseStore)
 	store := gateway.WrapStore(baseStore, gw)
+	lm := gateway.NewListenerManager(gw, baseStore, gw.Config())
 
 	queue := job.NewSQLiteQueue(store)
 	bm := branch.New(cfg.OffshootStore, store)
@@ -52,6 +57,7 @@ func Run(ctx context.Context) error {
 		S3SecretKey: cfg.S3SecretKey,
 	}
 	o := orch.New(store, queue, bm, rm, as, cfg)
+	o.SetIngressListenerReconciler(lm)
 
 	reconcileCfg := runtime.LoadReconcileConfig()
 	if started, skipped, err := runtime.ReconcileFleet(ctx, store, rm); err != nil {
@@ -69,10 +75,14 @@ func Run(ctx context.Context) error {
 
 	apiSrv := api.NewServer(store, queue, o, rm, cfg)
 
+	if err := lm.ReconcileIngressListeners(ctx); err != nil {
+		return fmt.Errorf("ingress listeners boot reconcile: %w", err)
+	}
+
 	apiServer := &http.Server{Addr: cfg.APIAddr(), Handler: apiSrv.Handler()}
 	gwServer := &http.Server{Addr: cfg.GatewayAddr(), Handler: gw.Handler()}
 
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
 	go func() {
 		log.Printf("cellpd API listening on http://0.0.0.0:%d", cfg.APIPort)
 		if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -85,15 +95,38 @@ func Run(ctx context.Context) error {
 			errCh <- err
 		}
 	}()
+	var gwTLSServer *http.Server
+	if tlsAddr := cfg.GatewayTLSAddr(); tlsAddr != "" && cfg.GatewayTLSCert != "" && cfg.GatewayTLSKey != "" {
+		if _, err := os.Stat(cfg.GatewayTLSCert); err != nil {
+			log.Printf("gateway TLS disabled: cert not found (%s)", cfg.GatewayTLSCert)
+		} else if _, err := os.Stat(cfg.GatewayTLSKey); err != nil {
+			log.Printf("gateway TLS disabled: key not found (%s)", cfg.GatewayTLSKey)
+		} else {
+			gwTLSServer = &http.Server{Addr: tlsAddr, Handler: gw.Handler()}
+			go func() {
+				log.Printf("cellpd Gateway TLS listening on https://0.0.0.0:%d", cfg.GatewayTLSPort)
+				if err := gwTLSServer.ListenAndServeTLS(cfg.GatewayTLSCert, cfg.GatewayTLSKey); err != nil && err != http.ErrServerClosed {
+					errCh <- err
+				}
+			}()
+		}
+	}
+
+	shutdownAll := func() {
+		lm.CloseAll(context.Background())
+		_ = apiServer.Shutdown(context.Background())
+		_ = gwServer.Shutdown(context.Background())
+		if gwTLSServer != nil {
+			_ = gwTLSServer.Shutdown(context.Background())
+		}
+	}
 
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
-		_ = apiServer.Shutdown(context.Background())
-		_ = gwServer.Shutdown(context.Background())
+		shutdownAll()
 		return err
 	}
-	_ = apiServer.Shutdown(context.Background())
-	_ = gwServer.Shutdown(context.Background())
+	shutdownAll()
 	return nil
 }

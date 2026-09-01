@@ -103,6 +103,7 @@ func (o *Orchestrator) ensurePreviewIngress(ctx context.Context, projectID, vers
 	if err := o.mergeWorkerEnvKey(ctx, projectID, versionID, "PUBLIC_BASE_URL", previewURL); err != nil {
 		return "", "", err
 	}
+	o.reconcileIngressListenersLog(ctx)
 	return previewHost, previewURL, nil
 }
 
@@ -134,21 +135,36 @@ func (o *Orchestrator) ensureProdIngress(ctx context.Context, projectID string) 
 		if existing.OwnerGatewayID != nil {
 			binding.OwnerGatewayID = existing.OwnerGatewayID
 		}
-		return o.store.UpsertIngressBinding(ctx, binding)
+		err := o.store.UpsertIngressBinding(ctx, binding)
+		if err != nil {
+			return err
+		}
+		o.reconcileIngressListenersLog(ctx)
+		return nil
 	}
 
 	if !prodUsesStableListenPort(tier) {
-		return o.store.UpsertIngressBinding(ctx, binding)
+		err := o.store.UpsertIngressBinding(ctx, binding)
+		if err != nil {
+			return err
+		}
+		o.reconcileIngressListenersLog(ctx)
+		return nil
 	}
 
 	reserveOwner := registry.ProdPortReserveOwnerID(projectID)
-	return o.store.AdoptStableIngressPortForBinding(ctx, binding, reserveOwner)
+	if err := o.store.AdoptStableIngressPortForBinding(ctx, binding, reserveOwner); err != nil {
+		return err
+	}
+	o.reconcileIngressListenersLog(ctx)
+	return nil
 }
 
 func (o *Orchestrator) teardownPreviewIngress(ctx context.Context, projectID, versionID, reason string) {
 	bid := previewBindingID(projectID, versionID)
 	_ = o.store.DetachIngressListenPort(ctx, bid, reason)
 	_ = o.store.SetIngressBindingActive(ctx, bid, false)
+	o.reconcileIngressListenersLog(ctx)
 }
 
 func (o *Orchestrator) setPreviewIngressActive(ctx context.Context, projectID, versionID string, active bool) error {

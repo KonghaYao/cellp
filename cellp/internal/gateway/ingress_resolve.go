@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/cellp/cellp/internal/registry"
 )
@@ -19,9 +18,8 @@ func WithLocalListenPort(ctx context.Context, port int) context.Context {
 
 func (g *Gateway) resolveIngressBinding(ctx context.Context, r *http.Request) (*registry.IngressBinding, error) {
 	localPort := listenerLocalPort(r)
-	tierB := strings.ToLower(strings.TrimSpace(g.cfg.IngressTierB))
 
-	if tierB == "dedicated_port" && localPort != 0 && localPort != g.cfg.GatewayPort {
+	if localPort != 0 && localPort != g.cfg.GatewayPort {
 		b, err := g.store.LookupIngressByListenPort(ctx, localPort, g.cfg.GatewayID)
 		if err != nil {
 			return nil, err

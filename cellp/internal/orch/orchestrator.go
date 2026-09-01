@@ -24,13 +24,14 @@ const (
 
 // Orchestrator drives version lifecycle state machine (DESIGN §2.5).
 type Orchestrator struct {
-	store    registry.Store
-	queue    *job.SQLiteQueue
-	branch   *branch.Manager
-	runtime  *runtime.Manager
-	artifact *artifact.Store
-	cfg      config.Config
-	workerID string
+	store               registry.Store
+	queue               *job.SQLiteQueue
+	branch              *branch.Manager
+	runtime             *runtime.Manager
+	artifact            *artifact.Store
+	cfg                 config.Config
+	workerID            string
+	ingressReconciler   IngressListenerReconciler
 }
 
 // New creates an orchestrator.
@@ -43,6 +44,24 @@ func New(store registry.Store, q *job.SQLiteQueue, bm *branch.Manager, rm *runti
 		artifact: as,
 		cfg:      cfg,
 		workerID: fmt.Sprintf("worker-%d", os.Getpid()),
+	}
+}
+
+// SetIngressListenerReconciler wires P5c dedicated listener reconcile (serve.Run).
+func (o *Orchestrator) SetIngressListenerReconciler(r IngressListenerReconciler) {
+	o.ingressReconciler = r
+}
+
+func (o *Orchestrator) reconcileIngressListeners(ctx context.Context) error {
+	if o.ingressReconciler == nil {
+		return nil
+	}
+	return o.ingressReconciler.ReconcileIngressListeners(ctx)
+}
+
+func (o *Orchestrator) reconcileIngressListenersLog(ctx context.Context) {
+	if err := o.reconcileIngressListeners(ctx); err != nil {
+		log.Printf("ingress listeners reconcile: %v", err)
 	}
 }
 
@@ -281,6 +300,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	previewHost, previewURL, err := o.ensurePreviewIngress(ctx, j.ProjectID, j.VersionID)
 	if err != nil {
 		return fmt.Errorf("preview ingress: %w", err)
+	}
+	if err := o.reconcileIngressListeners(ctx); err != nil {
+		return fmt.Errorf("ingress listeners: %w", err)
 	}
 
 	tier, _ := o.effectiveTier(ctx, j.ProjectID)

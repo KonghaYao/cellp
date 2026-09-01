@@ -60,3 +60,11 @@ func (g *Gateway) publicSchemeForRole(role string) string {
 	}
 	return g.cfg.PublicSchemePreview
 }
+
+// publicSchemeForRequest prefers the actual client TLS when Gateway serves HTTPS directly.
+func (g *Gateway) publicSchemeForRequest(r *http.Request, role string) string {
+	if r != nil && r.TLS != nil {
+		return "https"
+	}
+	return g.publicSchemeForRole(role)
+}

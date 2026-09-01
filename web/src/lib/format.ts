@@ -98,6 +98,45 @@ export function productionOpenUrl(
   return prodBrowseUrl(projectId, prodUrl, "/");
 }
 
+/** Gateway URL for prod traffic (curl / API clients). Always Host-based AD-12. */
+export function workerProductionGatewayUrl(
+  projectId: string,
+  prodUrl?: string | null,
+): string {
+  return prodBrowseUrl(projectId, prodUrl, "/");
+}
+
+/** Gateway URL for preview traffic. */
+export function workerPreviewGatewayUrl(
+  projectId: string,
+  versionId: string,
+  previewUrl?: string | null,
+): string {
+  return previewBrowseUrl(projectId, versionId, previewUrl, "/");
+}
+
+/** Link label in version URLs section — matches where primary href goes. */
+export function previewPrimaryLinkLabel(
+  projectId: string,
+  versionId: string,
+  previewUrl?: string | null,
+): string {
+  if (!workerHasHtmlStorefront(projectId)) {
+    return "Open version in Dashboard";
+  }
+  return ingressDisplayUrl(projectId, versionId, previewUrl);
+}
+
+export function productionPrimaryLinkLabel(
+  projectId: string,
+  prodUrl?: string | null,
+): string {
+  if (!workerHasHtmlStorefront(projectId)) {
+    return "Open project in Dashboard";
+  }
+  return ingressDisplayUrl(projectId, undefined, prodUrl);
+}
+
 /** Raw Worker HTTP via dev gateway proxy (API JSON/HTML). */
 export function gatewayWorkerUrl(
   projectId: string,
@@ -124,7 +163,7 @@ export function gatewayBrowseUrl(
   const h = host.trim();
   if (!h) return gatewayBase() + normalizedPath;
 
-  if (import.meta.env.DEV && gatewayBase() === "/__gateway") {
+  if (gatewayBase() === "/__gateway") {
     const q = new URLSearchParams({ __cellp_host: h });
     const sep = normalizedPath.includes("?") ? "&" : "?";
     return `/__gateway${normalizedPath}${sep}${q.toString()}`;

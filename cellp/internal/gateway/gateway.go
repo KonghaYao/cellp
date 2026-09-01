@@ -79,6 +79,11 @@ func (g *Gateway) RouteCacheForTest() *RouteCache {
 	return g.cache
 }
 
+// Config returns the gateway configuration (listeners, tests).
+func (g *Gateway) Config() GatewayConfig {
+	return g.cfg
+}
+
 func (g *Gateway) Handler() http.Handler {
 	return corsMiddleware(MetricsMiddleware(g.router))
 }
@@ -189,7 +194,7 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 		return
 	}
 	clientAuth := clientAuthority(r)
-	publicProto := g.publicSchemeForRole(binding.Role)
+	publicProto := g.publicSchemeForRequest(r, binding.Role)
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	origDirector := proxy.Director
