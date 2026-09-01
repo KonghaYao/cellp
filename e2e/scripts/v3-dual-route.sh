@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TP-V3 — Gateway dual version routing (different artifact / body per version)
+# TP-V3 — Gateway dual version routing (AD-12 Host per version)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
@@ -19,16 +19,12 @@ poll_version "$PROJECT" "$VA" ready 120 >/dev/null
 create_version "$PROJECT" "$VB" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VB" ready 120 >/dev/null
 
-URL_A="${GATEWAY_URL}/${PROJECT}/${VA}/"
-URL_B="${GATEWAY_URL}/${PROJECT}/${VB}/"
+wait_http_200_version "$PROJECT" "$VA" "/" 60
+wait_http_200_version "$PROJECT" "$VB" "/" 60
 
-wait_http_200 "$URL_A" 60
-wait_http_200 "$URL_B" 60
+BODY_A=$(curl_version "$PROJECT" "$VA" "/")
+BODY_B=$(curl_version "$PROJECT" "$VB" "/")
 
-BODY_A=$(curl -sf "$URL_A")
-BODY_B=$(curl -sf "$URL_B")
-
-# Both must be 200 with JSON bodies; with multi-fleet they differ by version field
 VA_FIELD=$(echo "$BODY_A" | jq -r '.version // empty' 2>/dev/null || echo "")
 VB_FIELD=$(echo "$BODY_B" | jq -r '.version // empty' 2>/dev/null || echo "")
 
@@ -42,9 +38,8 @@ if [[ "$BODY_A" != "$BODY_B" ]]; then
   exit 0
 fi
 
-# Single-fleet mock: at minimum both routes work simultaneously
-CODE_A=$(http_code "$URL_A")
-CODE_B=$(http_code "$URL_B")
+CODE_A=$(http_code_version "$PROJECT" "$VA" "/")
+CODE_B=$(http_code_version "$PROJECT" "$VB" "/")
 if [[ "$CODE_A" == "200" && "$CODE_B" == "200" ]]; then
   echo "WARN: V3 single-fleet — bodies identical; AD-1 multi-port required for strict assertion" >&2
   pass "V3 dual route OK both 200 (strict body diff needs cellpd multi-fleet)"

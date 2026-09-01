@@ -201,6 +201,9 @@ const apiServer = http.createServer(async (req, res) => {
 
 const gatewayServer = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const ingressBase = (env.CELLP_INGRESS_BASE_DOMAIN || "ingress.local").toLowerCase();
+  const hostOnly = env.INGRESS_HOST_ONLY === "1";
+  const reqHost = (req.headers.host || "").split(":")[0].toLowerCase();
 
   if (url.pathname === "/health") {
     res.writeHead(200, { "content-type": "text/plain" });
@@ -208,14 +211,21 @@ const gatewayServer = http.createServer((req, res) => {
     return;
   }
 
-  const m = url.pathname.match(/^\/([^/]+)\/([^/]+)(\/.*)?$/);
-  if (m) {
-    const rest = m[3] || "/";
-    return proxyToCelld(req, res, rest);
+  // AD-12: Host-based routing (*.ingress.local) — path from / unchanged
+  if (reqHost.endsWith(`.${ingressBase}`) || reqHost === ingressBase) {
+    return proxyToCelld(req, res, url.pathname);
+  }
+
+  if (!hostOnly) {
+    const m = url.pathname.match(/^\/([^/]+)\/([^/]+)(\/.*)?$/);
+    if (m) {
+      const rest = m[3] || "/";
+      return proxyToCelld(req, res, rest);
+    }
   }
 
   res.writeHead(404, { "content-type": "text/plain" });
-  res.end("cellp dev gateway — use /{project}/{version}/");
+  res.end("cellp dev gateway — use Host *." + ingressBase + " (path routing deprecated)");
 });
 
 const apiPort = Number(env.PLATFORM_PORT || 8790);

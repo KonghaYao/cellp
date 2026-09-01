@@ -121,7 +121,8 @@ fi
 log "GET …/instances HTTP 200 (n=$(echo "$API_BODY" | jq '.instances | length'))"
 
 # Optional: Gateway create (outbound fetch; do not block)
-CREATE_URL="${GATEWAY_URL}/${PROJECT}/${VW}/create?url=https://example.com"
+VW_HOST="$(preview_host "$PROJECT" "$VW")"
+CREATE_PATH="/create?url=https://example.com"
 CREATE_CODE=$(http_code "$CREATE_URL")
 if [[ "$CREATE_CODE" == "200" ]]; then
   log "optional Gateway /create HTTP 200"

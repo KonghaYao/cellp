@@ -42,9 +42,8 @@ done
 
 [[ "$STATUS" == "failed" ]] || fail "expected status=failed (last=${STATUS})"
 
-# No leaked preview route
-PREVIEW="${GATEWAY_URL}/${PROJECT}/${VERSION}/"
-CODE=$(http_code "$PREVIEW")
+# No leaked preview route (AD-12 Host ingress)
+CODE=$(http_code_version "$PROJECT" "$VERSION" "/")
 if [[ "$CODE" == "200" ]]; then
   fail "leaked gateway route still 200 for failed version"
 fi

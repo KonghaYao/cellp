@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# TP-V10 — celld Queue operator via cellpd :8790 (info/peek/purge force + sibling empty queue)
+# TP-V10 — celld Queue operator via cellpd :8790 (info/peek/purge force + sibling empty queue) (AD-12 Host)
 # Example: dev/examples/queue (producer-only — celld forbids consumer + export fetch()).
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_stack_or_skip
 
@@ -146,11 +148,11 @@ if [[ "$INFO_CODE" != "200" ]]; then
 fi
 log "queue info HTTP 200"
 
-ENQUEUE_URL="${GATEWAY_URL}/${PROJECT}/${VA}/enqueue"
-wait_http_200 "${GATEWAY_URL}/${PROJECT}/${VA}/" 60
+wait_http_200_version "$PROJECT" "$VA" "/" 60
+VA_HOST="$(preview_host "$PROJECT" "$VA")"
 ENQ_BODY=$(jq -n --arg marker "$MARKER" '{ping:true, marker:$marker}')
 ENQ_CODE=$(curl -sS -o /tmp/v10-enqueue.json -w '%{http_code}' -X POST \
-  -H "Content-Type: application/json" -d "$ENQ_BODY" "$ENQUEUE_URL" || echo "000")
+  -H "Content-Type: application/json" -d "$ENQ_BODY" -H "Host: $VA_HOST" "${GATEWAY_URL}/enqueue" || echo "000")
 if [[ "$ENQ_CODE" != "202" && "$ENQ_CODE" != "200" ]]; then
   cat /tmp/v10-enqueue.json >&2 || true
   fail "Gateway POST /enqueue → HTTP ${ENQ_CODE} (worker send failed)"

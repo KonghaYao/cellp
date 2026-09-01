@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TP-V5 — Orchestrator failure compensation: deploy fail → failed; no leaked routes; branch GC
+# TP-V5 — Orchestrator failure compensation (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
@@ -30,11 +30,9 @@ done
 
 [[ "$STATUS" == "failed" ]] || fail "V5 expected failed status (last=${STATUS})"
 
-PREVIEW="${GATEWAY_URL}/${PROJECT}/${VERSION}/"
-CODE=$(http_code "$PREVIEW")
+CODE=$(http_code_version "$PROJECT" "$VERSION" "/")
 [[ "$CODE" != "200" ]] || fail "V5 leaked gateway route"
 
-# Offshoot branch GC (best-effort when offshoot present)
 if command -v offshoot >/dev/null 2>&1; then
   offshoot -store "$OFFSHOOT_STORE" destroy "${PROJECT}@${VERSION}" --force 2>/dev/null || true
 fi

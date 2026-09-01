@@ -65,16 +65,16 @@ api_status POST "/v1/projects/${PROJECT}/versions/${PROD}/archive" ""
 api_status POST "/v1/projects/${PROJECT}/versions/${TARGET}/archive" ""
 [[ "$API_STATUS" == "200" ]] || fail "archive non-prod → HTTP ${API_STATUS}"
 
-GW="${GATEWAY_URL}/${PROJECT}/${TARGET}/"
-ARCHIVE_CODE=$(curl -s -o /tmp/v15-archive-body.txt -w '%{http_code}' "$GW" || true)
-ARCHIVE_BODY=$(cat /tmp/v15-archive-body.txt 2>/dev/null || true)
+TGT_HOST="$(preview_host "$PROJECT" "$TARGET")"
+ARCHIVE_CODE=$(http_code_gateway_host "$TGT_HOST" "/")
+ARCHIVE_BODY=$(curl -s -H "Host: ${TGT_HOST}" "${GATEWAY_URL}/" 2>/dev/null || true)
 [[ "$ARCHIVE_CODE" == "503" ]] || fail "archived preview → HTTP ${ARCHIVE_CODE}"
 echo "$ARCHIVE_BODY" | grep -q version_archived || fail "503 body missing version_archived: ${ARCHIVE_BODY}"
 
 api_status POST "/v1/projects/${PROJECT}/versions/${TARGET}/wake" ""
 [[ "$API_STATUS" == "200" ]] || fail "wake → HTTP ${API_STATUS}"
 poll_version "$PROJECT" "$TARGET" ready 180 >/dev/null
-wait_http_200 "$GW" 60
+wait_http_200_host "$TGT_HOST" "/" 60
 
 log "V15 archive PASS"
 pass "v15-archive"

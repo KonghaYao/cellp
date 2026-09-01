@@ -323,3 +323,6 @@ sync_artifact_to_rustfs() {
   aws s3 sync "$src" "s3://${bucket}/${project}/${version}/" \
     --endpoint-url "$endpoint" --only-show-errors
 }
+
+# shellcheck source=lib-ingress.sh disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/lib-ingress.sh"

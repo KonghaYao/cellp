@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# TP-V9 — celld KV operator via cellpd :8790 (put/get + sibling empty-start isolation)
+# TP-V9 — celld KV operator via cellpd :8790 (put/get + sibling empty-start isolation) (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_stack_or_skip
 
@@ -163,10 +165,11 @@ if [[ "$GET_A_AFTER_CODE" != "200" || "$GOT_AFTER" != "$VA_VALUE" ]]; then
 fi
 log "VA still ${VA_VALUE} after VB PUT"
 
-WORKER_URL="${GATEWAY_URL}/${PROJECT}/${VA}/${KEY}"
+VA_HOST="$(preview_host "$PROJECT" "$VA")"
+WORKER_PATH="/${KEY}"
 WORKER_CODE=$(http_code "$WORKER_URL")
 if [[ "$WORKER_CODE" == "200" ]]; then
-  WORKER_BODY=$(curl -sf "$WORKER_URL" || true)
+  WORKER_BODY=$(curl_gateway_host "$VA_HOST" "$WORKER_PATH" || true)
   if [[ "$WORKER_BODY" != "$VA_VALUE" ]]; then
     log "WARN: Worker GET ${KEY} body=${WORKER_BODY} (API assertion is authoritative)"
   else

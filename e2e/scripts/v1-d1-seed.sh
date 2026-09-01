@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# TP-V1 — offshoot export → celld D1 binary import → Worker returns fixture count
+# TP-V1 — offshoot export → celld D1 binary import → Worker returns fixture count (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_platform
 require_offshoot
@@ -117,9 +119,8 @@ if celld d1 execute --help >/dev/null 2>&1; then
   fi
 fi
 
-COUNT_URL="${GATEWAY_URL}/${PROJECT}/${VERSION}/count"
-wait_http_200 "$COUNT_URL" 60
-BODY=$(curl -sf "$COUNT_URL")
+wait_http_200_version "$PROJECT" "$VERSION" "/count" 60
+BODY=$(curl_version "$PROJECT" "$VERSION" "/count")
 WORKER_COUNT=$(echo "$BODY" | jq -r '.count // empty')
 
 if [[ "$WORKER_COUNT" == "$EXPECTED" ]]; then

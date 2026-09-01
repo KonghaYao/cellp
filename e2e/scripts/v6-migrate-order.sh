@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TP-V6 — Schema migration × fork order: fork → deploy → migrate → health → ready
+# TP-V6 — Schema migration × fork order (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
@@ -28,10 +28,8 @@ fi
 create_version "$PROJECT" "$VERSION" >/dev/null
 poll_version "$PROJECT" "$VERSION" ready 120 >/dev/null
 
-PREVIEW="${GATEWAY_URL}/${PROJECT}/${VERSION}/"
-wait_http_200 "$PREVIEW" 60
+wait_http_200_version "$PROJECT" "$VERSION" "/" 60
 
-# Bad migration version (expect failed when cellpd enforces migration gate)
 V_BAD="$(unique_id)"
 BODY=$(jq -n --arg id "$V_BAD" \
   '{id:$id, git_ref:"v6-bad", git_sha:"bad", parent_version_id:null, _bad_migration:true}')

@@ -98,8 +98,8 @@ for _ in $(seq 1 180); do
 done
 [[ "$STATUS" == "failed" ]] || fail "V5B expected child failed (last=${STATUS})"
 
-PREVIEW="${GATEWAY_URL}/${PROJECT}/${CHILD}/"
-CODE=$(http_code "$PREVIEW")
+# preview Host after failed deploy
+CODE=$(http_code_version "$PROJECT" "$CHILD" "/")
 [[ "$CODE" != "200" ]] || fail "V5B leaked gateway route for failed child"
 
 pass "V5B D1 branch inject → failed + no leaked route"

@@ -32,9 +32,8 @@ echo "$API_BODY" | jq -e '.vars[] | select(.key=="GREETING" and .value=="from-e2
 echo "$API_BODY" | jq -e '.vars[] | select(.key=="PROJECT_ID" and .source=="platform")' >/dev/null \
   || fail "GET env missing platform PROJECT_ID"
 
-GW="${GATEWAY_URL}/${PROJECT}/${VID}/"
-wait_http_200 "$GW" 60
-BODY=$(curl -fsS "$GW")
+wait_http_200_version "$PROJECT" "$VID" "/" 60
+BODY=$(curl_version "$PROJECT" "$VID" "/")
 GOT=$(echo "$BODY" | jq -r '.greeting // empty')
 [[ "$GOT" == "from-e2e" ]] || fail "worker greeting want=from-e2e got=${GOT} body=${BODY}"
 
@@ -42,7 +41,7 @@ api_status PUT "/v1/projects/${PROJECT}/versions/${VID}/env" '{"vars":{"GREETING
 [[ "$API_STATUS" == "200" ]] || fail "PUT env → HTTP ${API_STATUS} ${API_BODY}"
 
 for i in $(seq 1 30); do
-  BODY=$(curl -fsS "$GW" 2>/dev/null || true)
+  BODY=$(curl_version "$PROJECT" "$VID" "/" 2>/dev/null || true)
   GOT=$(echo "$BODY" | jq -r '.greeting // empty' 2>/dev/null || true)
   if [[ "$GOT" == "after-put" ]]; then
     break

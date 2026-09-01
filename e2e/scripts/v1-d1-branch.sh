@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# TP-D1-BRANCH — parent import → child branch → isolation (B3/B4/B5)
+# TP-D1-BRANCH — parent import → child branch → isolation (B3/B4/B5) (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_platform
 require_offshoot
@@ -106,9 +108,9 @@ log "parent seed.db entries=${EXPECTED}"
 create_version "$PROJECT" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$PARENT" ready 180 >/dev/null
 
-PARENT_URL="${GATEWAY_URL}/${PROJECT}/${PARENT}/count"
-wait_http_200 "$PARENT_URL" 60
-PARENT_COUNT=$(curl -sf "$PARENT_URL" | jq -r '.count // empty')
+# PARENT via Host
+wait_http_200_version "$PROJECT" "$PARENT" "/count" 60
+PARENT_COUNT=$(curl_version "$PROJECT" "$PARENT" "/count" | jq -r '.count // empty')
 if [[ "$PARENT_COUNT" != "$EXPECTED" ]]; then
   fail "parent worker count=${PARENT_COUNT:-?} expected ${EXPECTED}"
 fi
@@ -120,9 +122,9 @@ copy_d1_seed_bundle "$CHILD_DIR"
 create_version "$PROJECT" "$CHILD" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$CHILD" ready 180 >/dev/null
 
-CHILD_URL="${GATEWAY_URL}/${PROJECT}/${CHILD}/count"
-wait_http_200 "$CHILD_URL" 60
-CHILD_COUNT=$(curl -sf "$CHILD_URL" | jq -r '.count // empty')
+# CHILD via Host
+wait_http_200_version "$PROJECT" "$CHILD" "/count" 60
+CHILD_COUNT=$(curl_version "$PROJECT" "$CHILD" "/count" | jq -r '.count // empty')
 if [[ "$CHILD_COUNT" != "$EXPECTED" ]]; then
   fail "child worker count=${CHILD_COUNT:-?} expected ${EXPECTED} (branch from parent)"
 fi
@@ -141,14 +143,14 @@ celld d1 execute "$DATABASE" \
   --bucket "$CHILD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
   >>"${EVIDENCE_DIR}/d1-branch-child-insert.log" 2>&1 \
   || fail "child INSERT via celld d1 execute"
-CHILD_AFTER=$(curl -sf "$CHILD_URL" | jq -r '.count // empty')
+CHILD_AFTER=$(curl_version "$PROJECT" "$CHILD" "/count" | jq -r '.count // empty')
 if [[ "$CHILD_AFTER" != "$((EXPECTED + 1))" ]]; then
   fail "child count after INSERT=${CHILD_AFTER:-?} expected $((EXPECTED + 1))"
 fi
 log "child INSERT OK count=${CHILD_AFTER}"
 
 # Parent must still see only the original rows.
-PARENT_AFTER=$(curl -sf "$PARENT_URL" | jq -r '.count // empty')
+PARENT_AFTER=$(curl_version "$PROJECT" "$PARENT" "/count" | jq -r '.count // empty')
 if [[ "$PARENT_AFTER" != "$EXPECTED" ]]; then
   fail "parent count after child INSERT=${PARENT_AFTER:-?} expected ${EXPECTED} (isolation broken)"
 fi
@@ -200,8 +202,8 @@ done
 if [[ "$healthy" != "1" ]]; then
   fail "B5 new celld not healthy on :${CHILD_PORT} after S3-only restore (pid ${B5_PID})"
 fi
-wait_http_200 "$CHILD_URL" 90
-B5_COUNT=$(curl -sf "$CHILD_URL" | jq -r '.count // empty')
+wait_http_200_version "$PROJECT" "$CHILD" "/count" 90
+B5_COUNT=$(curl_version "$PROJECT" "$CHILD" "/count" | jq -r '.count // empty')
 if [[ "$B5_COUNT" != "$CHILD_AFTER" ]]; then
   fail "B5 restore count=${B5_COUNT:-?} expected ${CHILD_AFTER}"
 fi

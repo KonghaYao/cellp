@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TP-V4b — Promote aborts when offshoot promote fails; prod_version_id unchanged
+# TP-V4b — Promote aborts when offshoot promote fails (AD-12 prod Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
@@ -51,9 +51,8 @@ poll_version "$PROJECT" "$V_NEW" ready 120 >/dev/null
 api_status POST "/v1/projects/${PROJECT}/versions/${V_OLD}/promote" '{}'
 [[ "$API_STATUS" == "200" ]] || fail "initial promote ${V_OLD} HTTP ${API_STATUS}: ${API_BODY}"
 
-PROD_URL="${GATEWAY_URL}/${PROJECT}/"
-wait_http_200 "$PROD_URL" 60
-PROD_BODY_BEFORE=$(curl -sf "$PROD_URL")
+wait_http_200_prod "$PROJECT" "/" 60
+PROD_BODY_BEFORE=$(curl_prod "$PROJECT" "/")
 PROD_ID_BEFORE=$(api_get "/v1/projects/${PROJECT}" | jq -r .prod_version_id)
 
 [[ "$PROD_ID_BEFORE" == "$V_OLD" ]] || fail "expected prod ${V_OLD}, got ${PROD_ID_BEFORE}"
@@ -72,7 +71,7 @@ fi
 PROD_ID_AFTER=$(api_get "/v1/projects/${PROJECT}" | jq -r .prod_version_id)
 [[ "$PROD_ID_AFTER" == "$V_OLD" ]] || fail "prod_version_id changed to ${PROD_ID_AFTER}"
 
-PROD_BODY_AFTER=$(curl -sf "$PROD_URL")
+PROD_BODY_AFTER=$(curl_prod "$PROJECT" "/")
 [[ "$PROD_BODY_AFTER" == "$PROD_BODY_BEFORE" ]] || fail "prod body changed after failed promote"
 
 pass "V4b promote offshoot gate OK (prod stayed ${V_OLD})"

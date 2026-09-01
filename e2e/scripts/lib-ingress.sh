@@ -6,13 +6,11 @@ ingress_base_domain() {
   echo "${CELLP_INGRESS_BASE_DOMAIN}"
 }
 
-# Stable prod Host FQDN (matches cellp config.ProdHost).
 prod_host() {
   local project="${1:-$DEV_PROJECT}"
   echo "${project}.$(ingress_base_domain)"
 }
 
-# Preview Host from version id + project (matches config.PreviewHost labels).
 preview_host() {
   local project="$1"
   local version="$2"
@@ -65,4 +63,55 @@ wait_http_gone_host() {
     sleep 1
   done
   fail "expected HTTP 404/410/503 from Host=${host} (last=${code})"
+}
+
+curl_version() {
+  curl_gateway_host "$(preview_host "$1" "$2")" "${3:-/}"
+}
+
+curl_version_method() {
+  local method="$1"
+  local project="$2"
+  local version="$3"
+  local path="${4:-/}"
+  shift 4
+  curl -fsS -X "$method" -H "Host: $(preview_host "$project" "$version")" "${GATEWAY_URL}${path}" "$@"
+}
+
+http_code_version() {
+  http_code_gateway_host "$(preview_host "$1" "$2")" "${3:-/}"
+}
+
+wait_http_200_version() {
+  wait_http_200_host "$(preview_host "$1" "$2")" "${3:-/}" "${4:-60}"
+}
+
+wait_http_gone_version() {
+  wait_http_gone_host "$(preview_host "$1" "$2")" "${3:-/}" "${4:-120}"
+}
+
+curl_prod() {
+  curl_gateway_host "$(prod_host "$1")" "${2:-/}"
+}
+
+http_code_prod() {
+  http_code_gateway_host "$(prod_host "$1")" "${2:-/}"
+}
+
+wait_http_200_prod() {
+  wait_http_200_host "$(prod_host "$1")" "${2:-/}" "${3:-60}"
+}
+
+# Legacy path URL (deprecated); use only when INGRESS_HOST_ONLY=0 fallback.
+gateway_path_preview() {
+  local project="$1"
+  local version="$2"
+  local path="${3:-/}"
+  echo "${GATEWAY_URL}/${project}/${version}${path}"
+}
+
+gateway_path_prod() {
+  local project="$1"
+  local path="${2:-/}"
+  echo "${GATEWAY_URL}/${project}${path}"
 }

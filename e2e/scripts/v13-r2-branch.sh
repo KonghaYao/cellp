@@ -37,21 +37,20 @@ stage_worker_example "$R2_EXAMPLE" "$DEST_C"
 create_version "$PROJECT" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$PARENT" ready 120 >/dev/null
 
-GW="${GATEWAY_URL}/${PROJECT}"
-PREVIEW_P="${GW}/${PARENT}/"
-PREVIEW_C="${GW}/${CHILD}/"
+GW="${GATEWAY_URL}"
+HOST_P="$(preview_host "$PROJECT" "$PARENT")"
+HOST_C="$(preview_host "$PROJECT" "$CHILD")"
 
-# celld/examples/r2: PUT /KEY writes, GET /KEY reads
-curl -fsS -X PUT "${PREVIEW_P}${KEY}" -d "$PARENT_BODY" >/dev/null
+curl_version_method PUT "$PROJECT" "$PARENT" "/${KEY}" -d "$PARENT_BODY" >/dev/null
 
 create_version "$PROJECT" "$CHILD" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$CHILD" ready 120 >/dev/null
 
-CHILD_GET=$(curl -fsS "${PREVIEW_C}${KEY}" || true)
+CHILD_GET=$(curl_gateway_host "$HOST_C" "/${KEY}" || true)
 [[ "$CHILD_GET" == "$PARENT_BODY" ]] || fail "child GET after branch: want=${PARENT_BODY} got=${CHILD_GET}"
 
-curl -fsS -X PUT "${PREVIEW_C}${KEY}" -d "$CHILD_BODY" >/dev/null
-PARENT_GET=$(curl -fsS "${PREVIEW_P}${KEY}" || true)
+curl_version_method PUT "$PROJECT" "$CHILD" "/${KEY}" -d "$CHILD_BODY" >/dev/null
+PARENT_GET=$(curl_gateway_host "$HOST_P" "/${KEY}" || true)
 [[ "$PARENT_GET" == "$PARENT_BODY" ]] || fail "parent unchanged: want=${PARENT_BODY} got=${PARENT_GET}"
 
 log "V13 R2 branch PASS"

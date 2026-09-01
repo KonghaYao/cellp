@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TP-VE-5 / TP-API-5 — Destroy lifecycle: DELETE → draining → destroyed; gateway 404/503 ≤120s
+# TP-VE-5 / TP-API-5 — Destroy lifecycle (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
@@ -16,8 +16,7 @@ ensure_project "$PROJECT"
 create_version "$PROJECT" "$VERSION" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VERSION" ready 120 >/dev/null
 
-PREVIEW="${GATEWAY_URL}/${PROJECT}/${VERSION}/"
-wait_http_200 "$PREVIEW" 60
+wait_http_200_version "$PROJECT" "$VERSION" "/" 60
 
 log "DELETE version ${VERSION}"
 HTTP=$(curl -sf -o /tmp/ve-destroy.json -w '%{http_code}' -X DELETE \
@@ -45,7 +44,7 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 
-wait_http_gone "$PREVIEW" 120
+wait_http_gone_version "$PROJECT" "$VERSION" "/" 120
 
 pass "VE-5 destroy OK gateway gone within 120s"
 exit 0
