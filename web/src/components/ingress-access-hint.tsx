@@ -56,6 +56,18 @@ export function IngressAccessHint({
         必须用 <span className="font-mono">http://</span> 且 URL 里要带{" "}
         <span className="font-mono">:{port}</span>。省略端口会连到 80，页面会打不开；不要用{" "}
         <span className="font-mono">https://</span>。
+        {magicDns ? (
+          <>
+            {" "}
+            若 Chrome 显示 <span className="font-mono">HTTP ERROR 502</span> 而{" "}
+            <span className="font-mono">curl</span> 正常，多半是系统代理（如 Clash{" "}
+            <span className="font-mono">127.0.0.1:7897</span>）把{" "}
+            <span className="font-mono">nip.io</span> 走了代理；在代理里加{" "}
+            <span className="font-mono">DOMAIN-SUFFIX,nip.io,DIRECT</span>，或改用{" "}
+            <span className="font-mono">ingress.local</span> + hosts（<span className="font-mono">*.local</span>{" "}
+            常在绕过列表里）。
+          </>
+        ) : null}
       </p>
       <ul className="mt-2 list-inside list-disc space-y-1 font-mono text-[11px] text-foreground/90">
         {versionId ? (
