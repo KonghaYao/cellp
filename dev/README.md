@@ -9,10 +9,22 @@ cp dev/.env.example dev/.env
 ./dev/scripts/up.sh
 ./dev/scripts/seed-commerce-store.sh   # commerce-store v1 + D1 seed
 ./dev/scripts/health.sh
-curl http://127.0.0.1:8787/commerce-store/v1/stats
+# AD-12 Host 路由（path /{project}/{version}/ 已废弃）— 见 docs/plans/INGRESS-ROUTING.md
+# /etc/hosts 一行示例（默认 CELLP_INGRESS_BASE_DOMAIN=ingress.local）：
+#   127.0.0.1 v1.commerce-store.ingress.local commerce-store.ingress.local
+curl -H "Host: commerce-store.ingress.local" http://127.0.0.1:8787/stats
 ```
 
-完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策见 **[docs/decisions.md](../docs/decisions.md)** · 验证项见 **[docs/test-plan.md](../docs/test-plan.md)**。
+完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策 **[AD-12](../docs/decisions.md#17-ad-12--hostname--port-ingress废弃-path-选-version)** · Ingress **[INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)** · 验证 **[docs/test-plan.md](../docs/test-plan.md)**。
+
+## Ingress（AD-12，摘要）
+
+| 角色 | Host 形态 |
+|------|-----------|
+| Preview | `{version}.{project}.ingress.local` |
+| Prod | `{project}.ingress.local` |
+
+Gateway **:8787** 按 **Host** 选 version，业务 path 从 `/` 起、**不** strip。本机无 DNS 时在 **`/etc/hosts`** 把上述 Host 指到 **`127.0.0.1`**（`dev/.env` 里 `CELLP_INGRESS_BASE_DOMAIN` 可改后缀）。`/{project}/{version}/*` path 选路 **deprecated**。
 
 ## 端口
 

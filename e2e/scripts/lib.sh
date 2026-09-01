@@ -294,3 +294,32 @@ offshoot_rustfs_env() {
   export OFFSHOOT_CHECKOUTS="${OFFSHOOT_CHECKOUTS:-./dev/data/offshoot-checkouts-rustfs}"
   mkdir -p "$OFFSHOOT_CHECKOUTS"
 }
+
+# Upload local artifact dir to RustFS so orch Fetch(s3://...) succeeds (dev CD).
+sync_artifact_to_rustfs() {
+  local project="$1"
+  local version="$2"
+  local src="${ARTIFACTS_DIR}/${project}/${version}"
+  local bucket="${ARTIFACTS_BUCKET:-cellp-artifacts}"
+  local endpoint="${S3_ENDPOINT:-http://127.0.0.1:19000}"
+  [[ -d "$src" ]] || fail "artifact dir missing: $src"
+  export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-rustfsadmin}"
+  export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-rustfsadmin}"
+  export AWS_REGION="${AWS_REGION:-us-east-1}"
+  if ! command -v aws >/dev/null 2>&1; then
+    if command -v docker >/dev/null 2>&1; then
+      docker run --rm --network host \
+        -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+        -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
+        -e "AWS_REGION=${AWS_REGION}" \
+        -v "${src}:/src:ro" \
+        amazon/aws-cli:2.15.0 s3 sync "/src" "s3://${bucket}/${project}/${version}/" \
+        --endpoint-url "$endpoint" --only-show-errors
+      return 0
+    fi
+    echo "WARN: aws CLI and docker missing — orch may fail to fetch s3:// artifact" >&2
+    return 0
+  fi
+  aws s3 sync "$src" "s3://${bucket}/${project}/${version}/" \
+    --endpoint-url "$endpoint" --only-show-errors
+}

@@ -15,20 +15,12 @@ import (
 	"github.com/cellp/cellp/internal/runtime"
 )
 
-func installBranchCelldForDeploy(t *testing.T) {
-	t.Helper()
-	bin := filepath.Join(t.TempDir(), "bin")
-	_ = os.Mkdir(bin, 0o755)
-	_ = os.WriteFile(filepath.Join(bin, "celld"), []byte("#!/bin/sh\nexit 0\n"), 0o755)
-	t.Setenv("PATH", bin)
-}
-
 func TestRunDeployChildD1AndKVBranchWithGateway(t *testing.T) {
 	gw := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(gw.Close)
-	installBranchCelldForDeploy(t)
+	installFakeCelld(t)
 
 	dir := t.TempDir()
 	store, err := registry.Open(filepath.Join(dir, "deploy.sqlite"))

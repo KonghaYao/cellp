@@ -6,21 +6,8 @@ import (
 	"testing"
 )
 
-func installBranchFakeCelld(t *testing.T) {
-	t.Helper()
-	bin := filepath.Join(t.TempDir(), "bin")
-	if err := os.Mkdir(bin, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	script := "#!/bin/sh\nexit 0\n"
-	if err := os.WriteFile(filepath.Join(bin, "celld"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin)
-}
-
 func TestRunBindingBranchesAllKinds(t *testing.T) {
-	installBranchFakeCelld(t)
+	installFakeCelld(t)
 	o, _, ctx := newTestOrch(t)
 	dir := t.TempDir()
 	wrangler := `{
