@@ -15,6 +15,7 @@ import {
   storageKvHref,
   storageQueuesHref,
   storageWorkflowsHref,
+  versionHref,
 } from "@/lib/routes";
 import { Ad7Banner } from "@/components/bindings/ad7-banner";
 import { EmptyState } from "@/components/empty-state";
@@ -220,7 +221,12 @@ export function StoragePage() {
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm">{version.id}</span>
+                        <Link
+                          to={versionHref(id, version.id)}
+                          className="font-mono text-sm hover:underline"
+                        >
+                          {version.id}
+                        </Link>
                         {isProd && <Badge variant="prod">Production</Badge>}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">

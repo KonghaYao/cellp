@@ -2,6 +2,7 @@ import {
   isAppInternalPath,
   projectHasHtmlStorefront,
 } from "@/lib/ingress-routing";
+import { versionHref } from "@/lib/routes";
 
 const GATEWAY_DEFAULT = "http://127.0.0.1:8787";
 
@@ -69,7 +70,7 @@ export function dashboardVersionPath(
   projectId: string,
   versionId: string,
 ): string {
-  return `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`;
+  return versionHref(projectId, versionId);
 }
 
 /**

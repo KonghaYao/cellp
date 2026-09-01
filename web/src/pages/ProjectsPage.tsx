@@ -8,6 +8,7 @@ import {
   type ProjectSummary,
 } from "@/lib/cellp-api";
 import { formatRelativeTime } from "@/lib/format";
+import { projectOverviewHref, versionHref } from "@/lib/routes";
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { EmptyState } from "@/components/empty-state";
@@ -246,7 +247,7 @@ export function ProjectsPage() {
                     <TableRow key={project.id}>
                       <TableCell>
                         <Link
-                          to={`/projects/${project.id}`}
+                          to={projectOverviewHref(project.id)}
                           className="font-medium hover:underline"
                         >
                           {project.id}
@@ -260,7 +261,9 @@ export function ProjectsPage() {
                       </TableCell>
                       <TableCell>
                         {project.prod_version_id ? (
-                          <Badge variant="prod">{project.prod_version_id}</Badge>
+                          <Link to={versionHref(project.id, project.prod_version_id)}>
+                            <Badge variant="prod">{project.prod_version_id}</Badge>
+                          </Link>
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
                         )}

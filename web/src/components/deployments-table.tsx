@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { versionHref } from "@/lib/routes";
 
 interface DeploymentsTableProps {
   projectId: string;
@@ -85,7 +86,7 @@ export function DeploymentsTable({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Link
-                        to={`/projects/${projectId}/versions/${version.id}`}
+                        to={versionHref(projectId, version.id)}
                         className="font-mono text-sm font-medium hover:underline"
                       >
                         {version.id}
@@ -164,7 +165,7 @@ function DeploymentCard({
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to={`/projects/${projectId}/versions/${version.id}`}
+              to={versionHref(projectId, version.id)}
               className="font-mono text-sm font-medium hover:underline"
             >
               {version.id}

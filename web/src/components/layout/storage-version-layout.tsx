@@ -7,21 +7,16 @@ import {
   storageKvHref,
   storageQueuesHref,
   storageWorkflowsHref,
+  versionHrefForStoragePathname,
 } from "@/lib/routes";
-
-function versionHrefForPath(pathname: string) {
-  if (pathname.includes("/kv")) return storageKvHref;
-  if (pathname.includes("/queues")) return storageQueuesHref;
-  if (pathname.includes("/workflows")) return storageWorkflowsHref;
-  return storageBrowserHref;
-}
 
 export function StorageVersionLayout() {
   const { id = "", vid = "" } = useParams<{ id: string; vid: string }>();
   const location = useLocation();
 
   const versionHref = useMemo(
-    () => versionHrefForPath(location.pathname),
+    () => (projectId: string, versionId: string) =>
+      versionHrefForStoragePathname(projectId, versionId, location.pathname),
     [location.pathname],
   );
 

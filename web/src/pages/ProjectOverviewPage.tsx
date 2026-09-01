@@ -11,7 +11,7 @@ import {
   type Version,
 } from "@/lib/cellp-api";
 import { resolveProdUrl, formatRelativeTime, truncateSha, ingressDisplayUrl, isAppInternalPath } from "@/lib/format";
-import { deploymentsHref, inspectHref, storageBrowserHref } from "@/lib/routes";
+import { deploymentsHref, inspectHref, storageBrowserHref, versionHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { DeploymentsTable } from "@/components/deployments-table";
 import { CommerceStorefrontEmbed } from "@/components/commerce-storefront-embed";
@@ -182,7 +182,12 @@ export function ProjectOverviewPage() {
               {project?.prod_version_id && prodVersion ? (
                 <>
                   <p className="font-mono text-xl font-semibold tracking-tight">
-                    {project.prod_version_id}
+                    <Link
+                      to={versionHref(id, project.prod_version_id)}
+                      className="hover:underline"
+                    >
+                      {project.prod_version_id}
+                    </Link>
                   </p>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">

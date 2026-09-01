@@ -9,6 +9,7 @@ import {
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { VersionDetailView } from "@/components/version-detail-view";
 import { Skeleton } from "@/components/ui/skeleton";
+import { projectOverviewHref } from "@/lib/routes";
 
 export function VersionPage() {
   const { id = "", vid = "" } = useParams<{ id: string; vid: string }>();
@@ -81,7 +82,7 @@ export function VersionPage() {
       <div className="space-y-4 text-center py-16">
         <h1 className="text-2xl font-semibold">Version not found</h1>
         <p className="text-muted-foreground">
-          <Link to={`/projects/${id}`} className="hover:underline">
+          <Link to={projectOverviewHref(id)} className="hover:underline">
             Back to project
           </Link>
         </p>

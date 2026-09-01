@@ -9,7 +9,7 @@ import {
   type BindingKind,
 } from "@/lib/binding-registry";
 import { CellpApiError } from "@/lib/cellp-api";
-import { projectOverviewHref } from "@/lib/routes";
+import { projectOverviewHref, versionHref } from "@/lib/routes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
@@ -136,7 +136,12 @@ export function GlobalBindingListPage({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm">{row.versionId}</span>
+                      <Link
+                        to={versionHref(row.projectId, row.versionId)}
+                        className="font-mono text-sm hover:underline"
+                      >
+                        {row.versionId}
+                      </Link>
                       {row.isProd && <Badge variant="prod">Production</Badge>}
                     </div>
                   </TableCell>
