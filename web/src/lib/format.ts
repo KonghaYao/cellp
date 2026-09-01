@@ -22,6 +22,16 @@ export function ingressBaseDomain(): string {
   return (fromEnv?.trim() || "ingress.local").toLowerCase();
 }
 
+/** nip.io / sslip.io — public DNS embeds LAN IP; colleagues skip /etc/hosts. */
+export function ingressUsesMagicDns(): boolean {
+  const base = ingressBaseDomain();
+  return (
+    base.endsWith(".nip.io") ||
+    base.endsWith(".sslip.io") ||
+    base.endsWith(".xip.io")
+  );
+}
+
 export function previewHost(projectId: string, versionId: string): string {
   return `${versionId}.${projectId}.${ingressBaseDomain()}`.toLowerCase();
 }

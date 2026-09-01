@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   gatewayBrowseUrl,
   ingressDisplayUrl,
@@ -59,5 +59,17 @@ describe("format AD-12 browse URLs", () => {
       "http://v1.demo-app.ingress.local/",
     );
     expect(url).toContain(":8787");
+  });
+});
+
+describe("ingress magic DNS", () => {
+  it("ingressUsesMagicDns for nip.io base", async () => {
+    vi.stubEnv("VITE_CELLP_INGRESS_BASE_DOMAIN", "192-168-1-10.nip.io");
+    vi.resetModules();
+    const mod = await import("./format");
+    expect(mod.ingressBaseDomain()).toBe("192-168-1-10.nip.io");
+    expect(mod.ingressUsesMagicDns()).toBe(true);
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });

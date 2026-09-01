@@ -26,6 +26,8 @@ curl -H "Host: commerce-store.ingress.local" http://127.0.0.1:8787/stats
 
 Gateway **:8787** 按 **Host** 选 version，业务 path 从 `/` 起、**不** strip。本机无 DNS 时在 **`/etc/hosts`** 把上述 Host 指到 **`127.0.0.1`**（`dev/.env` 里 `CELLP_INGRESS_BASE_DOMAIN` 可改后缀）。`/{project}/{version}/*` path 选路 **deprecated**。
 
+**局域网免每人改 hosts：** `./dev/scripts/ingress-nip-enable.sh` 将 base domain 设为 `{你的IP用横线}.nip.io`（例如 `192-168-1-10.nip.io`），然后 **`reset.sh` → `up.sh` → seed**。同事用 Dashboard 里带 `:8787` 的 URL 即可（需能解析 nip.io）。
+
 ## 端口
 
 | 服务 | 端口 | 说明 |
@@ -64,6 +66,7 @@ Gateway **:8787** 按 **Host** 选 version，业务 path 从 `/` 起、**不** s
 | `simulate-cd.sh` | 本地 CD：`simulate-cd.sh <project> <version>` |
 | `seed-commerce-store.sh` | **默认验收**：`commerce-store` v1，D1 电商假数据 + Dashboard 链接 |
 | `seed-demo.sh` | Bindings 演示：`demo-app` v1/v2，D1/KV/Queue/Workflow 假数据 |
+| `ingress-nip-enable.sh` | 局域网免 hosts：把 `CELLP_INGRESS_BASE_DOMAIN` 设为 `{IP-dashes}.nip.io`（需 reset + up + seed） |
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
 
