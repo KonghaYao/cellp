@@ -3,6 +3,7 @@ import {
   previewBrowseUrl,
   prodBrowseUrl,
   previewHostFromApi,
+  workerHasHtmlStorefront,
 } from "@/lib/format";
 
 export function commerceStorefrontUrl(
@@ -11,66 +12,87 @@ export function commerceStorefrontUrl(
   prodUrl?: string | null,
   isProd?: boolean,
 ): string {
+  const path = workerHasHtmlStorefront(projectId) ? "/" : "/count";
   if (isProd) {
-    return prodBrowseUrl(projectId, prodUrl);
+    return prodBrowseUrl(projectId, prodUrl, path);
   }
-  return previewBrowseUrl(projectId, versionId);
+  return previewBrowseUrl(projectId, versionId, undefined, path);
 }
 
 export function CommerceStorefrontEmbed({
   projectId,
   versionId,
   prodUrl,
-  isProd = false,
-  previewUrl,
+  isProd,
 }: {
   projectId: string;
   versionId: string;
   prodUrl?: string | null;
   isProd?: boolean;
-  previewUrl?: string | null;
 }) {
-  const src = isProd
-    ? prodBrowseUrl(projectId, prodUrl)
-    : previewBrowseUrl(projectId, versionId, previewUrl);
-
+  const src = commerceStorefrontUrl(projectId, versionId, prodUrl, isProd);
+  const previewUrl = prodUrl ?? undefined;
   const hostLabel = (() => {
     try {
       if (prodUrl && isProd) return new URL(prodUrl).host;
-      if (previewUrl) return new URL(previewUrl).host;
     } catch {
       /* fall through */
     }
     return previewHostFromApi(projectId, versionId, previewUrl);
   })();
 
+  const htmlStorefront = workerHasHtmlStorefront(projectId);
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="rounded-lg border border-border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div>
-          <h2 className="text-label-14 font-medium">Storefront</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Live Worker on gateway (Host{" "}
-            <span className="font-mono text-xs">{hostLabel}</span>)
+          <h2 className="text-sm font-medium text-foreground">Live on gateway</h2>
+          <p className="text-xs text-muted-foreground">
+            Host <code className="text-foreground">{hostLabel}</code>
+            {!htmlStorefront && (
+              <> · API Worker（根路径为 JSON，非 HTML 页面）</>
+            )}
           </p>
         </div>
         <a
           href={src}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
         >
-          Open full screen
-          <ExternalLink className="size-3.5 text-muted-foreground" />
+          Open via dev proxy
+          <ExternalLink className="size-3.5" />
         </a>
       </div>
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <iframe
-          title="Commerce storefront"
-          src={src}
-          className="h-[min(720px,70vh)] w-full border-0 bg-[#0f1117]"
-        />
-      </div>
+      {htmlStorefront ? (
+        <div className="bg-muted/30 p-2">
+          <iframe
+            title={`Storefront ${projectId} ${versionId}`}
+            src={src}
+            className="h-[min(720px,70vh)] w-full border-0 bg-[#0f1117]"
+          />
+        </div>
+      ) : (
+        <div className="space-y-2 px-4 py-6 text-sm text-muted-foreground">
+          <p>
+            <strong className="text-foreground">{projectId}</strong> 是 bindings/API
+            演示，没有整页 HTML Storefront。请在 Dashboard 里看 KV / Queue / D1，或用
+            Gateway 调 API。
+          </p>
+          <p className="text-xs">
+            不要直接收藏 <code>/__gateway/?__cellp_host=…</code> — 那是开发代理地址。
+            要看带 UI 的商店，请打开项目{" "}
+            <a href="/projects/commerce-store" className="text-primary underline">
+              commerce-store
+            </a>
+            。
+          </p>
+          <p className="text-xs">
+            试 API：<code>curl -H &quot;Host: {hostLabel}&quot; http://127.0.0.1:8787/count</code>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

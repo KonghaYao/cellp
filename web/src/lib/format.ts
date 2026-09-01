@@ -39,6 +39,11 @@ export function previewHostFromApi(
   return previewHost(projectId, versionId);
 }
 
+/** Workers with a full HTML storefront (iframe). API-only demos return false. */
+export function workerHasHtmlStorefront(projectId: string): boolean {
+  return projectId === "commerce-store";
+}
+
 /**
  * URL the browser can open in dev: Vite `/__gateway` proxy + `__cellp_host` (AD-12).
  * In production builds, uses canonical host URL from API or derived host.
@@ -67,10 +72,11 @@ export function previewBrowseUrl(
   projectId: string,
   versionId: string,
   previewUrl?: string | null,
+  pathOverride?: string,
 ): string {
   const host = previewHostFromApi(projectId, versionId, previewUrl);
-  let path = "/";
-  if (previewUrl) {
+  let path = pathOverride ?? "/";
+  if (!pathOverride && previewUrl) {
     try {
       path = new URL(previewUrl).pathname || "/";
     } catch {
@@ -83,18 +89,19 @@ export function previewBrowseUrl(
 export function prodBrowseUrl(
   projectId: string,
   prodUrl?: string | null,
+  pathOverride = "/",
 ): string {
   if (prodUrl) {
     try {
       const u = new URL(prodUrl);
       if (u.host && !u.pathname.includes(`/${projectId}/`)) {
-        return gatewayBrowseUrl(u.host, u.pathname || "/");
+        return gatewayBrowseUrl(u.host, pathOverride || u.pathname || "/");
       }
     } catch {
       /* fall through */
     }
   }
-  return gatewayBrowseUrl(prodHost(projectId), "/");
+  return gatewayBrowseUrl(prodHost(projectId), pathOverride);
 }
 
 /** Derive production browse URL (AD-12 Host, not path /{project}/). */
