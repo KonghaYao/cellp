@@ -230,6 +230,10 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		return fmt.Errorf("project: %w", perr)
 	}
 	armCron := CronShouldArm(proj, j.VersionID)
+	previewHost, _, err := o.ensurePreviewIngress(ctx, j.ProjectID, j.VersionID)
+	if err != nil {
+		return fmt.Errorf("preview ingress: %w", err)
+	}
 	if err := o.runtime.Deploy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
 		return fmt.Errorf("deploy: %w", err)
 	}
@@ -281,8 +285,10 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	}
 
 	if runtime.CelldInstalled() {
-		if err := runtime.VerifyGatewayRoute(ctx, o.cfg.GatewayURL, j.ProjectID, j.VersionID); err != nil {
-			return fmt.Errorf("gateway route verify: %w", err)
+		if err := runtime.VerifyGatewayRouteHost(ctx, o.cfg.GatewayURL, previewHost); err != nil {
+			if err2 := runtime.VerifyGatewayRoute(ctx, o.cfg.GatewayURL, j.ProjectID, j.VersionID); err2 != nil {
+				return fmt.Errorf("gateway route verify: host: %v; path: %w", err, err2)
+			}
 		}
 	}
 
