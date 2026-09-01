@@ -118,21 +118,22 @@ seed_kv_v1() {
 }
 
 seed_queue_v1() {
-  local url="${GATEWAY_URL}/${PROJECT}/${V1}/enqueue"
   local i body code
   for i in 1 2 3; do
     body=$(jq -n --arg m "demo-task-${i}" --argjson n "$i" --argjson at "$(date +%s)" '{task:$m, n:$n, at:$at}')
-    code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" \
-      -H "Content-Type: application/json" -d "$body" 2>/dev/null || echo "000")
+    code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      -H "Host: $(preview_host "$PROJECT" "$V1")" -H "Content-Type: application/json" \
+      -d "$body" "${GATEWAY_URL}/enqueue" 2>/dev/null || echo "000")
     [[ "$code" == "202" || "$code" == "200" ]] || fail "enqueue ${i} → HTTP ${code}"
   done
   log "queue seeded (3 messages via Worker /enqueue)"
 }
 
 seed_workflow_v1() {
-  local url="${GATEWAY_URL}/${PROJECT}/${V1}/create?url=https://example.com"
   local code body
-  code=$(curl -s -o /tmp/cellp-wf-create.json -w '%{http_code}' "$url" 2>/dev/null || echo "000")
+  code=$(curl -s -o /tmp/cellp-wf-create.json -w '%{http_code}' \
+    -H "Host: $(preview_host "$PROJECT" "$V1")" \
+    "${GATEWAY_URL}/create?url=https://example.com" 2>/dev/null || echo "000")
   if [[ "$code" == "200" ]]; then
     log "workflow instance created id=$(jq -r .id /tmp/cellp-wf-create.json 2>/dev/null || echo '?')"
   else
@@ -156,6 +157,10 @@ print_summary() {
   echo "  Queues:    http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/queues"
   echo "  Workflows: http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/workflows"
   echo "  D1:        http://127.0.0.1:${DASHBOARD_PORT:-5190}/projects/${PROJECT}/storage/${V1}/browser"
+  echo "  Gateway (Host / AD-12):"
+  echo "    prod:    curl -H \"Host: $(prod_host "$PROJECT")\" ${GATEWAY_URL}/"
+  echo "    preview: curl -H \"Host: $(preview_host "$PROJECT" "$V2")\" ${GATEWAY_URL}/"
+  echo "  /etc/hosts: 127.0.0.1 $(prod_host "$PROJECT") $(preview_host "$PROJECT" "$V1") $(preview_host "$PROJECT" "$V2")"
   echo ""
 }
 
