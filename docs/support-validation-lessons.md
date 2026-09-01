@@ -25,6 +25,10 @@
 | 错误 | 现象 | 正确做法 |
 |------|------|----------|
 | artifact 带全量 **pnpm node_modules** | celld `/src` 缺 symlink、RustFS 上传失败 | **wrangler dry-run** + `no_bundle` + slim stage（FlareMo / r2filebox） |
+| **celld deploy** 拒绝 `base_dir` / `find_additional_modules` / `rules` | EdgeEver overlay 需删掉；worker 用 **esbuild → `.cellp-bundle/index.js`** |
+| **Web Crypto `deriveBits(PBKDF2)`** 在旧 celld 不支持 | EdgeEver 首次登录 **500** | **运行时**在 `crypto.js` 接 PBKDF2；应用保持上游 **`subtle.deriveBits`**，**勿**再 deploy patch `node:crypto` |
+| D1 **migrations** 未自动跑 | UI `database_not_ready` | deploy 后 `apply-version-d1-migrations.sh`（wrangler.jsonc 需 **strip JSONC** 再 parse） |
+| `git fetch` 卡住 | deploy 脚本挂住 | 已有 corpus 时 `SUPPORT_SKIP_GIT_FETCH=1` |
 | 堆积多个 **celld** 进程 | **diagnose/deploy SIGKILL**（内存） | `pkill -f 'celld --bucket'` 后重 deploy；`CELLP_SKIP_CELLD_DIAGNOSE=1` 仅 dev 救急 |
 | 对 **destroyed** version id 再 `SUPPORT_DESTROY_FIRST` | create 失败 / poll destroyed | 换 **新 vN** |
 | Agent **单次 Bash** 跑 `bun install` + 全量 deploy | 超时 / 中断 | 本机终端跑；脚本支持 `SUPPORT_SKIP_BUILD=1` |

@@ -95,8 +95,12 @@ log "clone/update ${REPO_URL}"
 CLONE_URL="$(clone_git_url "$REPO_URL")"
 [[ "$CLONE_URL" != "$REPO_URL" ]] && log "mirror clone: ${CLONE_URL}"
 if [[ -d "${CLONE_DIR}/.git" ]]; then
-  git -C "$CLONE_DIR" fetch --depth 1 origin 2>/dev/null || true
-  git -C "$CLONE_DIR" pull --ff-only 2>/dev/null || true
+  if [[ "${SUPPORT_SKIP_GIT_FETCH:-}" == "1" ]]; then
+    log "skip git fetch (SUPPORT_SKIP_GIT_FETCH=1, use existing corpus)"
+  else
+    git -C "$CLONE_DIR" fetch --depth 1 origin 2>/dev/null || true
+    git -C "$CLONE_DIR" pull --ff-only 2>/dev/null || true
+  fi
 else
   rm -rf "$CLONE_DIR"
   GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$CLONE_URL" "$CLONE_DIR"
@@ -210,6 +214,20 @@ else
 fi
 
 CELLP_PREPARE="${ROOT}/dev/examples/${PROJECT}/prepare-artifact.sh"
+PATCH_BUILD="${ROOT}/dev/examples/${PROJECT}/patch-build-worker-node-externals.sh"
+if [[ -f "$PATCH_BUILD" ]]; then
+  log "patch worker build externals: ${PATCH_BUILD}"
+  bash "$PATCH_BUILD" "$APP_DIR"
+fi
+PATCH_CRYPTO="${ROOT}/dev/examples/${PROJECT}/patch-auth-crypto-pbkdf2.sh"
+if [[ -f "$PATCH_CRYPTO" ]]; then
+  log "patch auth crypto: ${PATCH_CRYPTO}"
+  bash "$PATCH_CRYPTO" "$APP_DIR"
+  if [[ -f "${APP_DIR}/package.json" ]] && grep -q '"build:worker"' "${APP_DIR}/package.json" 2>/dev/null; then
+    log "rebuild worker after auth patch"
+    (cd "$APP_DIR" && bun run build:worker)
+  fi
+fi
 if [[ -f "$CELLP_PREPARE" ]]; then
   log "prepare artifact: ${CELLP_PREPARE}"
   if [[ -f "${ROOT}/dev/examples/${PROJECT}/patch-local-dev-hosts.sh" && -f "${APP_DIR}/apps/worker/src/auth.ts" ]]; then
@@ -282,6 +300,14 @@ if ! poll_version "$PROJECT" "$VERSION" ready "${SUPPORT_POLL_SECS:-120}" >/dev/
   api_get "/v1/projects/${PROJECT}/versions/${VERSION}" | jq -r '.status,.error' 2>/dev/null || true
   echo "FAIL: version ${VERSION} failed (wanted ready)"
   exit 1
+fi
+
+if [[ -d "${DEST}/migrations" && -f "${DEST}/wrangler.jsonc" ]]; then
+  MIG_SCRIPT="${ROOT}/dev/scripts/apply-version-d1-migrations.sh"
+  if [[ -f "$MIG_SCRIPT" ]]; then
+    log "apply D1 migrations"
+    bash "$MIG_SCRIPT" "$PROJECT" "$VERSION" || echo "WARN: d1 migrations apply failed (may already be applied)"
+  fi
 fi
 
 PREVIEW="$(version_preview_url "$PROJECT" "$VERSION" 2>/dev/null || true)"

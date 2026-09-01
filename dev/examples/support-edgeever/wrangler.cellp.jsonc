@@ -1,12 +1,9 @@
 {
   "name": "support-edgeever",
-  "main": ".wrangler/edgeever-worker/index.js",
-  "base_dir": ".wrangler/edgeever-worker",
+  "main": ".cellp-bundle/index.js",
   "no_bundle": true,
-  "find_additional_modules": true,
   "compatibility_date": "2026-06-26",
   "compatibility_flags": ["nodejs_compat"],
-  "rules": [{"type": "ESModule", "globs": ["modules/*.js"], "fallthrough": true}],
   "assets": {
     "directory": "apps/web/dist",
     "binding": "ASSETS",

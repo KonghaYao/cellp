@@ -11,6 +11,7 @@ source e2e/scripts/lib.sh
 pairs=(
   "support-flaremo:v6"
   "support-r2filebox:v15"
+  "support-edgeever:v3"
 )
 
 for p in "${pairs[@]}"; do
