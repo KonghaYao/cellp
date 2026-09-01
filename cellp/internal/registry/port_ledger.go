@@ -90,6 +90,67 @@ func (s *SQLiteStore) DetachIngressListenPort(ctx context.Context, bindingID, re
 	})
 }
 
+// AdoptStableIngressPortForBinding transfers a stable reserve allocation to prod/preview binding owner and upserts binding.listen_port (R-STABLE-RESERVE).
+func (s *SQLiteStore) AdoptStableIngressPortForBinding(ctx context.Context, binding IngressBinding, reserveOwnerID string) error {
+	return withRetryErr(func() error {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		var pa *PortAllocation
+		if reserveOwnerID != "" {
+			pa, err = s.getActivePortAllocationByOwnerDB(ctx, tx, PortOwnerIngressBinding, reserveOwnerID, PortPurposeIngressListen)
+			if err != nil {
+				return err
+			}
+			if pa != nil {
+				_, err = tx.ExecContext(ctx, `
+					UPDATE port_allocations SET owner_id = ?
+					WHERE allocation_id = ? AND released_at IS NULL`,
+					binding.BindingID, pa.AllocationID)
+				if err != nil {
+					return err
+				}
+				pa.OwnerID = binding.BindingID
+			}
+		}
+		if pa == nil {
+			pa, err = s.getActivePortAllocationByOwnerDB(ctx, tx, PortOwnerIngressBinding, binding.BindingID, PortPurposeIngressListen)
+			if err != nil {
+				return err
+			}
+		}
+		if pa == nil {
+			pid := binding.ProjectID
+			in := AllocateIngressListenPortInput{
+				Stability: PortStabilityStable,
+				OwnerKind: PortOwnerIngressBinding,
+				OwnerID:   binding.BindingID,
+				ProjectID: &pid,
+				GatewayID: binding.OwnerGatewayID,
+			}
+			pa, err = s.allocateIngressListenPortInTx(ctx, tx, in)
+			if err != nil {
+				return err
+			}
+		}
+		port := pa.Port
+		binding.ListenPort = &port
+		if pa.GatewayID != nil {
+			binding.OwnerGatewayID = pa.GatewayID
+		}
+		if err := validateIngressBinding(&binding); err != nil {
+			return err
+		}
+		if err := upsertIngressBindingExec(ctx, tx, binding); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+}
+
 type execContext interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }

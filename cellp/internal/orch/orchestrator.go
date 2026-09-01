@@ -230,10 +230,6 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		return fmt.Errorf("project: %w", perr)
 	}
 	armCron := CronShouldArm(proj, j.VersionID)
-	previewHost, _, err := o.ensurePreviewIngress(ctx, j.ProjectID, j.VersionID)
-	if err != nil {
-		return fmt.Errorf("preview ingress: %w", err)
-	}
 	if err := o.runtime.Deploy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
 		return fmt.Errorf("deploy: %w", err)
 	}
@@ -282,8 +278,20 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		return err
 	}
 
-	if runtime.CelldInstalled() {
-		if err := runtime.VerifyGatewayRouteHost(ctx, o.cfg.GatewayURL, previewHost); err != nil {
+	previewHost, previewURL, err := o.ensurePreviewIngress(ctx, j.ProjectID, j.VersionID)
+	if err != nil {
+		return fmt.Errorf("preview ingress: %w", err)
+	}
+
+	tier, _ := o.effectiveTier(ctx, j.ProjectID)
+	if runtime.CelldInstalled() && os.Getenv("CELPD_SKIP_GATEWAY_VERIFY") != "1" {
+		if previewUsesEphemeralPort(tier) {
+			if os.Getenv("CELLP_INGRESS_PORT_GATEWAY_VERIFY") == "1" {
+				if err := runtime.VerifyGatewayRoutePreviewURL(ctx, previewURL, o.cfg.PreviewSyntheticHost(j.ProjectID, j.VersionID), o.cfg.GatewayVerifyBaseURL()); err != nil {
+					return fmt.Errorf("gateway route verify: %w", err)
+				}
+			}
+		} else if err := runtime.VerifyGatewayRouteHost(ctx, o.cfg.GatewayVerifyBaseURL(), previewHost); err != nil {
 			return fmt.Errorf("gateway route verify: %w", err)
 		}
 	}
@@ -295,6 +303,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	// Set initial prod if none
 	if proj != nil && proj.ProdVersionID == nil {
 		_ = o.store.SetProdVersionCAS(ctx, j.ProjectID, "", j.VersionID)
+		if err := o.ensureProdIngress(ctx, j.ProjectID); err != nil {
+			log.Printf("orch: prod ingress warn: %v", err)
+		}
 	}
 	return nil
 }
@@ -321,6 +332,7 @@ func (o *Orchestrator) branchStep(ctx context.Context, step string, fn func() er
 }
 
 func (o *Orchestrator) compensateDeploy(ctx context.Context, projectID, versionID string) {
+	o.teardownPreviewIngress(ctx, projectID, versionID, "deploy_failed")
 	_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 	_ = o.branch.Destroy(ctx, projectID, versionID)
 	_ = o.runtime.Stop(ctx, projectID, versionID)

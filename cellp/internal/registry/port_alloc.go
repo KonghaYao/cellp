@@ -151,71 +151,87 @@ func (s *SQLiteStore) AllocateIngressListenPort(ctx context.Context, in Allocate
 
 func (s *SQLiteStore) ReserveStablePort(ctx context.Context, in ReserveStablePortInput) (*PortAllocation, error) {
 	return withRetry(func() (*PortAllocation, error) {
-		in.OwnerKind = strings.TrimSpace(in.OwnerKind)
-		in.OwnerID = strings.TrimSpace(in.OwnerID)
-		if in.OwnerKind == "" {
-			in.OwnerKind = PortOwnerIngressBinding
-		}
-		if in.OwnerKind != PortOwnerIngressBinding {
-			return nil, fmt.Errorf("%w: owner_kind must be ingress_binding", ErrPortAllocationInputInvalid)
-		}
-		if in.OwnerID == "" {
-			return nil, fmt.Errorf("%w: owner_id required", ErrPortAllocationInputInvalid)
-		}
-		minP, maxP := s.ingressPortBounds()
-		if err := validateIngressPort(in.Port, minP, maxP); err != nil {
-			return nil, err
-		}
-
-		byOwner, err := s.getActivePortAllocationByOwnerDB(ctx, s.db, in.OwnerKind, in.OwnerID, PortPurposeIngressListen)
+		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
 			return nil, err
 		}
-		if byOwner != nil {
-			if byOwner.Port == in.Port {
-				return byOwner, nil
-			}
-			return nil, ErrPortConflict
-		}
-
-		row := s.db.QueryRowContext(ctx, `
-			SELECT `+portAllocSelectCols+` FROM port_allocations
-			WHERE port = ? AND released_at IS NULL`, in.Port)
-		onPort, err := scanPortAllocation(row)
+		defer tx.Rollback()
+		pa, err := s.reserveStablePortInTx(ctx, tx, in)
 		if err != nil {
 			return nil, err
 		}
-		if onPort != nil && onPort.OwnerID != in.OwnerID {
-			return nil, ErrPortConflict
-		}
-
-		now := time.Now().UTC().Format(time.RFC3339Nano)
-		pa := &PortAllocation{
-			AllocationID: uuid.NewString(),
-			Port:         in.Port,
-			Purpose:      PortPurposeIngressListen,
-			Stability:    PortStabilityStable,
-			OwnerKind:    in.OwnerKind,
-			OwnerID:      in.OwnerID,
-			ProjectID:    in.ProjectID,
-			GatewayID:    in.GatewayID,
-		}
-		_, err = s.db.ExecContext(ctx, `
-			INSERT INTO port_allocations (
-				allocation_id, port, purpose, stability, owner_kind, owner_id,
-				project_id, gateway_id, created_at, released_at, release_reason
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
-			pa.AllocationID, pa.Port, pa.Purpose, pa.Stability, pa.OwnerKind, pa.OwnerID,
-			nullStr(pa.ProjectID), nullStr(pa.GatewayID), now)
-		if err != nil {
-			if isPortAllocUniqueViolation(err) {
-				return nil, ErrPortConflict
-			}
+		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
-		pa.CreatedAt, _ = time.Parse(time.RFC3339Nano, now)
 		return pa, nil
 	})
+}
+
+func (s *SQLiteStore) reserveStablePortInTx(ctx context.Context, tx *sql.Tx, in ReserveStablePortInput) (*PortAllocation, error) {
+	in.OwnerKind = strings.TrimSpace(in.OwnerKind)
+	in.OwnerID = strings.TrimSpace(in.OwnerID)
+	if in.OwnerKind == "" {
+		in.OwnerKind = PortOwnerIngressBinding
+	}
+	if in.OwnerKind != PortOwnerIngressBinding {
+		return nil, fmt.Errorf("%w: owner_kind must be ingress_binding", ErrPortAllocationInputInvalid)
+	}
+	if in.OwnerID == "" {
+		return nil, fmt.Errorf("%w: owner_id required", ErrPortAllocationInputInvalid)
+	}
+	minP, maxP := s.ingressPortBounds()
+	if err := validateIngressPort(in.Port, minP, maxP); err != nil {
+		return nil, err
+	}
+
+	byOwner, err := s.getActivePortAllocationByOwnerDB(ctx, tx, in.OwnerKind, in.OwnerID, PortPurposeIngressListen)
+	if err != nil {
+		return nil, err
+	}
+	if byOwner != nil {
+		if byOwner.Port == in.Port {
+			return byOwner, nil
+		}
+		return nil, ErrPortConflict
+	}
+
+	row := tx.QueryRowContext(ctx, `
+		SELECT `+portAllocSelectCols+` FROM port_allocations
+		WHERE port = ? AND released_at IS NULL`, in.Port)
+	onPort, err := scanPortAllocation(row)
+	if err != nil {
+		return nil, err
+	}
+	if onPort != nil && onPort.OwnerID != in.OwnerID {
+		return nil, ErrPortConflict
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	pa := &PortAllocation{
+		AllocationID: uuid.NewString(),
+		Port:         in.Port,
+		Purpose:      PortPurposeIngressListen,
+		Stability:    PortStabilityStable,
+		OwnerKind:    in.OwnerKind,
+		OwnerID:      in.OwnerID,
+		ProjectID:    in.ProjectID,
+		GatewayID:    in.GatewayID,
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO port_allocations (
+			allocation_id, port, purpose, stability, owner_kind, owner_id,
+			project_id, gateway_id, created_at, released_at, release_reason
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+		pa.AllocationID, pa.Port, pa.Purpose, pa.Stability, pa.OwnerKind, pa.OwnerID,
+		nullStr(pa.ProjectID), nullStr(pa.GatewayID), now)
+	if err != nil {
+		if isPortAllocUniqueViolation(err) {
+			return nil, ErrPortConflict
+		}
+		return nil, err
+	}
+	pa.CreatedAt, _ = time.Parse(time.RFC3339Nano, now)
+	return pa, nil
 }
 
 func (s *SQLiteStore) ReleasePort(ctx context.Context, in ReleasePortInput) error {

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -14,9 +15,12 @@ type Config struct {
 	DeployToken   string
 	AdminToken    string
 	APIPort       int
-	GatewayPort   int
-	CelldBasePort int
-	GatewayURL    string
+	GatewayPort    int
+	GatewayTLSPort int
+	GatewayTLSCert string
+	GatewayTLSKey  string
+	CelldBasePort  int
+	GatewayURL     string
 
 	OffshootStore string
 
@@ -31,6 +35,9 @@ type Config struct {
 	ArtifactsDir string
 
 	Ingress IngressConfig
+
+	// InstanceID identifies this cellpd/gateway pair (CELLPD_INSTANCE_ID).
+	InstanceID string
 }
 
 // APIAddr returns the API listen address.
@@ -43,14 +50,40 @@ func (c Config) GatewayAddr() string {
 	return fmt.Sprintf(":%d", c.GatewayPort)
 }
 
+// GatewayVerifyBaseURL is used for post-deploy route probes (may be HTTP :8787 while public GATEWAY_URL is HTTPS).
+func (c Config) GatewayVerifyBaseURL() string {
+	if v := strings.TrimSpace(os.Getenv("CELLP_GATEWAY_VERIFY_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	gu := strings.TrimRight(strings.TrimSpace(c.GatewayURL), "/")
+	u, err := url.Parse(gu)
+	if err != nil || u.Host == "" {
+		return gu
+	}
+	if strings.EqualFold(u.Scheme, "https") && c.GatewayPort > 0 {
+		return fmt.Sprintf("http://%s:%d", u.Hostname(), c.GatewayPort)
+	}
+	return gu
+}
+
+func (c Config) GatewayTLSAddr() string {
+	if c.GatewayTLSPort <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(":%d", c.GatewayTLSPort)
+}
+
 func Load() Config {
 	cfg := Config{
 		RegistryDB:      envOr("CELLP_REGISTRY_DB", "./dev/data/cellp-registry.sqlite"),
 		DeployToken:     envOr("CELLP_DEPLOY_TOKEN", envOr("PLATFORM_TOKEN", "dev-local-token")),
 		AdminToken:      envOr("CELLP_ADMIN_TOKEN", envOr("PLATFORM_TOKEN", "dev-local-token")),
 		APIPort:         envInt("PLATFORM_PORT", 8790),
-		GatewayPort:     envInt("GATEWAY_PORT", 8787),
-		CelldBasePort:   envInt("CELLD_PORT", 8792),
+		GatewayPort:    envInt("GATEWAY_PORT", 8787),
+		GatewayTLSPort: envInt("GATEWAY_TLS_PORT", 0),
+		GatewayTLSCert: envOr("GATEWAY_TLS_CERT", ""),
+		GatewayTLSKey:  envOr("GATEWAY_TLS_KEY", ""),
+		CelldBasePort:  envInt("CELLD_PORT", 8792),
 		GatewayURL:      envOr("GATEWAY_URL", "http://127.0.0.1:8787"),
 		OffshootStore:   envOr("OFFSHOOT_STORE", "./dev/data/offshoot-store"),
 		S3Endpoint:      envOr("S3_ENDPOINT", "http://127.0.0.1:9000"),
@@ -62,6 +95,7 @@ func Load() Config {
 		ArtifactsDir:    envOr("ARTIFACTS_DIR", "./dev/data/artifacts"),
 	}
 	cfg.Ingress = loadIngressConfig()
+	cfg.InstanceID = envOr("CELLPD_INSTANCE_ID", "")
 	return cfg
 }
 

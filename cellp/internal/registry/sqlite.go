@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cellp/cellp/internal/config"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
@@ -126,7 +127,25 @@ CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
 	if err := s.migrateIngress(); err != nil {
 		return err
 	}
-	return s.migratePortAllocations()
+	if err := s.migratePortAllocations(); err != nil {
+		return err
+	}
+	return s.migrateIngressProjectColumns()
+}
+
+func (s *SQLiteStore) migrateIngressProjectColumns() error {
+	alters := []string{
+		`ALTER TABLE projects ADD COLUMN ingress_tier_b TEXT`,
+		`ALTER TABLE projects ADD COLUMN prod_listen_port INTEGER`,
+	}
+	for _, q := range alters {
+		if _, err := s.db.Exec(q); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s *SQLiteStore) migratePortAllocations() error {
@@ -242,53 +261,67 @@ func isBusy(err error) bool {
 }
 
 func (s *SQLiteStore) CreateProject(ctx context.Context, in CreateProjectInput) (*Project, error) {
+	if in.IngressTierB != nil {
+		if err := config.ValidateIngressTierBOptional(*in.IngressTierB); err != nil {
+			return nil, err
+		}
+	}
+	if in.ProdListenPort != nil {
+		minP, maxP := s.ingressPortBounds()
+		if err := validateIngressPort(*in.ProdListenPort, minP, maxP); err != nil {
+			return nil, err
+		}
+	}
 	now := time.Now().UTC()
-	p := &Project{
-		ID:        in.ID,
-		GitRemote: in.GitRemote,
-		CreatedAt: now,
-	}
-	err := withRetryErr(func() error {
-		_, err := s.db.ExecContext(ctx,
-			`INSERT INTO projects (id, git_remote, prod_version_id, created_at) VALUES (?, ?, NULL, ?)
+	return withRetry(func() (*Project, error) {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO projects (id, git_remote, prod_version_id, ingress_tier_b, prod_listen_port, created_at)
+			 VALUES (?, ?, NULL, ?, ?, ?)
 			 ON CONFLICT(id) DO NOTHING`,
-			in.ID, nullStr(in.GitRemote), now.Format(time.RFC3339Nano))
-		return err
+			in.ID, nullStr(in.GitRemote), nullStr(in.IngressTierB), nullInt(in.ProdListenPort), now.Format(time.RFC3339Nano))
+		if err != nil {
+			return nil, err
+		}
+
+		if in.ProdListenPort != nil {
+			pid := in.ID
+			_, err := s.reserveStablePortInTx(ctx, tx, ReserveStablePortInput{
+				Port:      *in.ProdListenPort,
+				OwnerKind: PortOwnerIngressBinding,
+				OwnerID:   ProdPortReserveOwnerID(in.ID),
+				ProjectID: &pid,
+				GatewayID: in.GatewayID,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		p := &Project{
+			ID:             in.ID,
+			GitRemote:      in.GitRemote,
+			IngressTierB:   in.IngressTierB,
+			ProdListenPort: in.ProdListenPort,
+			CreatedAt:      now,
+		}
+		return p, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
 }
 
 func (s *SQLiteStore) GetProject(ctx context.Context, id string) (*Project, error) {
 	return withRetry(func() (*Project, error) {
 		row := s.db.QueryRowContext(ctx,
-			`SELECT id, git_remote, prod_version_id, previous_prod_version_id, previous_prod_at, created_at FROM projects WHERE id = ?`, id)
-		var p Project
-		var gitRemote, prod, prevProd, prevProdAt sql.NullString
-		var created string
-		if err := row.Scan(&p.ID, &gitRemote, &prod, &prevProd, &prevProdAt, &created); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, nil
-			}
-			return nil, err
-		}
-		if gitRemote.Valid {
-			p.GitRemote = &gitRemote.String
-		}
-		if prod.Valid {
-			p.ProdVersionID = &prod.String
-		}
-		if prevProd.Valid {
-			p.PreviousProdVersionID = &prevProd.String
-		}
-		if prevProdAt.Valid {
-			t, _ := time.Parse(time.RFC3339Nano, prevProdAt.String)
-			p.PreviousProdAt = &t
-		}
-		p.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
-		return &p, nil
+			`SELECT `+projectSelectCols+` FROM projects WHERE id = ?`, id)
+		return scanProject(row)
 	})
 }
 
@@ -321,7 +354,7 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 		if opts.Cursor == "" {
 			args := append(queryArgs, fetch)
 			rows, err = s.db.QueryContext(ctx, `
-				SELECT p.id, p.git_remote, p.prod_version_id, p.previous_prod_version_id, p.previous_prod_at, p.created_at
+				SELECT `+projectListSelectCols+`
 				FROM projects p
 				WHERE 1=1`+queryFilter+`
 				ORDER BY p.created_at ASC, p.id ASC
@@ -335,7 +368,7 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 			args := append([]any{cursorStr, cursorStr, cursorID}, queryArgs...)
 			args = append(args, fetch)
 			rows, err = s.db.QueryContext(ctx, `
-				SELECT p.id, p.git_remote, p.prod_version_id, p.previous_prod_version_id, p.previous_prod_at, p.created_at
+				SELECT `+projectListSelectCols+`
 				FROM projects p
 				WHERE (p.created_at > ? OR (p.created_at = ? AND p.id > ?))`+queryFilter+`
 				ORDER BY p.created_at ASC, p.id ASC
@@ -348,27 +381,14 @@ func (s *SQLiteStore) ListProjects(ctx context.Context, opts ListProjectsOpts) (
 
 		var items []ProjectListItem
 		for rows.Next() {
-			var item ProjectListItem
-			var gitRemote, prod, prevProd, prevProdAt sql.NullString
-			var created string
-			if err := rows.Scan(&item.ID, &gitRemote, &prod, &prevProd, &prevProdAt, &created); err != nil {
+			p, err := scanProject(rows)
+			if err != nil {
 				return nil, err
 			}
-			if gitRemote.Valid {
-				item.GitRemote = &gitRemote.String
+			if p == nil {
+				continue
 			}
-			if prod.Valid {
-				item.ProdVersionID = &prod.String
-			}
-			if prevProd.Valid {
-				item.PreviousProdVersionID = &prevProd.String
-			}
-			if prevProdAt.Valid {
-				t, _ := time.Parse(time.RFC3339Nano, prevProdAt.String)
-				item.PreviousProdAt = &t
-			}
-			item.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
-			items = append(items, item)
+			items = append(items, ProjectListItem{Project: *p})
 		}
 		if err := rows.Err(); err != nil {
 			return nil, err

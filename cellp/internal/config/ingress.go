@@ -76,8 +76,19 @@ func (c Config) FormatPreviewURL(host string, listenPort *int) string {
 	return ""
 }
 
-// ProdURL returns the outward prod URL for API responses (P0: derived from prod host).
-func (c Config) ProdURL(projectID string) string {
+// ProdURL returns the outward prod URL for API responses.
+// When listenPort is set (Tier B prod binding), returns loopback URL per INGRESS-PORT-DEPLOYMENT §5.
+func (c Config) ProdURL(projectID string, listenPort *int) string {
+	if listenPort != nil && *listenPort > 0 {
+		scheme := strings.TrimSpace(c.Ingress.PublicSchemeProd)
+		if scheme == "" {
+			scheme = "http"
+		}
+		if strings.EqualFold(scheme, "https") {
+			scheme = "http"
+		}
+		return fmt.Sprintf("%s://127.0.0.1:%d/", strings.ToLower(scheme), *listenPort)
+	}
 	host := c.ProdHost(projectID)
 	scheme := strings.TrimSpace(c.Ingress.PublicSchemeProd)
 	if scheme == "" {
@@ -128,10 +139,10 @@ func (c Config) formatIngressHostURL(scheme, host string) string {
 	return scheme + "://" + authority + "/"
 }
 
-// Dev Gateway on :8787 has no TLS — never emit https://host:8787/ for browsers.
+// Dev Gateway HTTP listener on :8787 has no TLS — never advertise https on that port.
 func schemeForExplicitGatewayPort(scheme string, port int) string {
 	scheme = strings.ToLower(strings.TrimSpace(scheme))
-	if scheme == "https" && port > 0 && port != 443 {
+	if scheme == "https" && port == 8787 {
 		return "http"
 	}
 	return scheme

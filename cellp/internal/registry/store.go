@@ -27,6 +27,8 @@ type Project struct {
 	ProdVersionID         *string    `json:"prod_version_id,omitempty"`
 	PreviousProdVersionID *string    `json:"previous_prod_version_id,omitempty"`
 	PreviousProdAt        *time.Time `json:"previous_prod_at,omitempty"`
+	IngressTierB          *string    `json:"ingress_tier_b,omitempty"`
+	ProdListenPort        *int       `json:"prod_listen_port,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 }
 
@@ -170,8 +172,11 @@ type Job struct {
 
 // CreateProjectInput holds project creation fields.
 type CreateProjectInput struct {
-	ID        string
-	GitRemote *string
+	ID             string
+	GitRemote      *string
+	IngressTierB   *string
+	ProdListenPort *int
+	GatewayID      *string
 }
 
 const (
@@ -268,6 +273,7 @@ type Store interface {
 	ListActivePortAllocations(ctx context.Context, purpose string) ([]PortAllocation, error)
 	AttachIngressListenPort(ctx context.Context, binding IngressBinding, in AllocateIngressListenPortInput) error
 	DetachIngressListenPort(ctx context.Context, bindingID, releaseReason string) error
+	AdoptStableIngressPortForBinding(ctx context.Context, binding IngressBinding, reserveOwnerID string) error
 
 	Ping(ctx context.Context) error
 

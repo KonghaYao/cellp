@@ -110,7 +110,7 @@ func (o *Orchestrator) Archive(ctx context.Context, projectID, versionID string)
 	_ = o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusDraining, nil)
 	_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 	_ = o.runtime.Stop(ctx, projectID, versionID)
-	_ = o.setPreviewIngressActive(ctx, projectID, versionID, false)
+	o.teardownPreviewIngress(ctx, projectID, versionID, "archive")
 	return o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusArchived, nil)
 }
 
@@ -140,7 +140,9 @@ func (o *Orchestrator) Wake(ctx context.Context, projectID, versionID string) er
 	}); err != nil {
 		return err
 	}
-	_ = o.setPreviewIngressActive(ctx, projectID, versionID, true)
+	if _, _, err := o.ensurePreviewIngress(ctx, projectID, versionID); err != nil {
+		return fmt.Errorf("preview ingress: %w", err)
+	}
 	if err := o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusReady, nil); err != nil {
 		return err
 	}

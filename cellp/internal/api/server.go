@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -134,8 +135,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 type createProjectReq struct {
-	ID        string  `json:"id"`
-	GitRemote *string `json:"git_remote"`
+	ID             string  `json:"id"`
+	GitRemote      *string `json:"git_remote"`
+	IngressTierB   *string `json:"ingress_tier_b"`
+	ProdListenPort *int    `json:"prod_listen_port"`
+}
+
+func (s *Server) projectProdURL(ctx context.Context, projectID string) string {
+	b, _ := s.store.GetIngressBinding(ctx, projectID+"-prod")
+	var port *int
+	if b != nil {
+		port = b.ListenPort
+	}
+	return s.cfg.ProdURL(projectID, port)
 }
 
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -145,9 +157,17 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := s.store.CreateProject(r.Context(), registry.CreateProjectInput{
-		ID: req.ID, GitRemote: req.GitRemote,
+		ID:             req.ID,
+		GitRemote:      req.GitRemote,
+		IngressTierB:   req.IngressTierB,
+		ProdListenPort: req.ProdListenPort,
+		GatewayID:      strPtrNonEmpty(s.cfg.InstanceID),
 	})
 	if err != nil {
+		if errors.Is(err, registry.ErrPortConflict) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "port_conflict"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -235,7 +255,8 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := map[string]interface{}{
 		"id": p.ID, "git_remote": p.GitRemote, "prod_version_id": p.ProdVersionID,
-		"prod_url":   s.cfg.ProdURL(projectID),
+		"ingress_tier_b": p.IngressTierB, "prod_listen_port": p.ProdListenPort,
+		"prod_url":   s.projectProdURL(r.Context(), projectID),
 		"created_at": p.CreatedAt, "version_count": versionCount,
 		"versions_url": "/v1/projects/" + projectID + "/versions",
 	}
@@ -428,7 +449,7 @@ func (s *Server) handlePromote(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":          "promoted",
 		"prod_version_id": versionID,
-		"prod_url":        s.cfg.ProdURL(projectID),
+		"prod_url":        s.projectProdURL(r.Context(), projectID),
 	})
 }
 
@@ -489,6 +510,14 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func strPtrNonEmpty(s string) *string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
