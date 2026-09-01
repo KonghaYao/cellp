@@ -1,7 +1,7 @@
 # 社区 Workers 项目 — cellp 支持验证待办
 
 > **排序原则：** **有 Web 前端、打开能点** 的优先；API-only / 需另配客户端的往后。  
-> **证据：** `docs/evidence/support-<id>.log` · **踩坑：** [support-validation-lessons.md](./evidence/support-validation-lessons.md)
+> **证据：** `docs/evidence/support-<id>.log`（本地，gitignore）· **踩坑：** [support-validation-lessons.md](./support-validation-lessons.md)
 
 ---
 

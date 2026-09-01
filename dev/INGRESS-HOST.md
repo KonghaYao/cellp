@@ -1,7 +1,7 @@
 # Dev Ingress Host（AD-12）
 
 > 设计：[../docs/plans/INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)  
-> 踩坑：[../docs/evidence/support-validation-lessons.md](../docs/evidence/support-validation-lessons.md)
+> 踩坑：[../docs/support-validation-lessons.md](../docs/support-validation-lessons.md)
 
 ## 约定
 
