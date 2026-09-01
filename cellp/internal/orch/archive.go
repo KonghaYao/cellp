@@ -140,6 +140,7 @@ func (o *Orchestrator) Wake(ctx context.Context, projectID, versionID string) er
 	}); err != nil {
 		return err
 	}
+	_ = o.setPreviewIngressActive(ctx, projectID, versionID, true)
 	if err := o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusReady, nil); err != nil {
 		return err
 	}
