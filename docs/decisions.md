@@ -367,6 +367,8 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 **详细契约与 blocking 规则（R-TRUST-* 等）：** [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md)
 
+**Dev 本机 / 局域网 / Clash：** [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/clash/README.md](../dev/clash/README.md)
+
 **对抗审查：** 已并入 [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) §10
 
 **证据：** P0–P2 e2e Host + `go test ./...`；**P3（2026-09-01）** Gateway 删除 path handler，仅 Host ingress。

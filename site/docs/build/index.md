@@ -54,7 +54,7 @@ You can use TypeScript if your CI emits JS (or a bundle) that `main` points at. 
 }
 ```
 
-`name` is the Worker name inside celld. The **cellp project id** (URL segment `/{project}/`) is chosen when you create the project — keep them the same to stay sane.
+`name` is the Worker name inside celld. The **cellp project id** is used in **ingress Host** names — keep `name` and project id aligned.
 
 Add databases, KV, R2, queues, cron, and workflows in this file. That is [how you configure platform data](/build/wrangler).
 
@@ -102,9 +102,15 @@ curl -sS http://127.0.0.1:8790/v1/projects/my-shop/versions/v1 \
   -H "Authorization: Bearer dev-local-token" | jq .status
 ```
 
-Open **http://127.0.0.1:8787/my-shop/v1/**
+Open the **`preview_url`** from `GET …/versions/v1` (Host + `:8787` in dev). Example after [ingress setup](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md):
 
-If this is the **first** ready version on the project, `/{project}/` (production path) already points at it — no promote yet. Later deploys stay preview-only until you [promote](/concepts/promote).
+```bash
+curl -sS http://127.0.0.1:8790/v1/projects/my-shop/versions/v1 \
+  -H "Authorization: Bearer dev-local-token" | jq -r .preview_url
+# → http://v1.my-shop.ingress.local:8787/
+```
+
+If this is the **first** ready version on the project, the **prod Host** already points at it — no promote yet. Later deploys stay preview-only until you [promote](/concepts/promote).
 
 `./dev/scripts/simulate-cd.sh` is **not** this flow: it extra-`celld deploy`s the **counter** example unless you pass a third path, always sends `parent_version_id: null`, and does not copy your files into `artifacts/`. Prefer the copy + `POST /versions` steps above. For commerce: `./dev/scripts/simulate-cd.sh commerce-store v-dev2 dev/examples/commerce`.
 

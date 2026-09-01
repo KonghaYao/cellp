@@ -30,15 +30,15 @@ Use this list while you run the loop locally. Check items off in your notes or e
   **If it fails:** Dashboard does not upload Workers—run `cellp dev --project <id>` from the app dir or follow [Deploy from CI](/guides/ci); check version `error` via API.
 
 - [ ] **Preview on gateway**  
-  **Success:** `curl -sf "http://127.0.0.1:8787/<project>/<version-id>/"` returns 200 (or your app’s expected body).  
-  **If it fails:** Wait for `ready`; confirm gateway URL shape `/{project}/{version}/` (not prod path until promote).
+  **Success:** `curl -sf -H "Host: <preview-host>" http://127.0.0.1:8787/` returns 200 (host from `preview_url`; see [Preview](/concepts/preview)).  
+  **If it fails:** Wait for `ready`; use **http** + **:8787** in browser; Clash users need [dev/clash](https://github.com/KonghaYao/cellp/blob/main/dev/clash/README.md) DIRECT for nip.io.
 
 - [ ] **Dashboard walk-through**  
   **Success:** Overview → Deployments → Version detail → Storage (ready version) → Platform (jobs/routes/health).  
   **If it fails:** 401 → fix Bearer token; empty Storage → pick a **ready** version; API down → restart stack.
 
 - [ ] **Promote to production**  
-  **Success:** `prod_version_id` matches promoted version; `/{project}/` serves prod.  
+  **Success:** `prod_version_id` matches promoted version; **prod Host** (`prod_url`) serves prod.  
   **If it fails:** Only **ready** versions promote; on preview branches read [What promote does not do](/concepts/promote#what-promote-does-not-do) (pointer switch, not merge of post-fork prod writes).
 
 - [ ] **Rollback (when needed)**  
@@ -74,10 +74,11 @@ Or use CI: build artifact → `POST /v1/projects/my-shop/versions` → poll unti
 ## 3. Confirm preview on the gateway
 
 ```bash
-curl -sf "http://127.0.0.1:8787/my-shop/<version-id>/"
+curl -sf -H "Host: my-shop.ingress.local" http://127.0.0.1:8787/health
+# preview: Host from GET …/versions/<id> → preview_url
 ```
 
-Preview URL shape: `/{project}/{version}/`. Production is `/{project}/` only after promote.
+Production uses **prod Host** (`GET /projects/{id}` → `prod_url`) only after promote. Path URLs `/{project}/{version}/` are deprecated.
 
 ## 4. Walk the Dashboard
 

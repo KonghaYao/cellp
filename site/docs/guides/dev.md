@@ -13,7 +13,7 @@ cellp dev
 Then:
 
 - API `http://127.0.0.1:8790`
-- Gateway `http://127.0.0.1:8787/{wrangler name}/dev/`
+- Gateway `http://127.0.0.1:8787` with **Host** from `preview_url` / `prod_url` ([Preview](/concepts/preview))
 - Data `~/.cellp/data` (override with `--home` or `CELLP_HOME`)
 
 Each `cellp dev` that finds `wrangler.jsonc` deploys a version. The first id is `dev`. If `dev` already exists in `~/.cellp`, a new id (`dev-<unix>`) is created and **forked from production** so D1/KV/R2 stay. There is no file watcher — edit, Ctrl-C, run `cellp dev` again.

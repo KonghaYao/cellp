@@ -8,8 +8,8 @@ You do not push git to cellp. You **push a version**. On a laptop that is `cellp
   'Write a Worker + wrangler.jsonc. Locally: cellp dev. In CI: upload the folder to RustFS',
   'POST /v1/projects/{project}/versions with id, optional parent_version_id, and artifact digest',
   'Poll GET …/versions/{id} until status is ready (or failed)',
-  'Hit the preview URL on the gateway: /{project}/{version}/',
-  'When it looks right, POST …/versions/{id}/promote — production becomes /{project}/'
+  'Open preview_url on the gateway (HTTP Host, e.g. v1.my-shop.ingress.local:8787)',
+  'When it looks right, POST …/versions/{id}/promote — prod Host points at that version'
 ]" />
 
 That is the entire CD contract. GitHub Actions, GitLab CI, or a laptop script are interchangeable.
@@ -43,15 +43,17 @@ Typical PR preview: parent is a **staging seed**, not live production. Forking p
 
 ## URLs
 
-The gateway is a reverse proxy inside cellpd:
+The gateway is a reverse proxy inside cellpd ([AD-12 Host routing](/concepts/preview)):
 
 | URL | Meaning |
 |-----|---------|
-| `/{project}/{version}/` | This version (preview) |
-| `/{project}/` | Current production version |
+| `http://{version}.{project}.{base}:8787/` | This version (preview) |
+| `http://{project}.{base}:8787/` | Current production version |
 | `POST /v1/.../promote` | Atomically point production at a ready version |
 
-TLS and custom domains sit **in front** of the gateway. cellp speaks HTTP.
+Path selectors `/{project}/{version}/` and `/{project}/` are **deprecated**. Dev hosts: [INGRESS-HOST.md](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md).
+
+TLS and custom domains sit **in front** of the gateway. cellp speaks HTTP on `:8787` in dev.
 
 ## Promote, without magic
 

@@ -26,7 +26,7 @@ build wrangler bundle
   → upload artifact to RustFS  s3://cellp-artifacts/{project}/{version}/
   → POST /v1/projects/{project}/versions
   → poll GET …/versions/{id} until status=ready
-  → preview_url: {GATEWAY}/{project}/{version}/
+  → preview_url: `http://{version}.{project}.{baseDomain}:8787/` (AD-12 Host; see dev/INGRESS-HOST.md)
 ```
 
 **`POST /versions` body（摘要）：**
@@ -52,7 +52,7 @@ build wrangler bundle
 | Cloudflare | cellp |
 |------------|-------|
 | Worker 脚本 + 绑定挂在**账号**下 | 每个 **Version** = 独立 celld 进程 + 独立 bucket（AD-1） |
-| Preview URL / 环境分支（Pages、Workers preview） | `/{project}/{version}/` preview；`/{project}/` prod（AD-2） |
+| Preview URL / 环境分支（Pages、Workers preview） | Preview Host `{version}.{project}.{base}`；Prod Host `{project}.{base}`（**废弃** path `/{project}/{version}/`） |
 | D1 **database_id** 跨环境共享或手动复制 | 根 version：`celld d1 import`；子 version：`celld d1 branch`（D1 契约） |
 | KV / R2 / Queue 通常共享或手动 | 子 version **自动 branch** 父数据（AD-8） |
 | `wrangler.toml` / `wrangler.jsonc` 由 Wrangler CLI 消费 | bundle 内 wrangler 文件由 **celld deploy** 解析；cellp **不**管理 wrangler.toml 生命周期 |

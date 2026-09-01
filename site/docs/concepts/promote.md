@@ -10,7 +10,7 @@ curl -sS -X POST \
   "$CELLP_URL/v1/projects/my-shop/versions/v-2026-08-30/promote"
 ```
 
-You get back `prod_version_id` and `prod_url`. Gateway `/{project}/` now hits that version.
+You get back `prod_version_id` and `prod_url`. The **prod Host** (`prod_url`) now routes to that version.
 
 The version must be `ready`. Archived versions need a [wake](/concepts/archive) first. `409` if it is not ready.
 
@@ -34,7 +34,7 @@ Promote is **not** a data merge:
 
 - It does **not** copy rows or keys from the **current** production version into the version you promote if those writes happened **after** that version was forked.
 - It does **not** rebase preview onto prod or replay prod traffic.
-- It **does** point `/{project}/` at the promoted version’s **existing** D1/KV/R2/Queue state (whatever that version already had at preview time plus preview-only writes).
+- It **does** point the **prod Host** at the promoted version’s **existing** D1/KV/R2/Queue state (whatever that version already had at preview time plus preview-only writes).
 
 Example: prod takes orders after you opened a PR preview. Promoting the PR makes those new prod-only orders **disappear** from production — because prod becomes the preview bucket, not a merge of both. Design previews from **staging**, and read [Preview data timeline](/concepts/preview#data-snapshot-timeline).
 
@@ -54,8 +54,8 @@ Typical `main` pipeline:
 
 1. Build + upload artifact as version `sha-abc`
 2. Poll until `ready`
-3. Run smoke against `/{project}/sha-abc/`
+3. Run smoke against the version **`preview_url`**
 4. `POST …/promote`
-5. Smoke against `/{project}/`
+5. Smoke against **`prod_url`**
 
 PR pipelines **stop before step 4**. See [Deploy from CI](/guides/ci).

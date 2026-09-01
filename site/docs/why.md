@@ -21,8 +21,8 @@ When CI posts a new version with `parent_version_id`:
 
 - The Worker script comes from **this** artifact.
 - D1, KV, R2, and Queues **branch from the parent** (copy-on-write, not a full dump).
-- You get `/{project}/{version}/`.
-- Production keeps serving `/{project}/` until you **promote**.
+- You get **`preview_url`** (preview Host).
+- Production keeps serving **prod Host** until you **promote**.
 
 That is the product. Everything else is in service of it.
 
@@ -62,7 +62,7 @@ Who should not: teams whose product is App Router on Node, or who want Cloudflar
 
 | Claim | How to verify |
 |-------|----------------|
-| Preview + prod on one machine | [Quick start](/get-started/) — commerce store on `:8787` |
+| Preview + prod on one machine | [Quick start](/get-started/) — use `preview_url` / `prod_url` on `:8787` ([Preview](/concepts/preview)) |
 | Data forks with the version | Deploy a child version with `parent_version_id`; write in preview; prod unchanged |
 | Promote is a cutover | [Promote](/concepts/promote) — then [rollback](/guides/rollback) by re-promoting |
 | Self-host without AWS | [Docker](/guides/self-hosting) · `ghcr.io/konghayo/cellp` |

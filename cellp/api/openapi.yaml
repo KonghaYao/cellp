@@ -159,7 +159,7 @@ paths:
                     nullable: true
                   prod_url:
                     type: string
-                    description: Production gateway URL ({GATEWAY_URL}/{projectID}/)
+                    description: Production gateway URL (AD-12 prod Host, e.g. http://{project}.{baseDomain}:8787/)
                   created_at:
                     type: string
                     format: date-time
@@ -1236,6 +1236,7 @@ components:
           nullable: true
         preview_url:
           type: string
+          description: Outward preview URL (AD-12 Host, e.g. http://{version}.{project}.{baseDomain}:8787/)
         ready_at:
           type: string
           format: date-time

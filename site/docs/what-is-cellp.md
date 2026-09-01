@@ -10,8 +10,8 @@ A **project** is an app. A **version** is one deploy of that app.
 
 | You get | What that means |
 |---------|-----------------|
-| **Preview URL** | `https://gateway/{project}/{version}/` — a live Worker for that exact deploy |
-| **Production URL** | `https://gateway/{project}/` — whatever version you last promoted |
+| **Preview URL** | `preview_url` — live Worker for that deploy (HTTP **Host** on gateway) |
+| **Production URL** | `prod_url` — version you last promoted (prod Host unchanged on promote) |
 | **Data that matches the code** | Child versions **branch** D1, KV, R2, and Queues from a parent. Writes stay in the preview. |
 | **Dashboard** | Projects, versions, storage browsers, env vars — talking only to the REST API |
 | **Self-host** | One-line install then `cellp dev` on a laptop (no Docker). Docker Compose + **RustFS** for a production-shaped VM. |

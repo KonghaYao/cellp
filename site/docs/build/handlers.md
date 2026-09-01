@@ -28,7 +28,7 @@ export default {
 }
 ```
 
-Gateway preview is `http://gateway/{project}/{version}/api/products`. The Worker still sees pathname `/api/products`. Use relative links in HTML.
+Gateway routes by **Host** ([Preview](/concepts/preview)). The Worker still sees pathname `/api/products` from `/` (no `/{project}/{version}` prefix). Use relative links in HTML.
 
 `ctx.waitUntil(promise)` is available as celld implements it.
 

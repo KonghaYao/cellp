@@ -7,7 +7,7 @@ cellp is often measured against Cloudflare Workers and Vercel. Use this page to 
 | | cellp | Cloudflare Workers | Vercel |
 |---|-------|--------------------|--------|
 | Unit of deploy | **Version** (you name it) | Worker / Pages project in an account | Git deployment |
-| Preview | `/{project}/{version}/` | Preview URLs / environments | Every git push / PR |
+| Preview | Host `{version}.{project}.{base}` ([AD-12](/concepts/preview)) | Preview URLs / environments | Every git push / PR |
 | Preview **data** | D1 · KV · R2 · Queue **branch** from parent | Usually shared or copied by hand | Often shared DB, or separate storage |
 | Production | Explicit **promote** | Route / domain in the account | Production branch alias |
 | Git | External. CI calls the API | Wrangler / dashboard / Git integration | First-class Git app |

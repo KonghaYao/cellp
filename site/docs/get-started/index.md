@@ -38,7 +38,11 @@ See [Write a Worker](/build/). From that directory:
 cellp dev
 ```
 
-Opens `http://127.0.0.1:8787/<name>/dev/` after the version is ready.
+Opens the version **`preview_url`** from the API (Host on `:8787`) after deploy is ready.
+
+## Ingress / hosts (contributor stack)
+
+See [Local stack — ingress](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md): `./dev/scripts/ingress-host-init.sh local|magic`.
 
 ## Commerce example (from this repo)
 

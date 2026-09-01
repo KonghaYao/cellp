@@ -18,14 +18,14 @@ If you can express the app as a **Worker** (`fetch` + bindings) — including st
 build Workers bundle
   → upload artifact
   → POST /versions
-  → preview /{project}/{version}/
-  → POST /promote → /{project}/
+  → preview_url / prod_url (Gateway Host)
+  → POST /promote → prod Host
 ```
 
 | Vercel | cellp |
 |--------|--------|
 | Preview Deployment | Version (`id` you choose) |
-| Production | `prod_version_id` + `/{project}/` |
+| Production | `prod_version_id` + **prod Host** (`prod_url`) |
 | Branch URL | **None** — use the version id |
 | PR previews | CI `POST /versions` + `parent_version_id` |
 | Instant rollback alias | Re-[promote](/guides/rollback) a previous version |

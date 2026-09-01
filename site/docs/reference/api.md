@@ -72,9 +72,27 @@ Poll until `status` is `ready` or `failed`.
 |-------|---------|
 | `parent_version_id` | When set, this version **branched data** (D1/KV/R2/Queue) from that parent at deploy time. The child does not see parent writes after the fork cut (`fork_txid` in D1; not exposed in JSON). `null` = root version. |
 | `ready_at` | When the version became `ready` (deploy + branch pipeline finished). |
-| `preview_url` | Gateway URL for `/{project}/{version}/`. |
+| `preview_url` | Outward Gateway URL for preview Host (`http://{version}.{project}.{base}:8787/` in dev). |
 
-Concepts: [Preview data timeline](/concepts/preview#data-snapshot-timeline) · [Promote](/concepts/promote).
+Concepts: [Preview](/concepts/preview) · [Promote](/concepts/promote).
+
+## Gateway (not `/v1`)
+
+User traffic hits **cellpd Gateway** on port **8787** (default). Routing is by **HTTP Host** ([AD-12](/concepts/preview)):
+
+| Role | Host pattern |
+|------|----------------|
+| Preview | `{version}.{project}.{baseDomain}` |
+| Production | `{project}.{baseDomain}` |
+
+Dev setup: [repo `dev/INGRESS-HOST.md`](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md). Path selectors `http://gateway:8787/{project}/` and `/{project}/{version}/` are **deprecated**.
+
+```bash
+curl -H "Host: demo-app.ingress.local" http://127.0.0.1:8787/health
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "$CELLP_URL/projects/demo-app/versions/v1" | jq .preview_url
+# open preview_url in browser (http + :8787 in dev)
+```
 
 ## Bindings & data
 
@@ -100,4 +118,4 @@ curl -sS -H "Authorization: Bearer $TOKEN" \
   "$CELLP_URL/projects/commerce-store/versions/v1"
 ```
 
-Gateway traffic is **not** under `/v1`. It is `http://gateway:8787/{project}/` and `/{project}/{version}/`.
+Use `preview_url` / `prod_url` from the API for Gateway checks (Host routing, not `/v1`).

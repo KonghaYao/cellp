@@ -157,6 +157,8 @@ Gateway 透传 `Upgrade` / `Connection`；Tier A 依赖外层 `wss` + `X-Forward
 | `GATEWAY_TRUST_FORWARDED_HEADERS` | `0` | |
 | `GATEWAY_TRUSTED_PROXY_CIDRS` | 空 | TRUST=1 时必填 |
 
+**Dev 本机 / 局域网：** 操作指南 [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md)（`ingress.local` + hosts · magic DNS · Clash 502）。
+
 ---
 
 ## 7. 外层设施（Tier A）

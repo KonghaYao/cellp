@@ -18,7 +18,7 @@ build wrangler bundle
   → upload s3://cellp-artifacts/{project}/{version}/
   → POST /v1/projects/{project}/versions
   → poll until ready
-  → preview: {GATEWAY}/{project}/{version}/
+  → preview_url from API (Host on gateway :8787)
   → promote: POST …/promote
 ```
 
@@ -29,7 +29,7 @@ There is no `wrangler deploy` target for cellp. CI (or a script) is the client.
 | Cloudflare | cellp |
 |------------|--------|
 | Worker in an **account** | **Version** = process + bucket |
-| Preview URLs / env branches | `/{project}/{version}/` and `/{project}/` |
+| Preview URLs / env branches | Preview Host + prod Host (path `/{project}/…` deprecated) |
 | D1 `database_id` shared or copied | Root: import. Child: **d1 branch** |
 | KV / R2 / Queue shared | Child **branches** parent data |
 | Production route / custom domain | Promote + **your** DNS/TLS |

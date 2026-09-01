@@ -11,7 +11,7 @@ curl -sS -X POST "$CELLP_URL/v1/projects" \
   -d '{"id":"my-shop","git_remote":"https://github.com/acme/my-shop"}'
 ```
 
-`id` is the path segment you will see on the gateway: `/{id}/` and `/{id}/{version}/`.
+`id` is the **project id** used in ingress Host names: `{project}.{base-domain}` (prod) and `{version}.{project}.{base-domain}` (preview). Path prefixes `/{id}/` are **deprecated** (AD-12).
 
 `git_remote` is optional **metadata**. cellp never clones it.
 

@@ -38,6 +38,7 @@ Dev defaults: `CELLP_DEPLOY_TOKEN` and `CELLP_ADMIN_TOKEN` are `dev-local-token`
 |--------|----------------|
 | `up.sh` / `down.sh` | Start / stop the stack |
 | `health.sh` | Probe every component (use this as your green light) |
+| `ingress-host-init.sh` | **Unified** Host mode: `local` or `magic` — [INGRESS-HOST.md](./INGRESS-HOST.md) |
 | `reset.sh` | Wipe `dev/data/` |
 | `simulate-cd.sh <project> <version>` | Fake a CI deploy |
 | `seed-commerce-store.sh` | Commerce example + D1 seed |
@@ -53,8 +54,11 @@ curl -sf http://127.0.0.1:8790/v1/projects/demo-app/versions/v-test1 \
   -H "Authorization: Bearer dev-local-token" | jq .status
 # "ready"
 
-curl -sf http://127.0.0.1:8787/demo-app/v-test1/
+curl -sf -H "Host: demo-app.ingress.local" http://127.0.0.1:8787/health
+# or open preview_url from GET …/versions/v-test1 (includes :8787 in dev)
 ```
+
+Ingress setup: [dev/INGRESS-HOST.md](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md) (`./dev/scripts/ingress-host-init.sh`).
 
 ## What is mock vs real
 

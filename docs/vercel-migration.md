@@ -27,14 +27,14 @@ build Workers bundle (wrangler)
   → upload artifact  s3://cellp-artifacts/{project}/{version}/
   → POST /v1/projects/{project}/versions
   → poll until status=ready
-  → preview: {GATEWAY}/{project}/{version}/
-  → promote: POST …/versions/{id}/promote  →  {GATEWAY}/{project}/
+  → preview_url (Gateway Host)
+  → promote: POST …/versions/{id}/promote  →  prod_url (prod Host)
 ```
 
 | Vercel | cellp |
 |--------|-------|
 | Preview Deployment | **Version**（显式 `id`，如 commit SHA 或 `pr-42`） |
-| Production | `prod_version_id` + Gateway `/{project}/` |
+| Production | `prod_version_id` + Gateway **prod Host** (`prod_url`) |
 | Git branch URL | **无** — 用 version ID，见 Dashboard **Versions** 页 |
 | PR 自动预览 | CI 在 PR 打开时 `POST /versions` + `parent_version_id` |
 

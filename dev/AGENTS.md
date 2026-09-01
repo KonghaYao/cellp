@@ -26,8 +26,8 @@ cp dev/.env.example dev/.env   # 首次
 curl -sf http://127.0.0.1:8790/v1/projects/demo-app/versions/v-test1 | jq .status
 # 期望: "ready"
 
-curl -sf http://127.0.0.1:8787/demo-app/v-test1/
-# 期望: HTTP 200，counter 类响应
+curl -sf -H "Host: demo-app.ingress.local" http://127.0.0.1:8787/health
+# Host / ingress: dev/INGRESS-HOST.md
 ```
 
 ### Go 控制面

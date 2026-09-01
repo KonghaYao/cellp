@@ -6,7 +6,7 @@ There is no hidden “instant alias” besides **promote**. Rolling back product
 
 | What you see | What to do |
 |--------------|------------|
-| New Worker is live on `/{project}/` | Confirm `prod_version_id` |
+| New Worker is live on **prod Host** | Confirm `prod_version_id` |
 | Previous version is still `ready` | **Re-promote** it (fastest) |
 | Previous version is `archived` | **Wake**, wait for `ready`, promote |
 | Previous version is `destroyed` | Cannot roll back. Redeploy from artifact |

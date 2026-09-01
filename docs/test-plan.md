@@ -20,7 +20,7 @@
 
 - 每项记录：**日期 · 版本 · 命令 · 输出摘要 · exit code**
 - Registry：**SQLite** `cellp-registry.sqlite`（WAL）
-- Gateway：**cellpd 内置**；prod 路径 `/{project}/` 必测
+- Gateway：**cellpd 内置**；prod **Host**（AD-12，`e2e/lib-ingress.sh`）必测
 - Git/CI：外部边界；V7 脚本模拟即可
 
 ---
@@ -78,7 +78,7 @@
 ### [x] TP-V4 — Promote 原子 cutover
 
 | 命令 | `e2e/scripts/v4-promote-cutover.sh` |
-| 通过 | `/{project}/` → 新 prod body；旧 prod 显式 version 路径 **404 或 410**；无双写窗口 > **2s** |
+| 通过 | prod **Host** → 新 prod body；旧 prod preview Host 仍可 200（独立 binding）；无双写窗口 > **2s** |
 
 ### [x] TP-V4b — Promote offshoot 硬门禁
 
@@ -103,7 +103,7 @@
 ### [x] TP-V7 — 外部 CI 模拟端到端
 
 | 命令 | `e2e/scripts/v7-external-ci.sh` |
-| 通过 | upload → POST → ready → preview → promote → **`/{project}/` 200** |
+| 通过 | upload → POST → ready → preview Host 200 → promote → **prod Host 200** |
 
 ### [x] TP-V7-D — Promote 后数据一致
 

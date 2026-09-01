@@ -72,9 +72,9 @@ Workflow instances and Cron are **not** branched — they start from this artifa
 <Flow :steps="[
   'Install (`curl | sh`) and run `cellp dev`, or upload a wrangler bundle to RustFS in CI',
   'POST /versions with parent_version_id — Worker from this artifact, D1 / KV / R2 / Queue branched from the parent',
-  'Each version gets its own celld process and /{project}/{version}/',
+  'Each version gets its own celld process and preview Host URL',
   'You hit the preview until you are satisfied. Writes stay in that version.',
-  'POST …/promote cuts /{project}/ to that version. Rollback is promote the previous one.'
+  'POST …/promote switches prod Host to that version. Rollback is promote the previous one.'
 ]" />
 
 ## Who this is for

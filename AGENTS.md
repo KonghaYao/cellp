@@ -39,6 +39,7 @@
 - **AD-8：** 子 version **KV / R2 / Queue branch**（与 D1 同构）
 - **AD-9：** archived / wake；取消 ready 硬上限
 - **AD-10：** **不做**账号体系 · Git 托管 · DNS/CDN/TLS/WAF · 全球边缘；**做**分布式 Workers 控制面（见 decisions §15）
+- **AD-12：** Gateway **Host** 选 version（path 废弃）；dev Host 配置 **[dev/INGRESS-HOST.md](./dev/INGRESS-HOST.md)**
 
 ## 改代码后的验证顺序
 

@@ -21,7 +21,7 @@
 | 理解整体架构 | [DESIGN.md](../DESIGN.md) |
 | 查当前有效决策（AD-1..10、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
 | 跑验收 / 看门禁 | [test-plan.md](./test-plan.md) |
-| 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
+| 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
 | 改 Dashboard | [../web/AGENTS.md](../web/AGENTS.md) |
 | 跑 E2E | [../e2e/README.md](../e2e/README.md) |
 | 跑压测 | [../stress/README.md](../stress/README.md) · [phase6/README.md](../stress/phase6/README.md) |
