@@ -110,6 +110,7 @@ func (o *Orchestrator) Archive(ctx context.Context, projectID, versionID string)
 	_ = o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusDraining, nil)
 	_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 	_ = o.runtime.Stop(ctx, projectID, versionID)
+	_ = o.setPreviewIngressActive(ctx, projectID, versionID, false)
 	return o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusArchived, nil)
 }
 

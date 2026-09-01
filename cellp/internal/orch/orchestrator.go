@@ -403,7 +403,14 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		return err
 	}
 
-	if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
+	if err := o.ensureProdIngress(ctx, projectID); err != nil {
+		log.Printf("orch: prod ingress warn: %v", err)
+	}
+	if err := o.mergeProdPublicBaseURL(ctx, projectID, versionID); err != nil {
+		log.Printf("orch: prod PUBLIC_BASE_URL warn: %v", err)
+	}
+
+		if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
 		log.Printf("orch: cron reconcile after promote warn: %v", err)
 		return err
 	}
