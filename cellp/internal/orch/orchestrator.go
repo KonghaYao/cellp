@@ -241,6 +241,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if err != nil {
 		return fmt.Errorf("start celld: %w", err)
 	}
+	if !o.runtime.Health(ctx, host, port) {
+		return fmt.Errorf("health check failed")
+	}
 	if d1Plan.UseBranch {
 		t0 := time.Now()
 		if err := o.runtime.D1Branch(ctx, j.ProjectID, j.VersionID, d1Plan.ParentID, bundleDir); err != nil {
@@ -266,11 +269,6 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		if err := o.runBindingBranches(ctx, j.ProjectID, j.VersionID, bindingPlan.ParentID, bundleDir); err != nil {
 			return err
 		}
-	}
-
-	// health gate
-	if !o.runtime.Health(ctx, host, port) {
-		return fmt.Errorf("health check failed")
 	}
 
 	// register route
