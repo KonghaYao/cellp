@@ -83,6 +83,7 @@ func (c Config) ProdURL(projectID string) string {
 	if scheme == "" {
 		scheme = "https"
 	}
+	scheme = schemeForExplicitGatewayPort(scheme, c.outwardGatewayPort())
 	return c.formatIngressHostURL(scheme, host)
 }
 
@@ -119,11 +120,21 @@ func (c Config) formatIngressHostURL(scheme, host string) string {
 		scheme = "http"
 	}
 	port := c.outwardGatewayPort()
+	scheme = schemeForExplicitGatewayPort(scheme, port)
 	authority := host
 	if shouldAppendGatewayPort(scheme, port) {
 		authority = net.JoinHostPort(host, strconv.Itoa(port))
 	}
 	return scheme + "://" + authority + "/"
+}
+
+// Dev Gateway on :8787 has no TLS — never emit https://host:8787/ for browsers.
+func schemeForExplicitGatewayPort(scheme string, port int) string {
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if scheme == "https" && port > 0 && port != 443 {
+		return "http"
+	}
+	return scheme
 }
 
 func shouldAppendGatewayPort(scheme string, port int) bool {
