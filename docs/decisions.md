@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-08-31（含 AD-6 · AD-7 · AD-8 · AD-9 · AD-10 · **AD-11**）
+> **最后更新：** 2026-08-31（含 AD-6 · AD-7 · AD-8 · AD-9 · AD-10 · AD-11 · **AD-12**）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -36,7 +36,7 @@
 | celld | 每个 **ready version** 独立子进程 + 独立端口（`8792+N`） |
 | bucket | `s3://cellp-celld/{project}/{version}` 每 version 隔离 |
 | Registry `routes` | 每 version 记录 `upstream_host` + `upstream_port` |
-| Gateway | `/{project}/{version}/*` → 查 route → reverse proxy |
+| Gateway | **AD-12：** Host / opt-in listen port → `ingress_bindings` → route 反代（**废弃** path 选 version） |
 | 本地 watch | **默认临时目录**（`$TMPDIR/cellp-celld-*`）；进程 `Stop` 后删除。**S3/RustFS 为唯一持久层** |
 | 调试 | `CELLP_CELLD_WATCH_PERSIST=1` 恢复 `dev/data/celld-watch/{project}/{version}` 持久路径 |
 
@@ -46,11 +46,13 @@
 
 ---
 
-## 3. AD-2 — Gateway prod 路径为一期必交付
+## 3. AD-2 — Gateway prod 路径为一期必交付（**已由 AD-12 取代**）
 
-`GET|POST|… /{project}/*` → 当前 `prod_version_id` 的 upstream。Phase 1 exit criterion，非可选。
+历史：`GET|POST|… /{project}/*` → 当前 `prod_version_id` 的 upstream。
 
-**证据：** `e2e/scripts/v4-promote-cutover.sh` · `ve-promote.sh`
+**现状：** path 路由 **废弃**；prod/preview 见 [AD-12 §17](#17-ad-12--hostname--port-ingress废弃-path-选-version) 与 [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md)。验收脚本迁移至 Host/port 形态。
+
+**证据（历史）：** `e2e/scripts/v4-promote-cutover.sh` · `ve-promote.sh`
 
 ---
 
@@ -288,7 +290,7 @@ flowchart LR
 
 | 项 | 决策 |
 |----|------|
-| cellp Gateway | HTTP reverse proxy：`/{project}/` · `/{project}/{version}/` → celld upstream |
+| cellp Gateway | HTTP reverse proxy：**Host**（+ 可选 dev listen port）→ celld upstream；path 从 `/` 起、不 strip（AD-12） |
 | TLS / 域名 / WAF / DDoS | **外层项目**（Nginx、云 LB、自有网关、Zero Trust 代理等）终止 TLS 并防护 |
 | 依赖 | **不引入** Caddy、不内置 ACME、不管理 DNS 记录 |
 
@@ -315,7 +317,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 | 2 | **App + Data 同版** | offshoot fork/export；D1 import / branch（AD-1 · D1 契约） |
 | 3 | **Binding 数据 branch** | 子 version：D1 + KV + R2 + Queue（AD-8）；Workflow/Cron/脚本不 branch |
 | 4 | **运行时隔离** | 每 ready version 独立 celld + bucket（AD-1） |
-| 5 | **Gateway 路由** | preview `/{project}/{version}/`；prod `/{project}/`（AD-2） |
+| 5 | **Gateway 路由** | **ingress_bindings**：Host / opt-in port；prod 稳定 Host + promote 切 upstream（AD-12） |
 | 6 | **Promote 切流** | drain · offshoot promote · CAS prod · saga 补偿（AD-5） |
 | 7 | **Bindings 运维 API** | wrangler 清单；KV / Queue / D1 operator；Workflow 只读 |
 | 8 | **Worker env** | per-version 覆盖 → `CELLD_VARS_FILE`；`GET/PUT …/env` |
@@ -340,4 +342,34 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 - **Defer：** 分布式 cron 选举；`CELLP_PREVIEW_CRON=1` 双 arm；celld `CELLD_CRON_ARM=0` 补强。
 
 **实现：** `cellp/internal/orch/cron_policy.go` · `cellp/internal/runtime/wrangler_cron.go` · e2e `v17-cron-prod-only.sh`。
+
+---
+
+## 17. AD-12 — Hostname / Port Ingress（废弃 path 选 version）
+
+**问题：** Gateway path 前缀 `/{project}/{version}/` 破坏 Worker/SPA/OAuth 根路径语义；upstream `Host=127.0.0.1:<celldPort>` 导致 `request.url` origin 错误；内网全量 DNS 过重。
+
+**决策：**
+
+| 项 | 内容 |
+|----|------|
+| **路由键** | **Tier A（默认）：** `Host` → `ingress_bindings`。 **Tier B（opt-in）：** `CELLP_INGRESS_TIER_B=host`（默认）\|`dedicated_port`\|`external_map`；dev 可无 DNS 时用 **synthetic FQDN + `/etc/hosts`** 或 `127.0.0.1:<port>`（仅 dedicated_port，bind loopback）。 |
+| **Path** | 业务 URL **从 `/` 起**；Gateway **不** strip project/version。 |
+| **废弃** | `/{project}/{version}/*`、`/{project}/*` 作为 version 选择器（AD-2 path 形态废止）。 |
+| **Registry** | 新增 `ingress_bindings`（`host`、`listen_port`、`synthetic_host`、`role`）；保留 `routes` upstream。 |
+| **celld** | Gateway 设 `Host: synthetic_host` + `X-Forwarded-*`；ready 门禁 **`CELLD_TRUST_FORWARDED_HEADERS=1`**。 |
+| **Env** | version ready 注入 **`PUBLIC_BASE_URL`** = 对外 `preview_url` / prod URL。 |
+| **Promote** | prod **Host 不变**；切 `prod_version_id` + upstream；preview binding 不因 promote 自动失效。 |
+| **AD-10** | cellp 仍不写 DNS/不签证书；外层 LB 透传 Host。 |
+| **威胁模型** | Gateway HTTP = 应用暴露面；token 不保护 Worker URL。 |
+
+**端口：** ingress listen 池默认 **19080–19999**，与 celld upstream（8803+）及 RustFS 9000 **互斥**。
+
+**详细契约与 blocking 规则（R-TRUST-* 等）：** [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md)
+
+**对抗审查：** 已并入 [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) §10
+
+**证据（待落地）：** P0 e2e origin/`fetch('/')`；P1 promote host 切流；P2 删 path 路由。
+
+**实现（计划）：** `cellp/internal/gateway/` · `cellp/internal/registry/` · orchestrator env 注入 · `runtime.VerifyGatewayRoute` 改用 `preview_url`。
 

@@ -15,20 +15,27 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Gateway is the cellpd built-in reverse proxy (DESIGN §2.3).
+// Gateway is the cellpd built-in reverse proxy (DESIGN §2.3, AD-12 Host ingress).
 type Gateway struct {
 	store       registry.Store
 	cache       *RouteCache
 	router      chi.Router
+	cfg         GatewayConfig
 	lastTouchMu sync.Mutex
 	lastTouchAt map[string]time.Time
 }
 
-// New creates a gateway server with an in-memory route cache.
+// New creates a gateway with config from the environment.
 func New(store registry.Store) *Gateway {
+	return NewWithConfig(store, ConfigFromEnv())
+}
+
+// NewWithConfig creates a gateway with explicit AD-12 settings (tests).
+func NewWithConfig(store registry.Store, cfg GatewayConfig) *Gateway {
 	g := &Gateway{
 		store:       store,
 		cache:       NewRouteCache(),
+		cfg:         cfg,
 		lastTouchAt: make(map[string]time.Time),
 	}
 	g.router = chi.NewRouter()
@@ -47,6 +54,13 @@ func (g *Gateway) InvalidateRoute(projectID, versionID string) {
 func (g *Gateway) InvalidateProd(projectID string) {
 	if g.cache != nil {
 		g.cache.InvalidateProd(projectID)
+	}
+}
+
+// InvalidateIngressHost clears cached ingress binding for a host.
+func (g *Gateway) InvalidateIngressHost(host string) {
+	if g.cache != nil {
+		g.cache.InvalidateIngressHost(registry.NormalizeIngressHost(host))
 	}
 }
 
@@ -76,14 +90,55 @@ func (g *Gateway) routes() {
 	})
 	g.router.Get("/health/deep", g.handleHealthDeep)
 
-	// Version-specific route: /{project}/{version}/*
-	g.router.Handle("/{project}/{version}/*", http.HandlerFunc(g.handleVersionRoute))
+	if !g.cfg.HostOnly {
+		g.router.Handle("/{project}/{version}/*", http.HandlerFunc(g.handleVersionRoute))
+		g.router.Handle("/{project}/*", http.HandlerFunc(g.handleProdRoute))
+	}
 
-	// Prod route: /{project}/* (AD-2)
-	g.router.Handle("/{project}/*", http.HandlerFunc(g.handleProdRoute))
+	g.router.Handle("/*", http.HandlerFunc(g.handleIngress))
+}
+
+func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/health/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	binding, err := g.resolveIngressBinding(r.Context(), r)
+	if err != nil {
+		http.Error(w, "ingress lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if binding == nil || !binding.Active {
+		http.Error(w, "ingress_unknown", http.StatusNotFound)
+		return
+	}
+
+	projectID, versionID, ok := g.versionForBinding(r.Context(), binding)
+	if !ok {
+		http.Error(w, "ingress_unknown", http.StatusNotFound)
+		return
+	}
+
+	route, ok := g.lookupRoute(r.Context(), projectID, versionID)
+	if !ok || route == nil {
+		http.Error(w, "route not found", http.StatusNotFound)
+		return
+	}
+	if !route.Active {
+		if g.versionInactiveBody(r.Context(), projectID, versionID) == "version_archived" {
+			http.Error(w, "version_archived", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "route draining", http.StatusServiceUnavailable)
+		return
+	}
+
+	g.proxyIngress(w, r, route, binding, projectID, versionID)
 }
 
 func (g *Gateway) handleVersionRoute(w http.ResponseWriter, r *http.Request) {
+	markPathDeprecated(w)
 	projectID := chi.URLParam(r, "project")
 	versionID := chi.URLParam(r, "version")
 	if projectID == "health" {
@@ -111,10 +166,11 @@ func (g *Gateway) handleVersionRoute(w http.ResponseWriter, r *http.Request) {
 	if rest == "" {
 		rest = "/"
 	}
-	g.proxy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
+	g.proxyLegacy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
 }
 
 func (g *Gateway) handleProdRoute(w http.ResponseWriter, r *http.Request) {
+	markPathDeprecated(w)
 	projectID := chi.URLParam(r, "project")
 	if projectID == "health" {
 		w.WriteHeader(http.StatusOK)
@@ -143,7 +199,11 @@ func (g *Gateway) handleProdRoute(w http.ResponseWriter, r *http.Request) {
 	if rest == "" {
 		rest = "/"
 	}
-	g.proxy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
+	g.proxyLegacy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
+}
+
+func markPathDeprecated(w http.ResponseWriter) {
+	w.Header().Set("Deprecation", "true")
 }
 
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {
@@ -197,7 +257,38 @@ func (g *Gateway) lookupProdVersion(ctx context.Context, projectID string) (stri
 	return *versionID, true
 }
 
-func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, host string, port int, path, projectID, versionID string) {
+func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *registry.Route, binding *registry.IngressBinding, projectID, versionID string) {
+	target, err := url.Parse(fmt.Sprintf("http://%s:%d", route.UpstreamHost, route.UpstreamPort))
+	if err != nil {
+		http.Error(w, "bad upstream", http.StatusBadGateway)
+		return
+	}
+	clientAuth := clientAuthority(r)
+	publicProto := g.publicSchemeForRole(binding.Role)
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	origDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		origDirector(req)
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		applyUpstreamHeaders(req, binding, clientAuth, publicProto)
+	}
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		metrics.RecordGatewayUpstream(resp.StatusCode)
+		if resp.StatusCode >= 200 && resp.StatusCode < 500 {
+			g.touchLastAccessThrottled(projectID, versionID)
+		}
+		return nil
+	}
+	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, e error) {
+		metrics.RecordGatewayUpstream(http.StatusBadGateway)
+		http.Error(rw, "bad gateway", http.StatusBadGateway)
+	}
+	proxy.ServeHTTP(w, r)
+}
+
+func (g *Gateway) proxyLegacy(w http.ResponseWriter, r *http.Request, host string, port int, path, projectID, versionID string) {
 	target, err := url.Parse(fmt.Sprintf("http://%s:%d", host, port))
 	if err != nil {
 		http.Error(w, "bad upstream", http.StatusBadGateway)

@@ -59,6 +59,31 @@ type Route struct {
 	UpstreamPort int    `json:"upstream_port"`
 }
 
+// Ingress binding roles (AD-12 / INGRESS-ROUTING §3.2).
+const (
+	IngressRolePreview = "preview"
+	IngressRoleProd    = "prod"
+)
+
+// Default ingress dedicated listen port pool (INGRESS-ROUTING §3.3).
+const (
+	DefaultIngressPortMin = 19080
+	DefaultIngressPortMax = 19999
+)
+
+// IngressBinding maps external Host and/or listen port to a project version (or prod).
+type IngressBinding struct {
+	BindingID      string  `json:"binding_id"`
+	ProjectID      string  `json:"project_id"`
+	VersionID      *string `json:"version_id,omitempty"`
+	Role           string  `json:"role"`
+	Host           *string `json:"host,omitempty"`
+	ListenPort     *int    `json:"listen_port,omitempty"`
+	SyntheticHost  string  `json:"synthetic_host"`
+	OwnerGatewayID *string `json:"owner_gateway_id,omitempty"`
+	Active         bool    `json:"active"`
+}
+
 // Job represents a persisted orchestrator job.
 type Job struct {
 	ID         string     `json:"id"`
@@ -138,6 +163,7 @@ type Store interface {
 	ListVersions(ctx context.Context, projectID string, opts ListVersionsOpts) (*ListVersionsPage, error)
 	CountVersions(ctx context.Context, projectID string) (int, error)
 	UpdateVersionStatus(ctx context.Context, projectID, versionID, status string, errMsg *string) error
+	SetVersionPreviewURL(ctx context.Context, projectID, versionID, previewURL string) error
 	CountReadyVersions(ctx context.Context, projectID string) (int, error)
 
 	SetVersionPinned(ctx context.Context, projectID, versionID string, pinned bool) error
@@ -153,6 +179,14 @@ type Store interface {
 	ListActiveRoutes(ctx context.Context, projectID string) ([]Route, error)
 	ListAllActiveRoutes(ctx context.Context) ([]Route, error)
 	DeleteRoute(ctx context.Context, projectID, versionID string) error
+
+	UpsertIngressBinding(ctx context.Context, b IngressBinding) error
+	GetIngressBinding(ctx context.Context, bindingID string) (*IngressBinding, error)
+	LookupIngressByHost(ctx context.Context, host string) (*IngressBinding, error)
+	LookupIngressByListenPort(ctx context.Context, listenPort int, ownerGatewayID string) (*IngressBinding, error)
+	SetIngressBindingActive(ctx context.Context, bindingID string, active bool) error
+	ListActiveIngressBindings(ctx context.Context) ([]IngressBinding, error)
+	ListIngressBindingsByVersion(ctx context.Context, projectID, versionID string) ([]IngressBinding, error)
 
 	Ping(ctx context.Context) error
 

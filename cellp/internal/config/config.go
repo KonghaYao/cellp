@@ -29,6 +29,8 @@ type Config struct {
 	CelldBucket     string
 
 	ArtifactsDir string
+
+	Ingress IngressConfig
 }
 
 // APIAddr returns the API listen address.

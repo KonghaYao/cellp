@@ -102,7 +102,39 @@ CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
 	if err != nil {
 		return err
 	}
-	return s.migrateArchiveColumns()
+	if err := s.migrateArchiveColumns(); err != nil {
+		return err
+	}
+	return s.migrateIngress()
+}
+
+func (s *SQLiteStore) migrateIngress() error {
+	_, err := s.db.Exec(`
+CREATE TABLE IF NOT EXISTS ingress_bindings (
+	binding_id TEXT PRIMARY KEY,
+	project_id TEXT NOT NULL,
+	version_id TEXT,
+	role TEXT NOT NULL,
+	host TEXT,
+	listen_port INTEGER,
+	synthetic_host TEXT NOT NULL,
+	owner_gateway_id TEXT,
+	active INTEGER NOT NULL DEFAULT 0,
+	CHECK (role IN ('preview', 'prod')),
+	CHECK (host IS NOT NULL OR listen_port IS NOT NULL),
+	FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ingress_host_active ON ingress_bindings(host)
+	WHERE active = 1 AND host IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ingress_synthetic_active ON ingress_bindings(synthetic_host)
+	WHERE active = 1;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ingress_listen_active ON ingress_bindings(listen_port)
+	WHERE active = 1 AND listen_port IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_ingress_project_version ON ingress_bindings(project_id, version_id);
+`)
+	return err
 }
 
 func (s *SQLiteStore) migrateArchiveColumns() error {
@@ -458,6 +490,24 @@ func (s *SQLiteStore) ListVersions(ctx context.Context, projectID string, opts L
 			page.Versions = versions[:limit]
 		}
 		return page, nil
+	})
+}
+
+func (s *SQLiteStore) SetVersionPreviewURL(ctx context.Context, projectID, versionID, previewURL string) error {
+	return withRetryErr(func() error {
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		res, err := s.db.ExecContext(ctx, `
+			UPDATE versions SET preview_url = ?, updated_at = ?
+			WHERE project_id = ? AND id = ?`,
+			previewURL, now, projectID, versionID)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("version not found")
+		}
+		return nil
 	})
 }
 

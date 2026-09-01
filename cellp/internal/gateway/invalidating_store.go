@@ -64,3 +64,30 @@ func (s *invalidatingStore) SetProdVersionCAS(ctx context.Context, projectID, ex
 	}
 	return nil
 }
+
+func (s *invalidatingStore) UpsertIngressBinding(ctx context.Context, b registry.IngressBinding) error {
+	if err := s.Store.UpsertIngressBinding(ctx, b); err != nil {
+		return err
+	}
+	if b.Host != nil {
+		s.gw.InvalidateIngressHost(*b.Host)
+	}
+	if b.Role == registry.IngressRoleProd {
+		s.gw.InvalidateProd(b.ProjectID)
+	}
+	return nil
+}
+
+func (s *invalidatingStore) SetIngressBindingActive(ctx context.Context, bindingID string, active bool) error {
+	b, _ := s.Store.GetIngressBinding(ctx, bindingID)
+	if err := s.Store.SetIngressBindingActive(ctx, bindingID, active); err != nil {
+		return err
+	}
+	if b != nil && b.Host != nil {
+		s.gw.InvalidateIngressHost(*b.Host)
+	}
+	if b != nil && b.Role == registry.IngressRoleProd {
+		s.gw.InvalidateProd(b.ProjectID)
+	}
+	return nil
+}

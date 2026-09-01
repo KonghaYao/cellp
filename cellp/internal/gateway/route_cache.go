@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	defaultRouteCacheTTL       = 60 * time.Second
-	defaultRouteCacheMaxRoutes = 10_000
-	defaultRouteCacheMaxProd   = 5_000
+	defaultRouteCacheTTL         = 60 * time.Second
+	defaultRouteCacheMaxRoutes   = 10_000
+	defaultRouteCacheMaxProd     = 5_000
+	defaultRouteCacheMaxIngress  = 5_000
 )
 
 type cachedRoute struct {
@@ -22,6 +23,11 @@ type cachedRoute struct {
 type cachedProd struct {
 	versionID *string
 	found     bool
+}
+
+type cachedIngress struct {
+	binding *registry.IngressBinding
+	found   bool
 }
 
 type routeCacheEntry struct {
@@ -36,31 +42,44 @@ type prodCacheEntry struct {
 	value     cachedProd
 }
 
+type ingressCacheEntry struct {
+	key       string
+	expiresAt time.Time
+	value     cachedIngress
+}
+
 // RouteCache is an in-process LRU/TTL cache for gateway route lookups.
 type RouteCache struct {
 	mu sync.Mutex
 
-	ttl       time.Duration
-	maxRoutes int
-	maxProd   int
+	ttl          time.Duration
+	maxRoutes    int
+	maxProd      int
+	maxIngress   int
 
 	routes map[string]*list.Element
 	routeL *list.List
 
 	prod map[string]*list.Element
 	prodL *list.List
+
+	ingress map[string]*list.Element
+	ingressL *list.List
 }
 
 // NewRouteCache returns a RouteCache with default TTL and capacity limits.
 func NewRouteCache() *RouteCache {
 	return &RouteCache{
-		ttl:       defaultRouteCacheTTL,
-		maxRoutes: defaultRouteCacheMaxRoutes,
-		maxProd:   defaultRouteCacheMaxProd,
-		routes:    make(map[string]*list.Element),
-		routeL:    list.New(),
-		prod:      make(map[string]*list.Element),
-		prodL:     list.New(),
+		ttl:        defaultRouteCacheTTL,
+		maxRoutes:  defaultRouteCacheMaxRoutes,
+		maxProd:    defaultRouteCacheMaxProd,
+		maxIngress: defaultRouteCacheMaxIngress,
+		routes:     make(map[string]*list.Element),
+		routeL:     list.New(),
+		prod:       make(map[string]*list.Element),
+		prodL:      list.New(),
+		ingress:    make(map[string]*list.Element),
+		ingressL:   list.New(),
 	}
 }
 
@@ -76,6 +95,10 @@ func (c *RouteCache) touchProd(el *list.Element) {
 	c.prodL.MoveToFront(el)
 }
 
+func (c *RouteCache) touchIngress(el *list.Element) {
+	c.ingressL.MoveToFront(el)
+}
+
 func (c *RouteCache) evictRoute(el *list.Element) {
 	ent := el.Value.(*routeCacheEntry)
 	delete(c.routes, ent.key)
@@ -86,6 +109,12 @@ func (c *RouteCache) evictProd(el *list.Element) {
 	ent := el.Value.(*prodCacheEntry)
 	delete(c.prod, ent.key)
 	c.prodL.Remove(el)
+}
+
+func (c *RouteCache) evictIngress(el *list.Element) {
+	ent := el.Value.(*ingressCacheEntry)
+	delete(c.ingress, ent.key)
+	c.ingressL.Remove(el)
 }
 
 func (c *RouteCache) trimRoutes() {
@@ -100,6 +129,14 @@ func (c *RouteCache) trimProd() {
 	for c.prodL.Len() > c.maxProd {
 		if back := c.prodL.Back(); back != nil {
 			c.evictProd(back)
+		}
+	}
+}
+
+func (c *RouteCache) trimIngress() {
+	for c.ingressL.Len() > c.maxIngress {
+		if back := c.ingressL.Back(); back != nil {
+			c.evictIngress(back)
 		}
 	}
 }
@@ -200,6 +237,53 @@ func (c *RouteCache) SetProd(projectID string, versionID *string, found bool) {
 	c.trimProd()
 }
 
+// GetIngressHost returns a cached ingress binding by normalized host.
+func (c *RouteCache) GetIngressHost(host string) (*registry.IngressBinding, bool, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	el, ok := c.ingress[host]
+	if !ok {
+		return nil, false, false
+	}
+	ent := el.Value.(*ingressCacheEntry)
+	if time.Now().After(ent.expiresAt) {
+		c.evictIngress(el)
+		return nil, false, false
+	}
+	c.touchIngress(el)
+	if !ent.value.found {
+		return nil, true, false
+	}
+	b := *ent.value.binding
+	return &b, true, true
+}
+
+// SetIngressHost stores an ingress host lookup (including negative cache).
+func (c *RouteCache) SetIngressHost(host string, binding *registry.IngressBinding, found bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	value := cachedIngress{found: found}
+	if found && binding != nil {
+		copyB := *binding
+		value.binding = &copyB
+	}
+
+	if el, ok := c.ingress[host]; ok {
+		ent := el.Value.(*ingressCacheEntry)
+		ent.value = value
+		ent.expiresAt = time.Now().Add(c.ttl)
+		c.touchIngress(el)
+		return
+	}
+
+	ent := &ingressCacheEntry{key: host, expiresAt: time.Now().Add(c.ttl), value: value}
+	el := c.ingressL.PushFront(ent)
+	c.ingress[host] = el
+	c.trimIngress()
+}
+
 // InvalidateRoute drops cached data for a specific project/version route.
 func (c *RouteCache) InvalidateRoute(projectID, versionID string) {
 	c.mu.Lock()
@@ -218,6 +302,16 @@ func (c *RouteCache) InvalidateProd(projectID string) {
 
 	if el, ok := c.prod[projectID]; ok {
 		c.evictProd(el)
+	}
+}
+
+// InvalidateIngressHost drops cached ingress binding for a host.
+func (c *RouteCache) InvalidateIngressHost(host string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if el, ok := c.ingress[host]; ok {
+		c.evictIngress(el)
 	}
 }
 
