@@ -1,4 +1,11 @@
+import {
+  isAppInternalPath,
+  projectHasHtmlStorefront,
+} from "@/lib/ingress-routing";
+
 const GATEWAY_DEFAULT = "http://127.0.0.1:8787";
+
+export { isAppInternalPath, projectHasHtmlStorefront };
 
 export function gatewayBase(): string {
   const configured = import.meta.env.VITE_CELLP_GATEWAY_URL as string | undefined;
@@ -41,7 +48,57 @@ export function previewHostFromApi(
 
 /** Workers with a full HTML storefront (iframe). API-only demos return false. */
 export function workerHasHtmlStorefront(projectId: string): boolean {
-  return projectId === "commerce-store";
+  return projectHasHtmlStorefront(projectId);
+}
+
+export function dashboardProjectPath(projectId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}`;
+}
+
+export function dashboardVersionPath(
+  projectId: string,
+  versionId: string,
+): string {
+  return `/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}`;
+}
+
+/**
+ * Where Primary UI links (Preview / Production) should go.
+ * API-only workers open Dashboard; HTML storefronts open gateway proxy.
+ */
+export function previewOpenUrl(
+  projectId: string,
+  versionId: string,
+  previewUrl?: string | null,
+): string {
+  if (!workerHasHtmlStorefront(projectId)) {
+    return dashboardVersionPath(projectId, versionId);
+  }
+  return previewBrowseUrl(projectId, versionId, previewUrl, "/");
+}
+
+export function productionOpenUrl(
+  projectId: string,
+  prodUrl?: string | null,
+): string {
+  if (!workerHasHtmlStorefront(projectId)) {
+    return dashboardProjectPath(projectId);
+  }
+  return prodBrowseUrl(projectId, prodUrl, "/");
+}
+
+/** Raw Worker HTTP via dev gateway proxy (API JSON/HTML). */
+export function gatewayWorkerUrl(
+  projectId: string,
+  versionId: string | null,
+  path = "/",
+  opts?: { prod?: boolean; previewUrl?: string | null; prodUrl?: string | null },
+): string {
+  const host =
+    opts?.prod || !versionId
+      ? prodHost(projectId)
+      : previewHostFromApi(projectId, versionId, opts?.previewUrl);
+  return gatewayBrowseUrl(host, path);
 }
 
 /**
@@ -109,7 +166,7 @@ export function deriveProdUrl(
   projectId: string,
   _previewUrl?: string | null,
 ): string {
-  return prodBrowseUrl(projectId, null);
+  return productionOpenUrl(projectId, null);
 }
 
 /** Prefer API-provided prod_url; fall back to Host-based browse URL. */
@@ -118,20 +175,7 @@ export function resolveProdUrl(
   prodUrl?: string | null,
   _previewUrl?: string | null,
 ): string {
-  if (prodUrl) {
-    try {
-      const u = new URL(prodUrl);
-      if (u.host.includes(".")) {
-        return gatewayBrowseUrl(u.host, u.pathname || "/");
-      }
-    } catch {
-      /* legacy path URL */
-    }
-    if (prodUrl.includes("ingress.local") || prodUrl.startsWith("http")) {
-      return prodBrowseUrl(projectId, prodUrl);
-    }
-  }
-  return prodBrowseUrl(projectId, prodUrl);
+  return productionOpenUrl(projectId, prodUrl);
 }
 
 /** Human-readable URL for UI labels (not for href). */

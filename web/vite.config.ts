@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
+import { ingressHostToDashboardPath } from "./src/lib/ingress-routing";
 
 const API_TARGET = "http://127.0.0.1:8790";
 const GATEWAY_TARGET = "http://127.0.0.1:8787";
@@ -43,6 +44,37 @@ function shouldSkipIngressProxy(url: string): boolean {
     return true;
   }
   return false;
+}
+
+function ingressGatewayRedirectPlugin(): Plugin {
+  return {
+    name: "cellp-ingress-gateway-redirect",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const raw = req.url ?? "";
+        if (!raw.startsWith("/__gateway")) {
+          next();
+          return;
+        }
+        try {
+          const u = new URL(raw, "http://127.0.0.1");
+          const host = u.searchParams.get("__cellp_host");
+          if (host) {
+            const dest = ingressHostToDashboardPath(host);
+            if (dest) {
+              res.statusCode = 302;
+              res.setHeader("Location", dest);
+              res.end();
+              return;
+            }
+          }
+        } catch {
+          /* fall through to gateway proxy */
+        }
+        next();
+      });
+    },
+  };
 }
 
 function ingressCookieProxyPlugin(): Plugin {
@@ -133,7 +165,7 @@ const devProxy = {
 export default defineConfig(({ mode }) => {
   loadEnv(mode, process.cwd(), "");
   return {
-    plugins: [react(), ingressCookieProxyPlugin()],
+    plugins: [react(), ingressGatewayRedirectPlugin(), ingressCookieProxyPlugin()],
     base: process.env.VITE_BASE ?? "./",
     build: {
       assetsDir: ".",

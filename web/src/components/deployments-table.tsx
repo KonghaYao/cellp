@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ExternalLink, GitBranch, MoreHorizontal, Rocket } from "lucide-react";
 import type { Version } from "@/lib/cellp-api";
 import { promoteVersion, CellpApiError } from "@/lib/cellp-api";
-import { deriveProdUrl, formatRelativeTime, previewBrowseUrl, truncateSha } from "@/lib/format";
+import { deriveProdUrl, formatRelativeTime, previewOpenUrl, isAppInternalPath, truncateSha } from "@/lib/format";
 import { StatusIndicator } from "@/components/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -293,7 +293,7 @@ function DeploymentActions({
       )}
       {hasPreview && (
         <a
-          href={previewBrowseUrl(projectId, version.id, version.preview_url)}
+          href={previewOpenUrl(projectId, version.id, version.preview_url)}
           target="_blank"
           rel="noreferrer"
           className={actionClass}
@@ -304,6 +304,15 @@ function DeploymentActions({
         </a>
       )}
       {isProd && (
+        isAppInternalPath(prodUrl) ? (
+          <Link
+            to={prodUrl}
+            className={actionClass}
+            onClick={onAction}
+          >
+            Visit
+          </Link>
+        ) : (
         <a
           href={prodUrl}
           target="_blank"
@@ -314,6 +323,7 @@ function DeploymentActions({
           Visit
           <ExternalLink className="size-3" />
         </a>
+        )
       )}
       {canPromote && (
         <>

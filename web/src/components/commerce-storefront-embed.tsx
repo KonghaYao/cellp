@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import {
+  gatewayWorkerUrl,
   previewBrowseUrl,
   prodBrowseUrl,
   previewHostFromApi,
@@ -30,7 +31,12 @@ export function CommerceStorefrontEmbed({
   prodUrl?: string | null;
   isProd?: boolean;
 }) {
-  const src = commerceStorefrontUrl(projectId, versionId, prodUrl, isProd);
+  const src = workerHasHtmlStorefront(projectId)
+    ? commerceStorefrontUrl(projectId, versionId, prodUrl, isProd)
+    : gatewayWorkerUrl(projectId, isProd ? null : versionId, "/count", {
+        prod: isProd,
+        prodUrl: prodUrl ?? undefined,
+      });
   const previewUrl = prodUrl ?? undefined;
   const hostLabel = (() => {
     try {

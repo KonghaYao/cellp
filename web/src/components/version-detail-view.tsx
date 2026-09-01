@@ -14,12 +14,13 @@ import {
   type Version,
 } from "@/lib/cellp-api";
 import {
-  resolveProdUrl,
   formatDateTime,
   formatDuration,
   formatRelativeTime,
-  previewBrowseUrl,
+  previewOpenUrl as buildPreviewOpenUrl,
+  productionOpenUrl,
   ingressDisplayUrl,
+  isAppInternalPath,
   truncateSha,
 } from "@/lib/format";
 import {
@@ -90,8 +91,8 @@ function VersionDetailContent({
 }) {
   const isProd = prodVersionId === version.id;
   const isPreview = version.parent_version_id != null;
-  const prodUrl = resolveProdUrl(projectId, projectProdUrl, version.preview_url);
-  const previewOpenUrl = previewBrowseUrl(
+  const prodLink = productionOpenUrl(projectId, projectProdUrl);
+  const previewLink = buildPreviewOpenUrl(
     projectId,
     version.id,
     version.preview_url,
@@ -161,7 +162,7 @@ function VersionDetailContent({
             status={version.status}
             isProd={isProd}
             pinned={version.pinned}
-            previewUrl={previewOpenUrl}
+            previewUrl={previewLink}
             onComplete={onRefresh}
           />
         </div>
@@ -338,26 +339,16 @@ function VersionDetailContent({
 
         <MetadataSection title="URLs" icon={<Globe className="size-4" />}>
           <MetadataRow label="Preview" copyable copyValue={version.preview_url}>
-            <a
-              href={previewOpenUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-foreground hover:underline"
-            >
-              {version.preview_url || previewOpenUrl}
+            <BrowseHref href={previewLink} className="inline-flex items-center gap-1 text-sm text-foreground hover:underline">
+              {version.preview_url || previewLink}
               <ExternalLink className="size-3 text-muted-foreground" />
-            </a>
+            </BrowseHref>
           </MetadataRow>
-          <MetadataRow label="Production" copyable copyValue={projectProdUrl ?? prodUrl}>
-            <a
-              href={prodUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-foreground hover:underline"
-            >
-              {ingressDisplayUrl(projectId, undefined, projectProdUrl ?? prodUrl)}
+          <MetadataRow label="Production" copyable copyValue={projectProdUrl ?? undefined}>
+            <BrowseHref href={prodLink} className="inline-flex items-center gap-1 text-sm text-foreground hover:underline">
+              {ingressDisplayUrl(projectId, undefined, projectProdUrl ?? undefined)}
               <ExternalLink className="size-3 text-muted-foreground" />
-            </a>
+            </BrowseHref>
           </MetadataRow>
         </MetadataSection>
       </div>
@@ -464,6 +455,29 @@ function MetadataSection({
 
 function formatBranchMethod(method: string): string {
   return method.replace(/_/g, " ");
+}
+
+function BrowseHref({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (isAppInternalPath(href)) {
+    return (
+      <Link to={href} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className={className}>
+      {children}
+    </a>
+  );
 }
 
 function MetadataRow({

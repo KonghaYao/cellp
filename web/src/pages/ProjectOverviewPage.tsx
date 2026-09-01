@@ -10,7 +10,7 @@ import {
   type ProjectDetail,
   type Version,
 } from "@/lib/cellp-api";
-import { resolveProdUrl, formatRelativeTime, truncateSha } from "@/lib/format";
+import { resolveProdUrl, formatRelativeTime, truncateSha, ingressDisplayUrl, isAppInternalPath } from "@/lib/format";
 import { deploymentsHref, inspectHref, storageBrowserHref } from "@/lib/routes";
 import { CopyButton } from "@/components/copy-button";
 import { DeploymentsTable } from "@/components/deployments-table";
@@ -96,10 +96,15 @@ export function ProjectOverviewPage() {
     };
   }, [id]);
 
-  const prodUrl = resolveProdUrl(
+  const prodOpenUrl = resolveProdUrl(
     id,
     project?.prod_url,
     prodVersion?.preview_url,
+  );
+  const prodDisplayUrl = ingressDisplayUrl(
+    id,
+    undefined,
+    project?.prod_url ?? undefined,
   );
   const deploymentCount = project?.version_count ?? recentVersions.length;
   const prodDbAvailable = prodDatabase?.available === true;
@@ -191,8 +196,8 @@ export function ProjectOverviewPage() {
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm break-all">{prodUrl}</span>
-                    <CopyButton value={prodUrl} label="Copy production URL" />
+                    <span className="font-mono text-sm break-all">{prodDisplayUrl}</span>
+                    <CopyButton value={prodDisplayUrl} label="Copy production URL" />
                   </div>
                 </>
               ) : (
@@ -203,8 +208,17 @@ export function ProjectOverviewPage() {
               )}
             </div>
             {project?.prod_version_id && (
+            isAppInternalPath(prodOpenUrl) ? (
+              <Link
+                to={prodOpenUrl}
+                className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
+              >
+                <Globe className="size-3.5" />
+                {id === "commerce-store" ? "Open storefront" : "Visit"}
+              </Link>
+            ) : (
             <a
-              href={prodUrl}
+              href={prodOpenUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
@@ -213,6 +227,7 @@ export function ProjectOverviewPage() {
               {id === "commerce-store" ? "Open storefront" : "Visit"}
               <ExternalLink className="size-3 text-muted-foreground" />
             </a>
+            )
           )}
           </div>
         </div>
@@ -268,7 +283,7 @@ export function ProjectOverviewPage() {
             projectId={id}
             prodVersionId={project?.prod_version_id ?? null}
             versions={recentForTable}
-            prodUrl={prodUrl}
+            prodUrl={prodOpenUrl}
             dense
           />
         </div>
@@ -318,7 +333,7 @@ export function ProjectOverviewPage() {
           )}
           {id === "commerce-store" && project?.prod_version_id && (
             <a
-              href={prodUrl}
+              href={prodOpenUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-muted"
