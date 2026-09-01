@@ -9,7 +9,7 @@ source dev/.env
 source e2e/scripts/lib.sh
 
 pairs=(
-  "support-flaremo:v3"
+  "support-flaremo:v6"
   "support-r2filebox:v15"
 )
 

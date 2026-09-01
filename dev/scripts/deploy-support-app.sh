@@ -212,6 +212,9 @@ fi
 CELLP_PREPARE="${ROOT}/dev/examples/${PROJECT}/prepare-artifact.sh"
 if [[ -f "$CELLP_PREPARE" ]]; then
   log "prepare artifact: ${CELLP_PREPARE}"
+  if [[ -f "${ROOT}/dev/examples/${PROJECT}/patch-local-dev-hosts.sh" && -f "${APP_DIR}/apps/worker/src/auth.ts" ]]; then
+    bash "${ROOT}/dev/examples/${PROJECT}/patch-local-dev-hosts.sh" "${APP_DIR}/apps/worker/src/auth.ts"
+  fi
   bash "$CELLP_PREPARE" "$APP_DIR"
   SUPPORT_RSYNC_NO_NODE=1
 fi
@@ -261,6 +264,12 @@ else
   else
     tar -cf - --exclude .git ${BUILD_STEPS:+} . | tar -xf - -C "$DEST"
   fi
+fi
+
+SEED_SCRIPT="${ROOT}/dev/examples/${PROJECT}/seed.sh"
+if [[ -f "$SEED_SCRIPT" && -d "${APP_DIR}/migrations" ]]; then
+  log "D1 seed.db via ${SEED_SCRIPT}"
+  bash "$SEED_SCRIPT" "${DEST}/seed.db" "${APP_DIR}"
 fi
 
 sync_artifact_to_rustfs "$PROJECT" "$VERSION"

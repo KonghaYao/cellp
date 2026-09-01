@@ -3,6 +3,9 @@
 set -euo pipefail
 APP_DIR="${1:?app dir}"
 cd "$APP_DIR"
+OVERLAY="$(cd "$(dirname "$0")" && pwd)"
+AUTH_TS="${APP_DIR}/apps/worker/src/auth.ts"
+[[ -f "$AUTH_TS" ]] && bash "${OVERLAY}/patch-local-dev-hosts.sh" "$AUTH_TS"
 if [[ ! -f wrangler.jsonc ]]; then
   echo "prepare-artifact: missing wrangler.jsonc" >&2
   exit 1
@@ -22,3 +25,4 @@ raw = raw.replace(/:\/\//g, ':\\u002f\\u002f');
 fs.writeFileSync(p, raw);
 NODE
 echo "prepare-artifact: bundled $(wc -c < .cellp-bundle/index.js) bytes → wrangler no_bundle"
+bash "${OVERLAY}/patch-bundle-local-hosts.sh" ".cellp-bundle/index.js"

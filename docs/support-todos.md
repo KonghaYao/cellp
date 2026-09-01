@@ -59,8 +59,8 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 |----|------|----------|
 | S01 | ready | http://127.0.0.1:8787/support-relay/ （`seed-support-relay-demo.sh`） |
 | S03/S04 | ready 但 **不继续** | 无用户价值 / 低 UI 收益 |
-| S17 | **ready** | `seed-support-r2filebox-demo.sh` · **v14** · `https://v14.support-r2filebox.192-168-12-36.nip.io:8788/` |
-| S05 | **ready** | Preview: `https://v3.support-flaremo.192-168-12-36.nip.io:8788/` · Prod: `https://support-flaremo.192-168-12-36.nip.io:8788/`（Host + dev TLS :8788） |
+| S17 | **ready** | `http://support-r2filebox.lvh.me:8787/`（prod **v15**）· admin / `cellp-dev-r2filebox` |
+| S05 | **ready** | `http://support-flaremo.lvh.me:8787/`（prod **v6**）· Preview `http://v6.support-flaremo.lvh.me:8787/` |
 | S16 | **blocked（A 类）** | v1–v6 部署见 `docs/evidence/support-S16.log`；celld 二次 esbuild 不支持 wrangler 的 `.md`/Tailwind/SSR 管线 |
 
 ---

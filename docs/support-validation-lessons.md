@@ -47,3 +47,34 @@
 - `stripJSONC` 误伤 `http://` 与 `/*` 路径 → 应换正规 JSONC 解析或部署前 strip 仅真注释
 - Preview Host 换 base 后偶发 **404**（仅 prod promote 更新）→ orchestrator 应对齐 preview binding
 - dev **HTTPS :8788** 与 `lvh.me` 证书 SAN 需 mkcert / `CELLP_TLS_EXTRA_SAN`
+
+---
+
+## 5. FlareMo 登录「无法读取认证状态」（500）
+
+| 原因 | 修复 |
+|------|------|
+| 无 D1 表 | `dev/examples/support-flaremo/seed.sh` + deploy 写入 `seed.db` |
+| 缺 `BETTER_AUTH_SECRET` / `FLAREMO_BOOTSTRAP_SECRET` | `wrangler.cellp.jsonc` |
+| `FLAREMO_PUBLIC_URL` 中 `//` 与 stripJSONC | `\u002f` 转义 |
+| `http://*.lvh.me` 非「本地」 | `patch-local-dev-hosts.sh` / `patch-bundle-local-hosts.sh` |
+| celld health down / 旧 prod | `promote` 后 `restart-cellpd.sh` |
+
+Dev：**v6** · `http://support-flaremo.lvh.me:8787/` · `setup_available: true` 时走首次初始化。
+
+---
+
+## 6. FlareMo 初始化页「需要管理员恢复」（`recovery_required`）
+
+| 原因 | 说明 |
+|------|------|
+| 首次 bootstrap **中途失败** | `claimOwnerBootstrap` 已写入 `auth_bootstrap`，但 `completeOwnerBootstrap` 未成功 → `state=recovery_required`，`setup_available=false` |
+| 仅有 bootstrap 行、**无** `auth_users` | 常见于 dev 反复试填表单；UI 不会接受 bootstrap secret |
+| **bootstrap / sign-in 500**（`Initial setup could not finish`） | **不是 Drizzle**：Better Auth 用 `node:crypto.scrypt`；旧 celld 未实现 → `signUpEmail` 写库前失败。需 **新 celld**（`crypto.rs` + `node_crypto.js`），`pkill -f 'celld --bucket'` 后 `restart-cellpd.sh` |
+
+| 修复（dev） | |
+|------|------|
+| 重新走 **/setup**（含已完成但忘了账号） | `./dev/scripts/reset-support-flaremo-bootstrap.sh [vN]` — 清空 auth_*、`users`、`auth_bootstrap`，回到 `ready` |
+| 已有 1 个 auth 用户且需保留身份只改密 | 配置 `FLAREMO_RECOVERY_SECRET` 后 `POST /api/auth/flaremo/recover` / `recover-bootstrap` |
+
+**初始化密钥（`state=ready` 时）：** `FLAREMO_BOOTSTRAP_SECRET` = `cellp-dev-flaremo-bootstrap-secret-32c`（请求头 `x-flaremo-bootstrap-secret`）。

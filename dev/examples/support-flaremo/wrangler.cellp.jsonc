@@ -6,7 +6,8 @@
   "assets": {
     "directory": "./apps/web/dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/", "/file/", "/mcp", "/memory/"]
   },
   "d1_databases": [{
     "binding": "DB",
@@ -16,12 +17,15 @@
   }],
   "r2_buckets": [{ "binding": "ATTACHMENTS", "bucket_name": "support-flaremo-attachments" }],
   "vars": {
-    "FLAREMO_PUBLIC_URL": "__CELLP_DEPLOY_URL__",
+    "FLAREMO_PUBLIC_URL": "http:\u002f\u002f__CELLP_DEPLOY_HOST__",
     "FLAREMO_SINGLE_USER_EMAIL": "owner@flaremo.local",
     "FLAREMO_SINGLE_USER_NAME": "FlareMo Owner",
     "FLAREMO_TRUSTED_ORIGINS": "",
     "FLAREMO_EMBEDDING_PROVIDER": "none",
     "FLAREMO_EMBEDDING_MODEL": "",
-    "FLAREMO_EMBEDDING_DIMENSIONS": "1024"
+    "FLAREMO_EMBEDDING_DIMENSIONS": "1024",
+    "BETTER_AUTH_SECRET": "cellp-dev-better-auth-secret-min-32-chars",
+    "FLAREMO_BOOTSTRAP_SECRET": "cellp-dev-flaremo-bootstrap-secret-32c",
+    "FLAREMO_RECOVERY_SECRET": "cellp-dev-flaremo-recovery-secret-32ch"
   }
 }
