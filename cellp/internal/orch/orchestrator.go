@@ -346,6 +346,9 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		oldProd = *proj.ProdVersionID
 	}
 	if oldProd == versionID {
+		if err := o.ensureProdIngress(ctx, projectID); err != nil {
+			log.Printf("orch: prod ingress warn: %v", err)
+		}
 		return nil
 	}
 
