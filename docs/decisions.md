@@ -353,7 +353,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 | 项 | 内容 |
 |----|------|
-| **路由键** | **Tier A（默认）：** `Host` → `ingress_bindings`。 **Tier B（opt-in）：** `CELLP_INGRESS_TIER_B=host`（默认）\|`dedicated_port`\|`external_map`；dev 可无 DNS 时用 **synthetic FQDN + `/etc/hosts`** 或 `127.0.0.1:<port>`（仅 dedicated_port，bind loopback）。 |
+| **路由键** | **Tier A（默认）：** `Host` → `ingress_bindings`。 **Tier B（opt-in）：** `CELLP_INGRESS_TIER_B=host`（默认）\|`dedicated_port`\|`prod_port`\|`external_map`；dev 可无 DNS 时用 **synthetic FQDN + `/etc/hosts`** 或 `127.0.0.1:<port>`（ingress listen 池，**须** `port_allocations` 台账，见 [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md)）。 |
 | **Path** | 业务 URL **从 `/` 起**；Gateway **不** strip project/version。 |
 | **废弃** | `/{project}/{version}/*`、`/{project}/*` 作为 version 选择器（AD-2 path 形态废止）。 |
 | **Registry** | 新增 `ingress_bindings`（`host`、`listen_port`、`synthetic_host`、`role`）；保留 `routes` upstream。 |
@@ -366,6 +366,8 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 **端口：** ingress listen 池默认 **19080–19999**，与 celld upstream（8803+）及 RustFS 9000 **互斥**。
 
 **详细契约与 blocking 规则（R-TRUST-* 等）：** [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md)
+
+**Port 部署（台账、稳定 prod 口、promote 不改 prod port）：** [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md)（P5 待实现）
 
 **Dev 本机 / 局域网 / Clash：** [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/clash/README.md](../dev/clash/README.md)
 

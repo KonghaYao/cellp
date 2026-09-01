@@ -21,18 +21,36 @@ const (
 
 // SQLiteStore implements Store with WAL mode and busy timeout.
 type SQLiteStore struct {
-	db *sql.DB
+	db             *sql.DB
+	ingressPortMin int
+	ingressPortMax int
 }
 
 // Open opens or creates a SQLite registry database.
 func Open(path string) (*SQLiteStore, error) {
+	return OpenWithOptions(path, OpenOptions{})
+}
+
+// OpenWithOptions opens the registry with optional test-oriented settings.
+func OpenWithOptions(path string, opts OpenOptions) (*SQLiteStore, error) {
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(60000)&_pragma=foreign_keys(ON)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_pragma=mmap_size(268435456)", path)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	s := &SQLiteStore{db: db}
+	minP, maxP := DefaultIngressPortMin, DefaultIngressPortMax
+	if opts.IngressPortMin > 0 {
+		minP = opts.IngressPortMin
+	}
+	if opts.IngressPortMax > 0 {
+		maxP = opts.IngressPortMax
+	}
+	if minP > maxP {
+		db.Close()
+		return nil, fmt.Errorf("ingress port pool invalid: min %d > max %d", minP, maxP)
+	}
+	s := &SQLiteStore{db: db, ingressPortMin: minP, ingressPortMax: maxP}
 	if err := s.migrate(); err != nil {
 		db.Close()
 		return nil, err
@@ -105,7 +123,37 @@ CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
 	if err := s.migrateArchiveColumns(); err != nil {
 		return err
 	}
-	return s.migrateIngress()
+	if err := s.migrateIngress(); err != nil {
+		return err
+	}
+	return s.migratePortAllocations()
+}
+
+func (s *SQLiteStore) migratePortAllocations() error {
+	_, err := s.db.Exec(`
+CREATE TABLE IF NOT EXISTS port_allocations (
+  allocation_id   TEXT PRIMARY KEY,
+  port            INTEGER NOT NULL,
+  purpose         TEXT NOT NULL CHECK (purpose IN ('ingress_listen', 'celld_upstream')),
+  stability       TEXT NOT NULL DEFAULT 'ephemeral'
+                  CHECK (stability IN ('ephemeral', 'stable')),
+  owner_kind      TEXT NOT NULL
+                  CHECK (owner_kind IN ('ingress_binding', 'celld_route')),
+  owner_id        TEXT NOT NULL,
+  project_id      TEXT,
+  gateway_id      TEXT,
+  created_at      TEXT NOT NULL,
+  released_at     TEXT,
+  release_reason  TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_port_alloc_port_active
+  ON port_allocations(port) WHERE released_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_port_alloc_owner_active
+  ON port_allocations(owner_kind, owner_id) WHERE released_at IS NULL;
+`)
+	return err
 }
 
 func (s *SQLiteStore) migrateIngress() error {

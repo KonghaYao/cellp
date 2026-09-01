@@ -20,7 +20,7 @@
 
 1. **Path 不 rewrite**：Gateway 将请求 path/query 原样转发至 celld。
 2. **Baseline（默认）：单 Gateway listener + Host 路由**；dev 无 DNS 时用 **synthetic FQDN + `/etc/hosts` 一行**，而非默认「每 preview 动态 `Listen`」。
-3. **Tier B 端口模式为 opt-in**：`CELLP_INGRESS_TIER_B=host|dedicated_port|external_map`（默认 **`host`**）。
+3. **Tier B 端口模式为 opt-in**：`CELLP_INGRESS_TIER_B=host|dedicated_port|prod_port|external_map`（默认 **`host`**）。**Port 台账、稳定 prod 口、生命周期：** [INGRESS-PORT-DEPLOYMENT.md](./INGRESS-PORT-DEPLOYMENT.md)（权威 · P5 待实现）。
 4. **禁止**将浏览器/产品 URL 指向 celld upstream 口（8803+）；仅 Gateway（或外层 `external_map`）入口。
 5. **AD-10 不变**：cellp 不写 DNS API、不签证书；TLS/WAF/Zero Trust 在外层。
 6. **威胁模型（R-THREAT-GATEWAY）**：Gateway HTTP = 应用暴露面；`DEPLOY_TOKEN` **不**保护 Worker URL；生产须 Gateway 仅 LB 后端可达。
@@ -52,6 +52,8 @@
 **Projects：** 可选 `prod_host`；默认 `{project_id}.{CELLP_INGRESS_BASE_DOMAIN}`。
 
 ### 3.3 端口分配（互斥）
+
+> **完整 Port 部署（`port_allocations` 台账、稳定 prod 口、R-PROD-PORT-STABLE）：** [INGRESS-PORT-DEPLOYMENT.md](./INGRESS-PORT-DEPLOYMENT.md)
 
 | purpose | 默认区间 | 说明 |
 |---------|----------|------|
@@ -149,7 +151,7 @@ Gateway 透传 `Upgrade` / `Connection`；Tier A 依赖外层 `wss` + `X-Forward
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `GATEWAY_PORT` | 8787 | 单 listener baseline |
-| `CELLP_INGRESS_TIER_B` | `host` | `host` \| `dedicated_port` \| `external_map` |
+| `CELLP_INGRESS_TIER_B` | `host` | `host` \| `dedicated_port` \| `prod_port` \| `external_map` |
 | `INGRESS_PORT_MIN/MAX` | 19080 / 19999 | dedicated_port 池 |
 | `CELLP_INGRESS_BASE_DOMAIN` | `ingress.local` | synthetic / 默认 prod host |
 | `CELLP_PUBLIC_SCHEME_PREVIEW` | `http` | |
@@ -176,6 +178,7 @@ Nginx / HAProxy / K8s Ingress：`proxy_pass` → Gateway **无 path 前缀**；`
 | **P2** | e2e/site；mock Host | MANIFEST Host 化 · `INGRESS_HOST_ONLY=1`（mock） |
 | **P3** | **已落地：** Gateway 删除 path 路由；Host-only 默认 | `TestPathRoutingRemoved404` · e2e path→404 |
 | **P4** | `external_map` 文档、deep health listener 指标 | |
+| **P5** | Port 台账 + dedicated_port / prod_port + 稳定 prod 口 | [INGRESS-PORT-DEPLOYMENT.md](./INGRESS-PORT-DEPLOYMENT.md) · e2e port promote 口不变 |
 
 **过渡：** path 路由可保留 **一个 major** 并标 `Deprecated`，与 P0 同步改 `VerifyGatewayRoute`，避免 ready 门禁与 URL 分裂。
 

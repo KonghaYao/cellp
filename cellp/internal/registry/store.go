@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -70,6 +71,78 @@ const (
 	DefaultIngressPortMin = 19080
 	DefaultIngressPortMax = 19999
 )
+
+// Port allocation purpose / stability / owner (INGRESS-PORT-DEPLOYMENT §3.1).
+const (
+	PortPurposeIngressListen = "ingress_listen"
+	PortPurposeCelldUpstream = "celld_upstream"
+	PortStabilityEphemeral   = "ephemeral"
+	PortStabilityStable      = "stable"
+	PortOwnerIngressBinding  = "ingress_binding"
+	PortOwnerCelldRoute      = "celld_route"
+)
+
+// Port allocation sentinel errors (P5a).
+var (
+	ErrPortConflict              = errors.New("port conflict")
+	ErrPortPoolExhausted         = errors.New("ingress port pool exhausted")
+	ErrPortAllocationNotFound    = errors.New("port allocation not found")
+	ErrPortInvalid               = errors.New("port invalid")
+	ErrPortPurposeNotSupported   = errors.New("port purpose not supported in this release")
+	ErrPortAllocationInputInvalid = errors.New("port allocation input invalid")
+)
+
+// ProdPortReserveOwnerID is the stable reserve owner for prod_listen_port (§4.1).
+func ProdPortReserveOwnerID(projectID string) string {
+	return projectID + "-prod-reserve"
+}
+
+// PortAllocation is an authoritative port ledger row (INGRESS-PORT-DEPLOYMENT §3.1).
+type PortAllocation struct {
+	AllocationID  string     `json:"allocation_id"`
+	Port          int        `json:"port"`
+	Purpose       string     `json:"purpose"`
+	Stability     string     `json:"stability"`
+	OwnerKind     string     `json:"owner_kind"`
+	OwnerID       string     `json:"owner_id"`
+	ProjectID     *string    `json:"project_id,omitempty"`
+	GatewayID     *string    `json:"gateway_id,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ReleasedAt    *time.Time `json:"released_at,omitempty"`
+	ReleaseReason *string    `json:"release_reason,omitempty"`
+}
+
+// AllocateIngressListenPortInput allocates an ingress listen port in the pool.
+type AllocateIngressListenPortInput struct {
+	Stability string
+	OwnerKind string
+	OwnerID   string
+	ProjectID *string
+	GatewayID *string
+}
+
+// ReserveStablePortInput reserves a specific ingress listen port with stability=stable.
+type ReserveStablePortInput struct {
+	Port      int
+	OwnerKind string
+	OwnerID   string
+	ProjectID *string
+	GatewayID *string
+}
+
+// ReleasePortInput marks an active allocation as released.
+type ReleasePortInput struct {
+	AllocationID  string
+	OwnerKind     string
+	OwnerID       string
+	ReleaseReason string
+}
+
+// OpenOptions configures registry open (tests may narrow ingress port pool).
+type OpenOptions struct {
+	IngressPortMin int
+	IngressPortMax int
+}
 
 // IngressBinding maps external Host and/or listen port to a project version (or prod).
 type IngressBinding struct {
@@ -187,6 +260,14 @@ type Store interface {
 	SetIngressBindingActive(ctx context.Context, bindingID string, active bool) error
 	ListActiveIngressBindings(ctx context.Context) ([]IngressBinding, error)
 	ListIngressBindingsByVersion(ctx context.Context, projectID, versionID string) ([]IngressBinding, error)
+
+	AllocateIngressListenPort(ctx context.Context, in AllocateIngressListenPortInput) (*PortAllocation, error)
+	ReserveStablePort(ctx context.Context, in ReserveStablePortInput) (*PortAllocation, error)
+	ReleasePort(ctx context.Context, in ReleasePortInput) error
+	GetActivePortAllocationByOwner(ctx context.Context, ownerKind, ownerID string) (*PortAllocation, error)
+	ListActivePortAllocations(ctx context.Context, purpose string) ([]PortAllocation, error)
+	AttachIngressListenPort(ctx context.Context, binding IngressBinding, in AllocateIngressListenPortInput) error
+	DetachIngressListenPort(ctx context.Context, bindingID, releaseReason string) error
 
 	Ping(ctx context.Context) error
 

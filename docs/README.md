@@ -42,6 +42,7 @@
 |------|------|------|
 | [plans/D1-IMPORT-RPC.md](./plans/D1-IMPORT-RPC.md) | 根 version：`celld d1 import` CLI + HTTP | ✅ 已落地 |
 | [plans/D1-BRANCH-RPC.md](./plans/D1-BRANCH-RPC.md) | 子 version：`celld d1 branch` CLI + HTTP | ✅ 已落地 |
+| [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md) | AD-12 Tier B：`port_allocations`、稳定 prod 口 | 📋 P5 待实现 |
 | [../cellp/api/openapi.yaml](../cellp/api/openapi.yaml) | REST API | ✅ TP-API-7 |
 
 ---
@@ -53,6 +54,8 @@
 | [decisions.md](./decisions.md) | **当前有效**决策摘要（推荐首读） |
 | [plans/REVIEW.md](./plans/REVIEW.md) | AD-1..5 对抗审查原文 |
 | [plans/REVIEW-celld-d1-branch.md](./plans/REVIEW-celld-d1-branch.md) | D1 branch 对抗审查（APPROVE-WITH-CHANGES） |
+| [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) | AD-12 Host / Gateway |
+| [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md) | AD-12 Port 台账与稳定 prod 口 |
 
 ---
 
