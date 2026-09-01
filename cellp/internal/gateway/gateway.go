@@ -89,12 +89,6 @@ func (g *Gateway) routes() {
 		_, _ = w.Write([]byte("gateway ok"))
 	})
 	g.router.Get("/health/deep", g.handleHealthDeep)
-
-	if !g.cfg.HostOnly {
-		g.router.Handle("/{project}/{version}/*", http.HandlerFunc(g.handleVersionRoute))
-		g.router.Handle("/{project}/*", http.HandlerFunc(g.handleProdRoute))
-	}
-
 	g.router.Handle("/*", http.HandlerFunc(g.handleIngress))
 }
 
@@ -135,75 +129,6 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	g.proxyIngress(w, r, route, binding, projectID, versionID)
-}
-
-func (g *Gateway) handleVersionRoute(w http.ResponseWriter, r *http.Request) {
-	markPathDeprecated(w)
-	projectID := chi.URLParam(r, "project")
-	versionID := chi.URLParam(r, "version")
-	if projectID == "health" {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("gateway ok"))
-		return
-	}
-
-	route, ok := g.lookupRoute(r.Context(), projectID, versionID)
-	if !ok || route == nil {
-		http.Error(w, "route not found", http.StatusNotFound)
-		return
-	}
-	if !route.Active {
-		if g.versionInactiveBody(r.Context(), projectID, versionID) == "version_archived" {
-			http.Error(w, "version_archived", http.StatusServiceUnavailable)
-			return
-		}
-		http.Error(w, "route draining", http.StatusServiceUnavailable)
-		return
-	}
-
-	prefix := fmt.Sprintf("/%s/%s", projectID, versionID)
-	rest := strings.TrimPrefix(r.URL.Path, prefix)
-	if rest == "" {
-		rest = "/"
-	}
-	g.proxyLegacy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
-}
-
-func (g *Gateway) handleProdRoute(w http.ResponseWriter, r *http.Request) {
-	markPathDeprecated(w)
-	projectID := chi.URLParam(r, "project")
-	if projectID == "health" {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("gateway ok"))
-		return
-	}
-
-	versionID, ok := g.lookupProdVersion(r.Context(), projectID)
-	if !ok || versionID == "" {
-		http.Error(w, "prod not configured", http.StatusNotFound)
-		return
-	}
-
-	route, ok := g.lookupRoute(r.Context(), projectID, versionID)
-	if !ok || route == nil {
-		http.Error(w, "prod route not found", http.StatusNotFound)
-		return
-	}
-	if !route.Active {
-		http.Error(w, "route draining", http.StatusServiceUnavailable)
-		return
-	}
-
-	prefix := fmt.Sprintf("/%s", projectID)
-	rest := strings.TrimPrefix(r.URL.Path, prefix)
-	if rest == "" {
-		rest = "/"
-	}
-	g.proxyLegacy(w, r, route.UpstreamHost, route.UpstreamPort, rest, projectID, versionID)
-}
-
-func markPathDeprecated(w http.ResponseWriter) {
-	w.Header().Set("Deprecation", "true")
 }
 
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {
@@ -274,29 +199,6 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 		req.URL.Host = target.Host
 		applyUpstreamHeaders(req, binding, clientAuth, publicProto)
 	}
-	proxy.ModifyResponse = func(resp *http.Response) error {
-		metrics.RecordGatewayUpstream(resp.StatusCode)
-		if resp.StatusCode >= 200 && resp.StatusCode < 500 {
-			g.touchLastAccessThrottled(projectID, versionID)
-		}
-		return nil
-	}
-	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, e error) {
-		metrics.RecordGatewayUpstream(http.StatusBadGateway)
-		http.Error(rw, "bad gateway", http.StatusBadGateway)
-	}
-	proxy.ServeHTTP(w, r)
-}
-
-func (g *Gateway) proxyLegacy(w http.ResponseWriter, r *http.Request, host string, port int, path, projectID, versionID string) {
-	target, err := url.Parse(fmt.Sprintf("http://%s:%d", host, port))
-	if err != nil {
-		http.Error(w, "bad upstream", http.StatusBadGateway)
-		return
-	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	r.URL.Path = path
-	r.Host = target.Host
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		metrics.RecordGatewayUpstream(resp.StatusCode)
 		if resp.StatusCode >= 200 && resp.StatusCode < 500 {

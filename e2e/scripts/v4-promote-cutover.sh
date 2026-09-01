@@ -57,9 +57,12 @@ if [[ "$OLD_CODE" != "404" && "$OLD_CODE" != "410" && "$OLD_CODE" != "503" ]]; t
   echo "WARN: old preview Host still HTTP ${OLD_CODE} (expected drain/archived semantics)" >&2
 fi
 
-# Legacy path URLs (deprecated)
+# Legacy path URLs removed (AD-12 P3)
 OLD_PATH="${GATEWAY_URL}/${PROJECT}/${V_OLD}/"
 OLD_PATH_CODE=$(http_code "$OLD_PATH")
+if [[ "$OLD_PATH_CODE" != "404" ]]; then
+  echo "WARN: expected path routing 404, got ${OLD_PATH_CODE}" >&2
+fi
 
 if [[ "$ELAPSED" -gt "$MAX_DUAL_MS" ]]; then
   echo "WARN: cutover took ${ELAPSED}ms > ${MAX_DUAL_MS}ms" >&2

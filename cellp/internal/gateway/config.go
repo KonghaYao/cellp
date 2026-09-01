@@ -20,16 +20,15 @@ type GatewayConfig struct {
 }
 
 // ConfigFromEnv loads gateway settings from the environment.
+// AD-12 P3: Host-only ingress is the default; path routing was removed.
 func ConfigFromEnv() GatewayConfig {
 	cfg := GatewayConfig{
 		IngressTierB:        envOr("CELLP_INGRESS_TIER_B", "host"),
+		HostOnly:            true,
 		PublicSchemePreview: envOr("CELLP_PUBLIC_SCHEME_PREVIEW", "http"),
 		PublicSchemeProd:    envOr("CELLP_PUBLIC_SCHEME_PROD", "https"),
 		GatewayPort:         envIntOr("GATEWAY_PORT", 8787),
 		GatewayID:           envOr("CELLPD_INSTANCE_ID", ""),
-	}
-	if os.Getenv("INGRESS_HOST_ONLY") == "1" {
-		cfg.HostOnly = true
 	}
 	if os.Getenv("GATEWAY_TRUST_FORWARDED_HEADERS") == "1" {
 		cfg.TrustForwardedHeaders = true

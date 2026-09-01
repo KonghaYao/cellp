@@ -369,7 +369,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 **对抗审查：** 已并入 [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) §10
 
-**证据（待落地）：** P0 e2e origin/`fetch('/')`；P1 promote host 切流；P2 删 path 路由。
+**证据：** P0–P2 e2e Host + `go test ./...`；**P3（2026-09-01）** Gateway 删除 path handler，仅 Host ingress。
 
 **实现（计划）：** `cellp/internal/gateway/` · `cellp/internal/registry/` · orchestrator env 注入 · `runtime.VerifyGatewayRoute` 改用 `preview_url`。
 

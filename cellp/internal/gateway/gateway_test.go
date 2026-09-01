@@ -2,11 +2,9 @@ package gateway_test
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -25,9 +23,9 @@ func setupGateway(t *testing.T) (*gateway.Gateway, *registry.SQLiteStore, func()
 	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
 	_ = store.SetRoute(ctx, registry.Route{
 		ProjectID: "demo", VersionID: "v1", Active: true,
-		UpstreamHost: "127.0.0.1", UpstreamPort: 0, // filled below
+		UpstreamHost: "127.0.0.1", UpstreamPort: 9999,
 	})
-	return gateway.New(store), store, func() { store.Close() }
+	return hostOnlyGW(store), store, func() { store.Close() }
 }
 
 func TestHealth(t *testing.T) {
@@ -60,13 +58,13 @@ func TestArchivedVersion503(t *testing.T) {
 		ProjectID: "demo", VersionID: "v1", Active: false,
 		UpstreamHost: "127.0.0.1", UpstreamPort: 9999,
 	})
-	gw := gateway.New(store)
+	host := "v1.demo.ingress.local"
+	upsertPreviewBinding(t, store, "demo", "v1", host, "syn.v1.demo.ingress.local")
+
+	gw := hostOnlyGW(store)
 	srv := httptest.NewServer(gw.Handler())
 	defer srv.Close()
-	resp, err := http.Get(srv.URL + "/demo/v1/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := doHostGet(t, srv.URL, host, "/")
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d", resp.StatusCode)
@@ -92,22 +90,18 @@ func TestInactiveRoute503(t *testing.T) {
 	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
 	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
 
-	host := "127.0.0.1"
-	port := 9999 // inactive route, won't reach
 	_ = store.SetRoute(ctx, registry.Route{
 		ProjectID: "demo", VersionID: "v1", Active: false,
-		UpstreamHost: host, UpstreamPort: port,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 9999,
 	})
-	_ = upstream // keep alive
+	host := "v1.demo.ingress.local"
+	upsertPreviewBinding(t, store, "demo", "v1", host, "syn.v1.demo.ingress.local")
 
-	gw := gateway.New(store)
+	gw := hostOnlyGW(store)
 	srv := httptest.NewServer(gw.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/demo/v1/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := doHostGet(t, srv.URL, host, "/")
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		body, _ := io.ReadAll(resp.Body)
@@ -117,7 +111,7 @@ func TestInactiveRoute503(t *testing.T) {
 
 func TestProdRoute(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("prod-body"))
+		_, _ = w.Write([]byte("prod-body"))
 	}))
 	defer upstream.Close()
 
@@ -131,31 +125,36 @@ func TestProdRoute(t *testing.T) {
 	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
 	_ = store.SetProdVersion(ctx, "demo", "v1")
 
-	parsed, err := url.Parse(upstream.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	host := parsed.Hostname()
-	port := 0
-	if parsed.Port() != "" {
-		fmt.Sscanf(parsed.Port(), "%d", &port)
-	}
-
+	host, port := upstreamHostPort(t, upstream.URL)
 	_ = store.SetRoute(ctx, registry.Route{
 		ProjectID: "demo", VersionID: "v1", Active: true,
 		UpstreamHost: host, UpstreamPort: port,
 	})
+	prodHost := "demo.ingress.local"
+	upsertProdBinding(t, store, "demo", prodHost, "syn.demo.ingress.local")
 
-	gw := gateway.New(store)
+	gw := hostOnlyGW(store)
 	srv := httptest.NewServer(gw.Handler())
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/demo/")
+	resp := doHostGet(t, srv.URL, prodHost, "/")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("prod route status = %d", resp.StatusCode)
+	}
+}
+
+func TestPathRoutingRemoved404(t *testing.T) {
+	gw, _, cleanup := setupGateway(t)
+	defer cleanup()
+	srv := httptest.NewServer(gw.Handler())
+	defer srv.Close()
+	resp, err := http.Get(srv.URL + "/demo/v1/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("prod route status = %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("path route should be gone, status=%d", resp.StatusCode)
 	}
 }
