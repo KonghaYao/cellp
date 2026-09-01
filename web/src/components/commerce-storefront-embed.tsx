@@ -1,24 +1,48 @@
 import { ExternalLink } from "lucide-react";
-import { gatewayBase } from "@/lib/format";
+import {
+  previewBrowseUrl,
+  prodBrowseUrl,
+  previewHostFromApi,
+} from "@/lib/format";
 
 export function commerceStorefrontUrl(
   projectId: string,
   versionId: string,
-  _prodUrl?: string | null,
+  prodUrl?: string | null,
+  isProd?: boolean,
 ): string {
-  return `${gatewayBase()}/${projectId}/${versionId}/`;
+  if (isProd) {
+    return prodBrowseUrl(projectId, prodUrl);
+  }
+  return previewBrowseUrl(projectId, versionId);
 }
 
 export function CommerceStorefrontEmbed({
   projectId,
   versionId,
   prodUrl,
+  isProd = false,
+  previewUrl,
 }: {
   projectId: string;
   versionId: string;
   prodUrl?: string | null;
+  isProd?: boolean;
+  previewUrl?: string | null;
 }) {
-  const src = commerceStorefrontUrl(projectId, versionId, prodUrl);
+  const src = isProd
+    ? prodBrowseUrl(projectId, prodUrl)
+    : previewBrowseUrl(projectId, versionId, previewUrl);
+
+  const hostLabel = (() => {
+    try {
+      if (prodUrl && isProd) return new URL(prodUrl).host;
+      if (previewUrl) return new URL(previewUrl).host;
+    } catch {
+      /* fall through */
+    }
+    return previewHostFromApi(projectId, versionId, previewUrl);
+  })();
 
   return (
     <div className="space-y-3">
@@ -26,7 +50,8 @@ export function CommerceStorefrontEmbed({
         <div>
           <h2 className="text-label-14 font-medium">Storefront</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live app UI on the gateway — D1, KV, Queue, Workflow, R2, Cron
+            Live Worker on gateway (Host{" "}
+            <span className="font-mono text-xs">{hostLabel}</span>)
           </p>
         </div>
         <a

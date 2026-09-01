@@ -223,6 +223,7 @@ export function ProjectOverviewPage() {
           projectId={id}
           versionId={project.prod_version_id}
           prodUrl={project.prod_url}
+          isProd
         />
       )}
 

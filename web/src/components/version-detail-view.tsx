@@ -19,6 +19,7 @@ import {
   formatDuration,
   formatRelativeTime,
   previewBrowseUrl,
+  ingressDisplayUrl,
   truncateSha,
 } from "@/lib/format";
 import {
@@ -347,14 +348,14 @@ function VersionDetailContent({
               <ExternalLink className="size-3 text-muted-foreground" />
             </a>
           </MetadataRow>
-          <MetadataRow label="Production" copyable copyValue={prodUrl}>
+          <MetadataRow label="Production" copyable copyValue={projectProdUrl ?? prodUrl}>
             <a
               href={prodUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-sm text-foreground hover:underline"
             >
-              {prodUrl}
+              {ingressDisplayUrl(projectId, undefined, projectProdUrl ?? prodUrl)}
               <ExternalLink className="size-3 text-muted-foreground" />
             </a>
           </MetadataRow>

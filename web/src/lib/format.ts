@@ -127,6 +127,17 @@ export function resolveProdUrl(
   return prodBrowseUrl(projectId, prodUrl);
 }
 
+/** Human-readable URL for UI labels (not for href). */
+export function ingressDisplayUrl(
+  projectId: string,
+  versionId?: string,
+  apiUrl?: string | null,
+): string {
+  if (apiUrl?.trim()) return apiUrl.trim();
+  if (versionId) return `http://${previewHost(projectId, versionId)}/`;
+  return `http://${prodHost(projectId)}/`;
+}
+
 export function truncateSha(sha: string, length = 7): string {
   if (!sha) return "—";
   return sha.length <= length ? sha : sha.slice(0, length);
