@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# ISSUE-03 — promote switches prod pointer; does not merge prod writes after child fork
+# ISSUE-03 — promote switches prod pointer; does not merge prod writes after child fork (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_platform
 require_offshoot
@@ -93,16 +95,14 @@ copy_d1_seed_bundle "$PARENT_DIR"
 create_version "$PROJECT" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$PARENT" ready 180 >/dev/null
 
-PARENT_HOST="$(preview_host "$PROJECT" "$PARENT")"
-PROD_HOST="$(prod_host "$PROJECT")"
-wait_http_200_host "$PARENT_HOST" "/count" 60
+wait_http_200_version "$PROJECT" "$PARENT" "/count" 60
 
 curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${PARENT}/promote" \
   -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' \
   >>"${EVIDENCE_DIR}/v17-promote-no-merge.log" 2>&1 || fail "promote parent to prod"
 
-wait_http_200_host "$PROD_HOST" "/count" 60
-PROD_BEFORE=$(curl_gateway_host "$PROD_HOST" "/count" | jq -r '.count // empty')
+wait_http_200_prod "$PROJECT" "/count" 60
+PROD_BEFORE=$(curl_prod "$PROJECT" "/count" | jq -r '.count // empty')
 if [[ "$PROD_BEFORE" != "$EXPECTED" ]]; then
   fail "prod count before fork=${PROD_BEFORE:-?} expected ${EXPECTED}"
 fi
@@ -112,9 +112,8 @@ copy_d1_seed_bundle "$CHILD_DIR"
 create_version "$PROJECT" "$CHILD" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$CHILD" ready 180 >/dev/null
 
-CHILD_HOST="$(preview_host "$PROJECT" "$CHILD")"
-wait_http_200 "$CHILD_URL" 60
-CHILD_COUNT=$(curl_gateway_host "$CHILD_HOST" "/count" | jq -r '.count // empty')
+wait_http_200_version "$PROJECT" "$CHILD" "/count" 60
+CHILD_COUNT=$(curl_version "$PROJECT" "$CHILD" "/count" | jq -r '.count // empty')
 if [[ "$CHILD_COUNT" != "$EXPECTED" ]]; then
   fail "child count at fork=${CHILD_COUNT:-?} expected ${EXPECTED}"
 fi
@@ -128,7 +127,7 @@ d1_execute "$PARENT_BUCKET" "$PARENT_DIR" \
   "INSERT INTO entries (name, message, at) VALUES ('after-fork-prod-only', 'v17', $(date +%s))" \
   >>"${EVIDENCE_DIR}/v17-promote-no-merge.log" 2>&1 || fail "prod-only INSERT"
 
-PROD_AFTER_FORK=$(curl_gateway_host "$PROD_HOST" "/count" | jq -r '.count // empty')
+PROD_AFTER_FORK=$(curl_prod "$PROJECT" "/count" | jq -r '.count // empty')
 if [[ "$PROD_AFTER_FORK" != "$((EXPECTED + 1))" ]]; then
   fail "prod after fork insert=${PROD_AFTER_FORK:-?} expected $((EXPECTED + 1))"
 fi
@@ -137,7 +136,7 @@ d1_execute "$CHILD_BUCKET" "$CHILD_DIR" \
   "INSERT INTO entries (name, message, at) VALUES ('child-only', 'v17', $(date +%s))" \
   >>"${EVIDENCE_DIR}/v17-promote-no-merge.log" 2>&1 || fail "child INSERT"
 
-CHILD_AFTER=$(curl_gateway_host "$CHILD_HOST" "/count" | jq -r '.count // empty')
+CHILD_AFTER=$(curl_version "$PROJECT" "$CHILD" "/count" | jq -r '.count // empty')
 if [[ "$CHILD_AFTER" != "$((EXPECTED + 1))" ]]; then
   fail "child after insert=${CHILD_AFTER:-?} expected $((EXPECTED + 1))"
 fi
@@ -146,8 +145,8 @@ curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${CHILD}/promo
   -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' \
   >>"${EVIDENCE_DIR}/v17-promote-no-merge.log" 2>&1 || fail "promote child"
 
-wait_http_200_host "$PROD_HOST" "/count" 60
-PROD_FINAL=$(curl_gateway_host "$PROD_HOST" "/count" | jq -r '.count // empty')
+wait_http_200_prod "$PROJECT" "/count" 60
+PROD_FINAL=$(curl_prod "$PROJECT" "/count" | jq -r '.count // empty')
 if [[ "$PROD_FINAL" != "$((EXPECTED + 1))" ]]; then
   fail "prod after promote child=${PROD_FINAL:-?} expected $((EXPECTED + 1)) (child bucket, no prod-only row)"
 fi

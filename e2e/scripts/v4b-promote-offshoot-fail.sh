@@ -3,6 +3,8 @@
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_platform
 require_celld

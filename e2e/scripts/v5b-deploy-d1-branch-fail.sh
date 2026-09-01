@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# TP-V5B — D1 branch failure → version failed (default deploy fail-closed)
+# TP-V5B — D1 branch failure → version failed (default deploy fail-closed) (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_platform
 require_offshoot

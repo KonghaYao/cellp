@@ -167,7 +167,7 @@ log "VA still ${VA_VALUE} after VB PUT"
 
 VA_HOST="$(preview_host "$PROJECT" "$VA")"
 WORKER_PATH="/${KEY}"
-WORKER_CODE=$(http_code "$WORKER_URL")
+WORKER_CODE=$(http_code_gateway_host "$VA_HOST" "$WORKER_PATH")
 if [[ "$WORKER_CODE" == "200" ]]; then
   WORKER_BODY=$(curl_gateway_host "$VA_HOST" "$WORKER_PATH" || true)
   if [[ "$WORKER_BODY" != "$VA_VALUE" ]]; then

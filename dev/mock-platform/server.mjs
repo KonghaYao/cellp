@@ -20,6 +20,8 @@ function loadEnv() {
     CELLD_PORT: "8792",
     PLATFORM_TOKEN: "dev-local-token",
     GATEWAY_URL: "http://127.0.0.1:8787",
+    CELLP_INGRESS_BASE_DOMAIN: "ingress.local",
+    INGRESS_HOST_ONLY: "1",
   };
   if (fs.existsSync(ENV_PATH)) {
     for (const line of fs.readFileSync(ENV_PATH, "utf8").split("\n")) {
@@ -91,6 +93,16 @@ function proxyToCelld(req, res, upstreamPath) {
     }
   });
   req.pipe(upstream);
+}
+
+/** AD-12: prod `{project}.{base}` or preview `{version}.{project}.{base}` */
+function matchesIngressHost(reqHost, ingressBase) {
+  const suffix = `.${ingressBase}`;
+  if (!reqHost.endsWith(suffix)) return false;
+  const prefix = reqHost.slice(0, -suffix.length);
+  if (!prefix) return false;
+  const labels = prefix.split(".").filter(Boolean);
+  return labels.length === 1 || labels.length === 2;
 }
 
 const apiServer = http.createServer(async (req, res) => {
@@ -211,9 +223,9 @@ const gatewayServer = http.createServer((req, res) => {
     return;
   }
 
-  // AD-12: Host-based routing (*.ingress.local) — path from / unchanged
-  if (reqHost.endsWith(`.${ingressBase}`) || reqHost === ingressBase) {
-    return proxyToCelld(req, res, url.pathname);
+  // AD-12: Host *.{base} | *.*.{base} → celld; path/query unchanged (no strip)
+  if (matchesIngressHost(reqHost, ingressBase)) {
+    return proxyToCelld(req, res, url.pathname + url.search);
   }
 
   if (!hostOnly) {

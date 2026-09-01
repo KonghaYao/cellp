@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# TP-V16 — Worker env: CD/API override reaches Worker via CELLD_VARS_FILE
+# TP-V16 — Worker env: CD/API override reaches Worker via CELLD_VARS_FILE (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_stack_or_skip
 

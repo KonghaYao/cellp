@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# TP-V15 — Archive/wake: 6 versions no 429; archive preview 503; wake 200; archive prod 422
+# TP-V15 — Archive/wake: 6 versions no 429; archive preview 503; wake 200; archive prod 422 (AD-12 Host)
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_stack_or_skip
 
@@ -67,14 +69,14 @@ api_status POST "/v1/projects/${PROJECT}/versions/${TARGET}/archive" ""
 
 TGT_HOST="$(preview_host "$PROJECT" "$TARGET")"
 ARCHIVE_CODE=$(http_code_gateway_host "$TGT_HOST" "/")
-ARCHIVE_BODY=$(curl -s -H "Host: ${TGT_HOST}" "${GATEWAY_URL}/" 2>/dev/null || true)
+ARCHIVE_BODY=$(curl_gateway_host "$TGT_HOST" "/" 2>/dev/null || true)
 [[ "$ARCHIVE_CODE" == "503" ]] || fail "archived preview → HTTP ${ARCHIVE_CODE}"
 echo "$ARCHIVE_BODY" | grep -q version_archived || fail "503 body missing version_archived: ${ARCHIVE_BODY}"
 
 api_status POST "/v1/projects/${PROJECT}/versions/${TARGET}/wake" ""
 [[ "$API_STATUS" == "200" ]] || fail "wake → HTTP ${API_STATUS}"
 poll_version "$PROJECT" "$TARGET" ready 180 >/dev/null
-wait_http_200_host "$TGT_HOST" "/" 60
+wait_http_200_version "$PROJECT" "$TARGET" "/" 60
 
 log "V15 archive PASS"
 pass "v15-archive"

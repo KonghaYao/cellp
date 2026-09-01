@@ -171,7 +171,7 @@ Nginx / HAProxy / K8s Ingress：`proxy_pass` → Gateway **无 path 前缀**；`
 |------|------|------|
 | **P0** | Host 路由、Forwarded 契约、trust celld、`PUBLIC_BASE_URL`、去 upstream 假 Host | `request.url` origin 与 preview_url；`fetch('/api')` 200 |
 | **P1** | prod_host、promote host 切流、VerifyGatewayRoute 改 API URL | 替代 `v4-promote-cutover` path 版 |
-| **P2** | 删 path 路由；e2e/site；可选 dedicated_port | `run-all.sh` — **e2e MANIFEST 已 Host 化**；dev `INGRESS_HOST_ONLY=1`；mock Host 路由 |
+| **P2** | 删 path 路由；e2e/site；可选 dedicated_port | `run-all.sh` — **e2e MANIFEST 已 Host 化**；dev `INGRESS_HOST_ONLY=1`；**mock Gateway** 已按 `*.{base}` / `*.*.{base}` 反代 celld（path 不 strip；path 路由仅 `INGRESS_HOST_ONLY!=1` deprecated） |
 | **P3** | `external_map` 文档、deep health listener 指标 | |
 
 **过渡：** path 路由可保留 **一个 major** 并标 `Deprecated`，与 P0 同步改 `VerifyGatewayRoute`，避免 ready 门禁与 URL 分裂。
