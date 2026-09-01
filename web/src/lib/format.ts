@@ -8,28 +8,123 @@ export function gatewayBase(): string {
   return GATEWAY_DEFAULT;
 }
 
-/** Derive production URL from project id and gateway env. */
-export function deriveProdUrl(
+export function ingressBaseDomain(): string {
+  const fromEnv = import.meta.env.VITE_CELLP_INGRESS_BASE_DOMAIN as
+    | string
+    | undefined;
+  return (fromEnv?.trim() || "ingress.local").toLowerCase();
+}
+
+export function previewHost(projectId: string, versionId: string): string {
+  return `${versionId}.${projectId}.${ingressBaseDomain()}`.toLowerCase();
+}
+
+export function prodHost(projectId: string): string {
+  return `${projectId}.${ingressBaseDomain()}`.toLowerCase();
+}
+
+/** Host from API preview_url (http://host/…) or build from project/version. */
+export function previewHostFromApi(
   projectId: string,
+  versionId: string,
   previewUrl?: string | null,
 ): string {
   if (previewUrl) {
-    const match = previewUrl.match(/^(.*\/)[^/]+\/?$/);
-    if (match) {
-      return `${match[1]}prod/`;
+    try {
+      return new URL(previewUrl).host;
+    } catch {
+      /* fall through */
     }
   }
-  return `${gatewayBase()}/${projectId}/prod/`;
+  return previewHost(projectId, versionId);
 }
 
-/** Prefer API-provided prod_url; fall back to derivation from preview/gateway. */
+/**
+ * URL the browser can open in dev: Vite `/__gateway` proxy + `__cellp_host` (AD-12).
+ * In production builds, uses canonical host URL from API or derived host.
+ */
+export function gatewayBrowseUrl(
+  host: string,
+  path = "/",
+): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const h = host.trim();
+  if (!h) return gatewayBase() + normalizedPath;
+
+  if (import.meta.env.DEV && gatewayBase() === "/__gateway") {
+    const q = new URLSearchParams({ __cellp_host: h });
+    const sep = normalizedPath.includes("?") ? "&" : "?";
+    return `/__gateway${normalizedPath}${sep}${q.toString()}`;
+  }
+
+  const scheme =
+    (import.meta.env.VITE_CELLP_PUBLIC_SCHEME_PREVIEW as string | undefined) ||
+    "http";
+  return `${scheme}://${h}${normalizedPath}`;
+}
+
+export function previewBrowseUrl(
+  projectId: string,
+  versionId: string,
+  previewUrl?: string | null,
+): string {
+  const host = previewHostFromApi(projectId, versionId, previewUrl);
+  let path = "/";
+  if (previewUrl) {
+    try {
+      path = new URL(previewUrl).pathname || "/";
+    } catch {
+      /* default */
+    }
+  }
+  return gatewayBrowseUrl(host, path);
+}
+
+export function prodBrowseUrl(
+  projectId: string,
+  prodUrl?: string | null,
+): string {
+  if (prodUrl) {
+    try {
+      const u = new URL(prodUrl);
+      if (u.host && !u.pathname.includes(`/${projectId}/`)) {
+        return gatewayBrowseUrl(u.host, u.pathname || "/");
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return gatewayBrowseUrl(prodHost(projectId), "/");
+}
+
+/** Derive production browse URL (AD-12 Host, not path /{project}/). */
+export function deriveProdUrl(
+  projectId: string,
+  _previewUrl?: string | null,
+): string {
+  return prodBrowseUrl(projectId, null);
+}
+
+/** Prefer API-provided prod_url; fall back to Host-based browse URL. */
 export function resolveProdUrl(
   projectId: string,
   prodUrl?: string | null,
-  previewUrl?: string | null,
+  _previewUrl?: string | null,
 ): string {
-  if (prodUrl) return prodUrl;
-  return deriveProdUrl(projectId, previewUrl);
+  if (prodUrl) {
+    try {
+      const u = new URL(prodUrl);
+      if (u.host.includes(".")) {
+        return gatewayBrowseUrl(u.host, u.pathname || "/");
+      }
+    } catch {
+      /* legacy path URL */
+    }
+    if (prodUrl.includes("ingress.local") || prodUrl.startsWith("http")) {
+      return prodBrowseUrl(projectId, prodUrl);
+    }
+  }
+  return prodBrowseUrl(projectId, prodUrl);
 }
 
 export function truncateSha(sha: string, length = 7): string {

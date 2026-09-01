@@ -18,6 +18,7 @@ import {
   formatDateTime,
   formatDuration,
   formatRelativeTime,
+  previewBrowseUrl,
   truncateSha,
 } from "@/lib/format";
 import {
@@ -89,6 +90,11 @@ function VersionDetailContent({
   const isProd = prodVersionId === version.id;
   const isPreview = version.parent_version_id != null;
   const prodUrl = resolveProdUrl(projectId, projectProdUrl, version.preview_url);
+  const previewOpenUrl = previewBrowseUrl(
+    projectId,
+    version.id,
+    version.preview_url,
+  );
   const [databaseAvailability, setDatabaseAvailability] =
     useState<DatabaseAvailability | null>(null);
   const [parentDatabaseAvailability, setParentDatabaseAvailability] =
@@ -154,7 +160,7 @@ function VersionDetailContent({
             status={version.status}
             isProd={isProd}
             pinned={version.pinned}
-            previewUrl={version.preview_url}
+            previewUrl={previewOpenUrl}
             onComplete={onRefresh}
           />
         </div>
@@ -332,12 +338,12 @@ function VersionDetailContent({
         <MetadataSection title="URLs" icon={<Globe className="size-4" />}>
           <MetadataRow label="Preview" copyable copyValue={version.preview_url}>
             <a
-              href={version.preview_url}
+              href={previewOpenUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-sm text-foreground hover:underline"
             >
-              {version.preview_url}
+              {version.preview_url || previewOpenUrl}
               <ExternalLink className="size-3 text-muted-foreground" />
             </a>
           </MetadataRow>

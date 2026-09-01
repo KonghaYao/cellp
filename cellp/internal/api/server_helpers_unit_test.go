@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cellp/cellp/internal/config"
 	"github.com/cellp/cellp/internal/registry"
 )
 
@@ -31,11 +32,14 @@ func TestParseSinceOnServer(t *testing.T) {
 	}
 }
 
-func TestProdURL(t *testing.T) {
-	got := prodURL("http://gw.example/", "demo")
-	want := "http://gw.example/demo/"
+func TestProdURLFromConfig(t *testing.T) {
+	t.Setenv("CELLP_INGRESS_BASE_DOMAIN", "ingress.local")
+	t.Setenv("CELLP_PUBLIC_SCHEME_PROD", "http")
+	cfg := config.Load()
+	got := cfg.ProdURL("demo-app")
+	want := "http://demo-app.ingress.local/"
 	if got != want {
-		t.Fatalf("%q", got)
+		t.Fatalf("got %q want %q", got, want)
 	}
 }
 

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ExternalLink, GitBranch, MoreHorizontal, Rocket } from "lucide-react";
 import type { Version } from "@/lib/cellp-api";
 import { promoteVersion, CellpApiError } from "@/lib/cellp-api";
-import { deriveProdUrl, formatRelativeTime, truncateSha } from "@/lib/format";
+import { deriveProdUrl, formatRelativeTime, previewBrowseUrl, truncateSha } from "@/lib/format";
 import { StatusIndicator } from "@/components/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -293,7 +293,7 @@ function DeploymentActions({
       )}
       {hasPreview && (
         <a
-          href={version.preview_url}
+          href={previewBrowseUrl(projectId, version.id, version.preview_url)}
           target="_blank"
           rel="noreferrer"
           className={actionClass}

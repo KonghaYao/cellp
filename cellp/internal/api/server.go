@@ -235,7 +235,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := map[string]interface{}{
 		"id": p.ID, "git_remote": p.GitRemote, "prod_version_id": p.ProdVersionID,
-		"prod_url":   prodURL(s.cfg.GatewayURL, projectID),
+		"prod_url":   s.cfg.ProdURL(projectID),
 		"created_at": p.CreatedAt, "version_count": versionCount,
 		"versions_url": "/v1/projects/" + projectID + "/versions",
 	}
@@ -428,7 +428,7 @@ func (s *Server) handlePromote(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":          "promoted",
 		"prod_version_id": versionID,
-		"prod_url":        prodURL(s.cfg.GatewayURL, projectID),
+		"prod_url":        s.cfg.ProdURL(projectID),
 	})
 }
 
@@ -489,10 +489,6 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
-}
-
-func prodURL(gatewayURL, projectID string) string {
-	return strings.TrimRight(gatewayURL, "/") + "/" + projectID + "/"
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
