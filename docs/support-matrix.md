@@ -29,7 +29,7 @@
 | S08 | EdgeEver | **支持** | http://support-edgeever.lvh.me:8787/ | — |
 | S09 | SonicJS | **支持** | http://support-sonicjs.lvh.me:8787/ | — |
 | S10 | NodeWarden | **支持** | http://support-nodewarden.lvh.me:8787/ | — |
-| S11 | Sink | **不支持** | — | **pnpm** monorepo + Nuxt + D1 远程 migrate + Pages/worker 双轨；`deploy-support-app` 无法用 `npm ci` 构建（2026-09-03 复验） |
+| S11 | Sink | **支持** | http://support-sink.lvh.me:8787/ | — |
 | S12 | Inkstone | **不支持** | — | 同上 |
 | S13 | SaaSMail | **不支持** | — | 同上 |
 | S14 | cloudflarebase | **不支持** | — | 需 **AUTH_AGENT 等多 Worker**；cellp **不编排 service** |
@@ -47,11 +47,11 @@
 
 | | 数量 |
 |---|------|
-| **支持** | **13** |
-| **不支持** | **8** |
+| **支持** | **14** |
+| **不支持** | **7** |
 | **合计** | **21** |
 
-**支持率（本清单）：** 13/21 ≈ **62%**
+**支持率（本清单）：** 14/21 ≈ **67%**
 
 ---
 
@@ -72,7 +72,7 @@
 
 | 项目 | 队列状态 | 备注 |
 |------|----------|------|
-| Sink | **不支持** | 同 matrix S11（pnpm/Nuxt/D1） |
+| Sink | **已纳入 S11** | **支持** · `dev/examples/support-sink/` · prod **v2**（2026-09-03） |
 | Counterscale | **不支持** | turbo **pnpm** monorepo，无单 wrangler 入口 |
 | CloudPaste | **不支持** | 多组件 Pages + Worker 拆分，未纳入单 Worker 槽位 |
 | cf-workers-status-page | **不支持** | 旧 **flareact/webpack** `[site]` 栈，未适配 cellp slim artifact |

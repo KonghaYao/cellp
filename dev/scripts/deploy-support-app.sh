@@ -371,7 +371,7 @@ if ! poll_version "$PROJECT" "$VERSION" ready "${SUPPORT_POLL_SECS:-120}" >/dev/
   exit 1
 fi
 
-if [[ -d "${DEST}/migrations" && -f "${DEST}/wrangler.jsonc" ]]; then
+if [[ -f "${DEST}/wrangler.jsonc" ]] && { [[ -d "${DEST}/migrations" ]] || [[ -d "${DEST}/drizzle" ]]; }; then
   MIG_SCRIPT="${ROOT}/dev/scripts/apply-version-d1-migrations.sh"
   if [[ -f "$MIG_SCRIPT" ]]; then
     log "apply D1 migrations"

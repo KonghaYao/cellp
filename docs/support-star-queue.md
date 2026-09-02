@@ -12,7 +12,7 @@
 
 | Priority | Project | GitHub | ~Stars | Status | Notes |
 |:--------:|---------|--------|-------:|--------|-------|
-| P0 | **Sink** | [miantiao-me/Sink](https://github.com/miantiao-me/Sink) | 7.1k | **不支持** | matrix **S11** · pnpm/Nuxt/D1 |
+| P0 | **Sink** | [miantiao-me/Sink](https://github.com/miantiao-me/Sink) | 7.1k | **支持（S11）** | matrix · `prepare-artifact.sh` + overlay · prod v2 2026-09-03 |
 | P0 | **Counterscale** | [benvinegar/counterscale](https://github.com/benvinegar/counterscale) | 2.1k | **不支持** | turbo pnpm monorepo |
 | P0 | **CloudPaste** (unified SPA Worker) | [ling-drag0n/CloudPaste](https://github.com/ling-drag0n/CloudPaste) | 2.6k | **不支持** | Pages+Worker 拆分 |
 | P1 | **CloudFlare-ImgBed** | [MarSeventh/CloudFlare-ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) | 6.3k | **排队** | Validate Workers-only path (not Docker) |
