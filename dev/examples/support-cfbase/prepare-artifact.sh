@@ -28,12 +28,6 @@ if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
 fi
 test -f .cellp-bundle/index.js
 
-log "celld caches polyfill"
-CACHE_STUB='globalThis.caches=globalThis.caches??{default:{match:async()=>void 0,put:async()=>{},delete:async()=>!1,keys:async()=>[]}};'
-printf '%s\n' "$CACHE_STUB" > .cellp-bundle/index.patched.js
-cat .cellp-bundle/index.js >> .cellp-bundle/index.patched.js
-mv .cellp-bundle/index.patched.js .cellp-bundle/index.js
-
 log "stage static assets from .svelte-kit/cloudflare"
 rm -rf .cellp-assets
 mkdir -p .cellp-assets

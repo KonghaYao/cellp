@@ -114,6 +114,7 @@ export default defineConfig({
             { text: 'From Cloudflare', link: '/migrate/cloudflare' },
             { text: 'From Vercel', link: '/migrate/vercel' },
             { text: 'Supported stacks', link: '/migrate/stacks' },
+            { text: 'Framework tiers', link: '/migrate/frameworks' },
           ],
         },
         {

@@ -1,0 +1,167 @@
+# cellp / celld 平台缺陷日志
+
+> **用途：** 社区 support、框架验证（S22+）中暴露的**运行时 / 控制面缺口**，供排期修 celld 或 cellp，**不是**应用侧长期 patch 清单。  
+> **证据目录：** `docs/evidence/`（`support-*.log`、celld stderr 见 macOS `TMPDIR/celld-{project}-{version}.log`）  
+> **关联：** [support-validation-lessons.md](./support-validation-lessons.md) · [framework-coverage-cellp.md](./framework-coverage-cellp.md)
+
+---
+
+## 记录格式
+
+| 字段 | 说明 |
+|------|------|
+| **ID** | `PD-YYYYMMDD-NN` |
+| **层级** | `celld` / `cellp` / `dev 栈` |
+| **严重度** | `blocker`（无法 ready）/ `major`（主路径 5xx）/ `minor` |
+| **状态** | `open` / `mitigated`（overlay 绕过）/ `fixed` |
+| **修复证据** | celld commit / `cargo test -p celld`（可选 `docs/evidence/`） |
+
+---
+
+## PD-20260902-01 — `cloudflare:workers` 多模块 ESM 未注册 stub（celld）
+
+| | |
+|--|--|
+| **层级** | celld |
+| **严重度** | blocker（Worker `instantiate` 失败 → health timeout） |
+| **状态** | `fixed`（`resolve_external` → `ensure_external_stub`；`scan_external_imports` 副作用 import） |
+
+### `cloudflare:workers` 是什么？
+
+Cloudflare / workerd 的 **内置虚拟模块**（非 npm 包），由运行时注入，典型导出包括：
+
+- `DurableObject`、`WorkerEntrypoint`、`RpcTarget`
+- `waitUntil`、`env`、`exports`（与 DO / 多导出 Worker 相关）
+
+在 **celld** 中，语义由 `harness.js` 里的 `globalThis.__cf` 实现；`modules.rs` 通过 **预编译 stub 模块** 把 `import { … } from "cloudflare:workers"` 接到 `__cf`（见 `builtin_source` / `stub_source`）。
+
+这与 **npm polyfill** 不同：正确做法是 **celld 模块解析器**在加载 Worker 图之前注册 stub，而不是在应用里 `npm install` 某个包。
+
+### 现象
+
+- **项目：** S22 Astro（`@astrojs/cloudflare`），`dist/_worker.js/chunks/*.mjs` 含 `import 'cloudflare:workers'`（副作用 import）。
+- **日志：** `resolve: no stub for specifier spec=cloudflare:workers` → `Error: stateless Worker failed to load`（`/tmp/celld-support-astro-v3.log` 等）。
+- **对比：** 同目录 `celld deploy` 单文件 bundle 可成功上传；**fleet 启动**仍可能走多文件 / 未扫描到 sibling import 的路径。
+
+### 根因（推断）
+
+`register_stubs` 仅根据 **主模块** `config.main_imports` 注册；`register_loader_modules` 应为 sibling 补 stub，但 Astro 产物图或 deploy 落盘形态下，**副作用 import 出现在 chunk 中且未在注册前被解析**时，`resolve_external` 只打 warn、**不按需生成** `cloudflare:workers` stub（`modules.rs` 注释假定「celld bundles are single-file」）。
+
+### 应有修复（celld，非应用 patch）
+
+1. **`resolve_external` 回退：** 对 `cloudflare:workers` / `cloudflare:workflows` / 已知 `node:*`，若 registry 无条目，**同步** `full_surface_source` + `compile_module` 并缓存（与 `register_loader_modules` 逻辑复用）。
+2. **Deploy 产物：** 保证 `celld deploy` 后 S3 manifest 的入口与运行时加载路径一致（单 bundle vs 多模块）并覆盖全图 import 扫描。
+3. **测试：** 增加 fixture：`import 'cloudflare:workers'` 仅出现在 **非 main** chunk 的多文件 Worker。
+
+### 临时缓解（已废弃）
+
+~~`prepare-artifact.sh` strip `cloudflare:workers`~~ — **已删除**；依赖 celld `ensure_external_stub` + 副作用 import 扫描（见 `cargo test -p celld`）。
+
+---
+
+## PD-20260902-02 — 全局 `caches` API 缺失（celld）
+
+| | |
+|--|--|
+| **层级** | celld |
+| **严重度** | major（SSR 路由 500，静态页可 200） |
+| **状态** | `fixed`（`harness.js` `globalThis.caches`） |
+
+### 现象
+
+- **项目：** S22 Astro v8 prod Host。
+- **路径：** `/` → 200；`/blog/`、`/about/` → **500**。
+- **响应：** `ReferenceError: caches is not defined`（Astro SSR / adapter 使用 Cache API）。
+
+### 与 CF 的差距
+
+Workers 运行时提供 **Cache Storage**（`caches.default` 等）。celld 若未在 harness 暴露等价全局，**框架 SSR**（Astro、部分 SvelteKit）会在动态路由失败。
+
+### 应有修复（celld）
+
+- 在 isolate 启动或 `__cf` 初始化时提供 **workerd 对齐的 `caches` 全局**（至少 default cache：match/put/delete/keys 的 dev 实现或 no-op + 内存后端）。
+- 在 `celld/docs/cloudflare-compat.md` 标明 **Partial/No** 并链到本缺陷。
+
+### 临时缓解
+
+prepare 在 `dist/_worker.js/index.js` 头部注入最小 `globalThis.caches` 对象（与 S14 cfbase 同类手法）。
+
+---
+
+## PD-20260902-03 — Astro 部署需 slim artifact + 专用 stage（cellp dev 脚本）
+
+| | |
+|--|--|
+| **层级** | cellp（`deploy-support-app.sh`） |
+| **严重度** | minor（无 overlay 时脚本挂死 / 上传巨包） |
+| **状态** | fixed（astro slim 分支 + `support-astro/*`） |
+
+### 现象
+
+- 未走 `prepare-artifact` 时全量 `rsync node_modules`，单次 deploy **>5min 无输出**（用户感知「shell 卡住」）。
+- `SUPPORT_RSYNC_NO_NODE` 仅在存在 `CELLP_PREPARE` 时由 deploy 脚本设置；prepare 子进程内 `export` **不会**回传父 shell（已靠父脚本 `SUPPORT_RSYNC_NO_NODE=1` 修复）。
+
+### 修复
+
+- `elif` 分支：`dist/_worker.js/index.js` + wrangler → 只 stage worker 树与 `.cellp-assets`。
+
+---
+
+## PD-20260902-04 — RustFS 时钟漂移导致 celld 自毁（dev 栈）
+
+| | |
+|--|--|
+| **层级** | dev 栈 / 环境 |
+| **严重度** | major（ready 后 Gateway **502**） |
+| **状态** | open |
+
+### 现象
+
+`RequestTimeTooSkewed`（S3 PUT）→ `node_lease_watchdog_fence` → celld 进程退出；`support-astro` v8 复测 502。
+
+### 缓解
+
+校准 macOS 系统时间 / NTP；**`./dev/scripts/fix-rustfs-skew.sh`**（重启 RustFS + cellpd）；再 deploy 或 `POST …/wake`。
+
+---
+
+## Polyfill 策略总结（给产品 / 实现）
+
+| 能力 | 能否用 npm polyfill？ | cellp 推荐 |
+|------|----------------------|------------|
+| `cloudflare:workers` | **否**（虚拟模块） | celld `resolve_external` 按需 stub → `globalThis.__cf` |
+| `caches` | 可在入口 **注入** `globalThis.caches` | celld harness 一等实现 |
+| `node:crypto` / Web Crypto | 部分可；PBKDF2 等已在 celld 补 | 运行时对齐 CF（已做一轮） |
+| `[[services]]` 多 Worker | **否** | cellp 编排（当前 **不支持**，见 MULTI-WORKER-DEPLOY） |
+
+**原则：** 一等框架（AD-13）不应依赖 `dev/examples/*/prepare-artifact.sh` 长期 strip；缺陷应 **关闭 PD 条目** 并删 overlay。
+
+---
+
+## PD-20260902-05 — Astro 静态路由 `_routes.json` + 尾斜杠（celld assets）
+
+| | |
+|--|--|
+| **层级** | celld（assets 路由）/ wrangler 配置 |
+| **严重度** | major（`/blog/`、`/about/` **404**；`/` **200**） |
+| **状态** | fixed |
+
+### 现象
+
+S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 `/blog/*`），但 prod Host 下 `/blog/`、`/about/` 仍 404；已试 `html_handling: auto-trailing-slash`。
+
+### 修复
+
+- celld：`decode_path` 接受合法尾斜杠；deploy 解析 `_routes.json` → `AssetConfig.routes` + `run_worker_first` 编译；ingress `exclude` 路径资产独占、miss 不回落 Worker。
+- 证据：`docs/evidence/integration-verify-astro-s22-routes.md`
+
+---
+
+## 变更 log
+
+| 日期 | 变更 |
+|------|------|
+| 2026-09-02 | PD-05 fixed：`_routes.json` + 尾斜杠；S22 全路径 200（见 integration-verify-astro-s22-routes.md） |
+| 2026-09-02 | celld：`ensure_external_stub` + `caches`；`check-s3-clock-skew.sh`；S22 v8 全路径验收 |
+| 2026-09-02 | 初版：S22 Astro 暴露 PD-01～04 |
+| 2026-09-01 | PD-01/02 fixed：celld `ensure_external_stub` + harness `caches`；`scan_external_imports` 副作用 import |

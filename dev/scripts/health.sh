@@ -36,6 +36,12 @@ else
   bad "rustfs :${S3_PORT:-9000}"
 fi
 
+if bash "${ROOT}/dev/scripts/check-s3-clock-skew.sh"; then
+  ok "s3 clock skew"
+else
+  bad "s3 clock skew (see PD-20260902-04)"
+fi
+
 ADMIN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
 
 # Deep health: registry + RustFS + runtime fleet + queue

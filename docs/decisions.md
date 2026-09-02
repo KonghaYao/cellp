@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-08-31（含 AD-6 · AD-7 · AD-8 · AD-9 · AD-10 · AD-11 · **AD-12**）
+> **最后更新：** 2026-09-02（含 AD-6 … AD-12 · **AD-13**）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -376,4 +376,57 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 **证据：** P0–P2 e2e Host + `go test ./...`；**P3（2026-09-01）** Gateway 删除 path handler，仅 Host ingress。
 
 **实现（计划）：** `cellp/internal/gateway/` · `cellp/internal/registry/` · orchestrator env 注入 · `runtime.VerifyGatewayRoute` 改用 `preview_url`。
+
+---
+
+## 18. AD-13 — 前端框架一等公民与 Next.js 边界
+
+**背景：** 社区 support（S01–S21）与 [framework-coverage-cellp.md](./framework-coverage-cellp.md) 表明：cellp 能稳定托住 **CF Workers 单部署单元**（一个 `main` Worker + wrangler `assets`），但 **wrangler 全量构建图**（Worker 内 SSR、`.md`、Tailwind、二次 esbuild）易失败；**多 `[[services]]` Worker** 已标不支持（[plans/MULTI-WORKER-DEPLOY.md](./plans/MULTI-WORKER-DEPLOY.md)）。
+
+**决策：**
+
+### 18.1 一等公民框架（产品承诺 + 验证轨）
+
+下列框架与 **Cloudflare Workers framework guides** 对齐，作为 cellp **一等公民**（文档、公开站点、support 验证队列 **S22–S25**）：
+
+| 框架 | 典型产物 | support 槽位 |
+|------|----------|--------------|
+| **React + Vite SPA** | `dist` + 薄 Worker | 已由 S15/S17/S20 等覆盖 |
+| **Vue + Vite SPA** | 同上 | 已由 S17 等覆盖 |
+| **Astro** | `@astrojs/cloudflare` 单 Worker / 静态+server | **S22** |
+| **SvelteKit** | `adapter-cloudflare` 单 Worker（**非**多 service 栈） | **S23** |
+| **Remix** | `@remix-run/cloudflare` 单 bundle | **S24** |
+| **Nuxt** | Nitro `cloudflare` preset 单 Worker | **S25** |
+
+**一等公民 ≠**「任意上游仓库零改可部署」。验收套路固定为：**CI/脚本预构建** + `dev/examples/<project>/prepare-artifact.sh`（按需）+ **`no_bundle` / slim artifact**，避免 celld 对框架图二次 esbuild。
+
+**矩阵口径：** 每个 S22–S25 部署后仍只标 **[support-matrix.md](./support-matrix.md)** 的 **支持** 或 **不支持**；未跑完验证前 **不**写入矩阵。
+
+### 18.2 公开推荐栈（文档与示例）
+
+| 受众 | 推荐 |
+|------|------|
+| **新应用（默认）** | **Vite SPA（React 或 Vue）+ 单 Worker API** + wrangler `assets`；与 CF「Static assets + Worker」一致 |
+| **内容站 / 混合** | **Astro**（优先 static 或 adapter 单 Worker） |
+| **全栈 React/Vue** | **Remix** 或 **Nuxt**（单 Worker）；SvelteKit 用 adapter-cloudflare **单应用** |
+| **禁止作为默认** | Worker 内完整 SSR + 未预打包的 CSS/MD 图；**多 Worker `services` 控制台** |
+
+公开站点：[site/docs/migrate/stacks.md](../site/docs/migrate/stacks.md) · [site/docs/migrate/frameworks.md](../site/docs/migrate/frameworks.md)。
+
+### 18.3 Next.js / OpenNext
+
+| 项 | 决策 |
+|----|------|
+| **一等公民** | **否** — 与 `web/`（Vite SPA）及私有化 Workers 控制面定位一致 |
+| **CF 对齐** | 允许用户 **自行** 按 CF OpenNext / vinext 文档构建 artifact；cellp 只收 bundle |
+| **优化** | 强制 **预构建 + no_bundle + assets 分目录**；见 [plans/NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| **support 矩阵** | **不**占 S22–S25；不设「partial」— 未验收则文档标 **实验**，不进矩阵 |
+| **Node SSR** | Next App Router on **Node** 仍 **非目标**（与 [AD-10](#15-ad-10--产品边界权威否定与核心范畴) 一致） |
+
+### 18.4 与 AD-7 / AD-8 / 多 Worker 的关系
+
+- 框架选择与 **D1/KV/R2/Queue branch** 正交（AD-8）。
+- **SvelteKit 控制台模板**若含 `[[services]]`（如 cloudflarebase）→ **不支持**（F 类），与「SvelteKit 一等公民」不矛盾：指的是 **单 Worker** adapter 形态。
+
+**证据（规划）：** `deploy-support-app.sh` S22–S25 · `docs/framework-coverage-cellp.md` · `docs/support-todos.md` 框架批次。
 

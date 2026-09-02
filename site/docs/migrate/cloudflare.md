@@ -58,6 +58,8 @@ Use the [bindings overview](/concepts/bindings). Identities inherit on branch so
 
 Judge a Worker against [celld compatibility](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md), not against “it ran on CF.”
 
+**Framework tiers:** cellp **tier-1** stacks (Astro, SvelteKit, Remix, Nuxt, Vite SPA) and **Next.js (experimental only)** are documented in [Framework tiers](/migrate/frameworks) and [Supported stacks](/migrate/stacks).
+
 ## Suggested migration
 
 1. Confirm each binding is Yes/Partial in celld compat (D1, KV, Queues, R2, Workflows, Cron).

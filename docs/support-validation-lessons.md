@@ -28,6 +28,7 @@
 | **celld deploy** 拒绝 `base_dir` / `find_additional_modules` / `rules` | EdgeEver overlay 需删掉；worker 用 **esbuild → `.cellp-bundle/index.js`** |
 | **Web Crypto `deriveBits(PBKDF2)`** 在旧 celld 不支持 | EdgeEver 首次登录 **500** | **运行时**在 `crypto.js` 接 PBKDF2；应用保持上游 **`subtle.deriveBits`**，**勿**再 deploy patch `node:crypto` |
 | D1 **migrations** 未自动跑 | UI `database_not_ready` | deploy 后 `apply-version-d1-migrations.sh`（wrangler.jsonc 需 **strip JSONC** 再 parse） |
+| **`[[services]]` 多 Worker**（cloudflarebase 等） | `/login` **500**，`AUTH_AGENT binding not available` | **cellp 不支持**多 service 编排；见 `docs/plans/MULTI-WORKER-DEPLOY.md` · 验收标 **partial** |
 | `git fetch` 卡住 | deploy 脚本挂住 | 已有 corpus 时 `SUPPORT_SKIP_GIT_FETCH=1` |
 | 堆积多个 **celld** 进程 | **diagnose/deploy SIGKILL**（内存） | `pkill -f 'celld --bucket'` 后重 deploy；`CELLP_SKIP_CELLD_DIAGNOSE=1` 仅 dev 救急 |
 | 对 **destroyed** version id 再 `SUPPORT_DESTROY_FIRST` | create 失败 / poll destroyed | 换 **新 vN** |
@@ -51,6 +52,17 @@
 - `stripJSONC` 误伤 `http://` 与 `/*` 路径 → 应换正规 JSONC 解析或部署前 strip 仅真注释
 - Preview Host 换 base 后偶发 **404**（仅 prod promote 更新）→ orchestrator 应对齐 preview binding
 - dev **HTTPS :8788** 与 `lvh.me` 证书 SAN 需 mkcert / `CELLP_TLS_EXTRA_SAN`
+- **`cloudflare:workers` / `caches`** 多模块与 SSR 缺口 → 见 **[platform-defects-log.md](./platform-defects-log.md)**（PD-20260902-01/02）
+
+---
+
+## 4b. Shell「卡住」（deploy 脚本）
+
+| 现象 | 原因 | 做法 |
+|------|------|------|
+| `deploy-support-app` 长时间无输出 | 全量 **rsync node_modules**（未走 slim / 无 `prepare-artifact`） | 为框架加 `dev/examples/<project>/prepare-artifact.sh`；Astro 用 **S22** 分支 |
+| Agent 管道 `tail` + 超时 | 构建 2min+，前台 **300s** 不够 | 本机终端跑；`SUPPORT_SKIP_BUILD=1` 复用 corpus |
+| `git clone` / `npm install` | 网络 / ghfast | `GITHUB_CLONE_DIRECT=1` |
 
 ---
 

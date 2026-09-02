@@ -178,6 +178,8 @@ flowchart LR
 
 **Dashboard 仅 `web/`** — Vite SPA，禁止引入 Next.js / SSR。
 
+**本机运维（默认 subagent，勿让用户手跑）：** 本地栈、`deploy-support-app.sh`、curl 验收、`fix-rustfs-skew.sh` 等 → 派 **`coder`** 或 **`general-purpose`**（含 Bash）。**勿**派 `explorer`（只读、无 shell）。失败时主 agent 可直接 Bash 兜底。
+
 ---
 
 *文档库 v1 · 2026-08-29 · cellp 首版交付定型*

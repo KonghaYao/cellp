@@ -44,6 +44,10 @@ lookup() {
     S19) PROJECT=support-requestbin; REPO_URL=https://github.com/ghostdevv/request-bin.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
     S20) PROJECT=support-r2explorer; REPO_URL=https://github.com/G4brym/R2-Explorer.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
     S21) PROJECT=support-fileworker; REPO_URL=https://github.com/woaiqjj/FileWorker.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    S22) PROJECT=support-astro; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=astro-blog-starter-template; BUILD_STEPS="npm install" ;;
+    S23) PROJECT=support-sveltekit; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/svelte; BUILD_STEPS="npm install && npm run build" ;;
+    S24) PROJECT=support-remix; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=remix-starter-template; BUILD_STEPS="npm install && npm run build" ;;
+    S25) PROJECT=support-nuxt; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/nuxt; BUILD_STEPS="npm install && npm run build" ;;
     *) echo "Unknown ${SID}"; exit 1 ;;
   esac
 }
@@ -256,6 +260,9 @@ if [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.cellp-bundle/index.js && -f .
   log "stage slim artifact (wrangler + bundle + static + migrations; no node_modules)"
   cp ./wrangler.jsonc "$DEST/"
   rsync -a ./.cellp-bundle/ "$DEST/.cellp-bundle/"
+  if [[ -d ./.cellp-assets ]]; then
+    rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
+  fi
   if [[ -d ./apps/web/dist ]]; then
     mkdir -p "$DEST/apps/web"
     rsync -a ./apps/web/dist/ "$DEST/apps/web/dist/"
@@ -283,6 +290,19 @@ elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc ]] && {
   if [[ -d ./migrations ]]; then
     rsync -a ./migrations/ "$DEST/migrations/"
   fi
+  STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
+  if [[ -f "$STAGE_HOOK" ]]; then
+    log "stage extra: ${STAGE_HOOK}"
+    bash "$STAGE_HOOK" "$APP_DIR" "$DEST"
+  fi
+elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc && -f ./dist/_worker.js/index.js ]]; then
+  log "stage slim artifact (astro dist/_worker.js + assets; no node_modules)"
+  cp ./wrangler.jsonc "$DEST/"
+  if [[ -d ./.cellp-assets ]]; then
+    rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
+  fi
+  mkdir -p "$DEST/dist"
+  rsync -a ./dist/_worker.js/ "$DEST/dist/_worker.js/"
   STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
   if [[ -f "$STAGE_HOOK" ]]; then
     log "stage extra: ${STAGE_HOOK}"

@@ -1,7 +1,9 @@
 # 社区 Workers 项目 — cellp 支持验证待办
 
 > **排序原则：** **有 Web 前端、打开能点** 的优先；API-only / 需另配客户端的往后。  
-> **证据：** `docs/evidence/support-<id>.log`（本地，gitignore）· **踩坑：** [support-validation-lessons.md](./support-validation-lessons.md)
+> **是否支持（唯一口径）：** **[support-matrix.md](./support-matrix.md)** — 每项仅 **支持** 或 **不支持**。  
+> **框架与 CF 对照：** **[framework-coverage-cellp.md](./framework-coverage-cellp.md)**（**AD-13** 一等公民 · S22–S25）
+> **证据：** `docs/evidence/support-<id>.log`（本地，gitignore）· **踩坑：** [support-validation-lessons.md](./support-validation-lessons.md) · **平台缺陷：** [platform-defects-log.md](./platform-defects-log.md)
 
 ---
 
@@ -43,7 +45,7 @@
 |----|------|------|
 | S19 | request-bin | 极简列表页，偏开发者工具 |
 | S10 | NodeWarden | 密码库 **客户端** 为主，Worker 偏 API |
-| S14 | cloudflarebase | **BaaS / API 模板**，无终端用户界面 → **最后** |
+| S14 | cloudflarebase | **不支持** — [support-matrix.md](./support-matrix.md) |
 
 ---
 
@@ -55,14 +57,20 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 ## 执行状态
 
-| ID | 状态 | 验证 URL |
-|----|------|----------|
-| S01 | ready | http://support-relay.lvh.me:8787/ （`seed-support-relay-demo.sh`） |
-| S03/S04 | ready 但 **不继续** | 无用户价值 / 低 UI 收益 |
-| S17 | **ready** | `http://support-r2filebox.lvh.me:8787/`（prod **v15**）· admin / `cellp-dev-r2filebox` |
-| S05 | **ready** | `http://support-flaremo.lvh.me:8787/`（prod **v6**）· Preview `http://v6.support-flaremo.lvh.me:8787/` |
-| S08 | **ready** | `http://support-edgeever.lvh.me:8787/`（prod **v4**）· 登录 `admin` / `cellp-dev-edgeever` |
-| S16 | **blocked（A 类）** | v1–v6 部署见 `docs/evidence/support-S16.log`；celld 二次 esbuild 不支持 wrangler 的 `.md`/Tailwind/SSR 管线 |
+**见 [support-matrix.md](./support-matrix.md)**（**13 支持 · 8 不支持**）。**框架一等公民验证（未入矩阵前）：** S22–S25，见下表。
+
+---
+
+## 框架验证（S22–S25 · AD-13）
+
+| ID | 框架 | 来源 | 命令 |
+|----|------|------|------|
+| S22 | **Astro** | `cloudflare/templates` · `astro-blog-starter-template` | `./dev/scripts/deploy-support-app.sh S22` |
+| S23 | **SvelteKit** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/svelte` | S23（需 `dev/examples/support-sveltekit/` overlay 时再验） |
+| S24 | **Remix** | `cloudflare/templates` · `remix-starter-template` | S24 |
+| S25 | **Nuxt** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/nuxt` | S25 |
+
+**Next.js：** 非一等；见 [plans/NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)。
 
 ---
 
@@ -96,7 +104,7 @@ GitHub 镜像：`ghfast.top`（见 `deploy-support-app.sh`）。
 
 ## 失败 taxonomy
 
-A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面
+A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面 · **F 多 service Worker（不支持）**
 
 ---
 
@@ -104,4 +112,7 @@ A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-02 | **platform-defects-log.md**：S22 暴露 `cloudflare:workers` / `caches` |
+| 2026-09-02 | **AD-13**：一等公民 Astro/SvelteKit/Remix/Nuxt；S22–S25 lookup；Next/OpenNext 实验文档 |
+| 2026-09-02 | 批次 5–10 部署；多 **service** 标 **不支持**；S14 partial；ingress repromote；celld crypto |
 | 2026-08-31 | UI 优先排序；批次 3 起改为 r2filebox + pastebin |
