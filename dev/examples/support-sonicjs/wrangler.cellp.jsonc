@@ -1,0 +1,32 @@
+{
+  "name": "support-sonicjs",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sonicjs-db",
+      "database_id": "00000000-0000-0000-0000-00000000000c",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "sonicjs-media"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE_KV",
+      "id": "00000000-0000-0000-0000-000000000002"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "development",
+    "CORS_ORIGINS": "*",
+    "DEFAULT_FROM_EMAIL": "noreply@localhost",
+    "BETTER_AUTH_SECRET": "sonicjs-cellp-support-secret-32chars"
+  }
+}

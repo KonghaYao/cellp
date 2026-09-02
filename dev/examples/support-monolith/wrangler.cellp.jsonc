@@ -1,0 +1,29 @@
+{
+  "name": "support-monolith",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "client-dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "monolith-db",
+      "database_id": "00000000-0000-0000-0000-00000000000b"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "monolith-assets"
+    }
+  ],
+  "vars": {
+    "BLOG_NAME": "Monolith",
+    "SITE_ORIGIN": "__CELLP_DEPLOY_URL__",
+    "AUTO_SCHEMA_MIGRATION": "true"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "support-webhookflare",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-12",
+  "migrations": [
+    {
+      "new_sqlite_classes": ["WebhookBin"],
+      "tag": "v1"
+    }
+  ],
+  "assets": {
+    "directory": "./public"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "WebhookBin",
+        "name": "MY_DURABLE_OBJECT"
+      }
+    ]
+  }
+}

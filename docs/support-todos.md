@@ -57,7 +57,7 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 | ID | 状态 | 验证 URL |
 |----|------|----------|
-| S01 | ready | http://127.0.0.1:8787/support-relay/ （`seed-support-relay-demo.sh`） |
+| S01 | ready | http://support-relay.lvh.me:8787/ （`seed-support-relay-demo.sh`） |
 | S03/S04 | ready 但 **不继续** | 无用户价值 / 低 UI 收益 |
 | S17 | **ready** | `http://support-r2filebox.lvh.me:8787/`（prod **v15**）· admin / `cellp-dev-r2filebox` |
 | S05 | **ready** | `http://support-flaremo.lvh.me:8787/`（prod **v6**）· Preview `http://v6.support-flaremo.lvh.me:8787/` |

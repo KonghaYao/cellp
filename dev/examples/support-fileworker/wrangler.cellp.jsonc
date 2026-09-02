@@ -1,0 +1,20 @@
+{
+  "name": "support-fileworker",
+  "main": "functions/api/list.ts",
+  "compatibility_date": "2024-03-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "vars": {
+    "REGION": "auto",
+    "BUCKET": "support-fileworker-store",
+    "ENDPOINT": "http:\u002f\u002f127.0.0.1:19000",
+    "ACCESS_KEY_ID": "rustfsadmin",
+    "SECRET_ACCESS_KEY": "rustfsadmin",
+    "PASSWORD": "cellp-dev-fileworker"
+  }
+}

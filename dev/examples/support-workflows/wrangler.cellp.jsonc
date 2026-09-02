@@ -1,0 +1,32 @@
+{
+  "name": "support-workflows",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-10-08",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "workflows": [
+    {
+      "name": "my-workflow",
+      "binding": "MY_WORKFLOW",
+      "class_name": "MyWorkflow"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WORKFLOW_STATUS",
+        "class_name": "WorkflowStatusDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["WorkflowStatusDO"]
+    }
+  ]
+}

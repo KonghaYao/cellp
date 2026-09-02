@@ -1,0 +1,29 @@
+{
+  "name": "support-memos",
+  "main": "src/index.js",
+  "compatibility_date": "2025-08-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "src/public",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "memos-db",
+      "database_id": "00000000-0000-0000-0000-00000000000b"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "NOTES_KV",
+      "id": "00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NOTES_R2_BUCKET",
+      "bucket_name": "memos-notes-files"
+    }
+  ]
+}

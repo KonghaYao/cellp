@@ -29,9 +29,9 @@ lookup() {
     S04) PROJECT=support-kukuroo; REPO_URL=https://github.com/saiday/kukuroo.git; WORKDIR_SUB=templates/standalone; BUILD_STEPS="npm install" ;;
     S05) PROJECT=support-flaremo; REPO_URL=https://github.com/realchendahuang/FlareMo.git; WORKDIR_SUB=.; BUILD_STEPS="corepack enable 2>/dev/null || true; pnpm install --ignore-scripts && pnpm --filter @flaremo/web build" ;;
     S06) PROJECT=support-memos; REPO_URL=https://github.com/souvenp/memos-worker.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
-    S07) PROJECT=support-monolith; REPO_URL=https://github.com/one-ea/Monolith.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S07) PROJECT=support-monolith; REPO_URL=https://github.com/one-ea/Monolith.git; WORKDIR_SUB=server; BUILD_STEPS="(cd .. && npm ci && npm run build) && rm -rf client-dist node_modules && mkdir -p client-dist node_modules && rsync -a ../client/dist/ client-dist/ && rsync -a --exclude monolith-server --exclude monolith-client ../node_modules/ node_modules/" ;;
     S08) PROJECT=support-edgeever; REPO_URL=https://github.com/tianma-if/edgeever.git; WORKDIR_SUB=.; BUILD_STEPS="bun install && bun run build:web && bun run build:worker" ;;
-    S09) PROJECT=support-sonicjs; REPO_URL=https://github.com/SonicJs-Org/sonicjs.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S09) PROJECT=support-sonicjs; REPO_URL=https://github.com/SonicJs-Org/sonicjs.git; WORKDIR_SUB=my-sonicjs-app; BUILD_STEPS="(cd .. && npm install && npm run build:core)" ;;
     S10) PROJECT=support-nodewarden; REPO_URL=https://github.com/shuaiplus/nodewarden.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
     S11) PROJECT=support-sink; REPO_URL=https://github.com/miantiao-me/Sink.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
     S12) PROJECT=support-inkstone; REPO_URL=https://github.com/shuaiplus/inkstone.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
@@ -117,6 +117,7 @@ if [[ -n "$BUILD_STEPS" && "${SUPPORT_SKIP_BUILD:-}" != "1" ]]; then
   bash -lc "$BUILD_STEPS" || { echo "FAIL: build (${SID})"; exit 1; }
 fi
 
+CELLP_WRANGLER_OVERLAY="${ROOT}/dev/examples/${PROJECT}/wrangler.cellp.jsonc"
 if [[ ! -f wrangler.jsonc && ! -f wrangler.json && ! -f wrangler.toml ]]; then
   if [[ -f worker.js ]]; then
     log "synthesize wrangler.jsonc for worker.js"
@@ -127,6 +128,8 @@ if [[ ! -f wrangler.jsonc && ! -f wrangler.json && ! -f wrangler.toml ]]; then
   "compatibility_date": "2026-01-01"
 }
 EOF
+  elif [[ -f "$CELLP_WRANGLER_OVERLAY" ]]; then
+    log "no upstream wrangler; will apply cellp overlay"
   else
     echo "FAIL: no wrangler config in ${APP_DIR}"
     exit 1
@@ -265,6 +268,26 @@ if [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.cellp-bundle/index.js && -f .
     log "stage extra: ${STAGE_HOOK}"
     bash "$STAGE_HOOK" "$APP_DIR" "$DEST"
   fi
+elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc ]] && {
+  [[ -f ./dist/support_workflows/index.js ]] || [[ -f ./.svelte-kit/cloudflare/_worker.js ]];
+}; then
+  log "stage slim artifact (prebuilt worker path + assets; no node_modules)"
+  cp ./wrangler.jsonc "$DEST/"
+  if [[ -d ./.cellp-assets ]]; then
+    rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
+  fi
+  if [[ -d ./dist/support_workflows ]]; then
+    mkdir -p "$DEST/dist/support_workflows"
+    rsync -a ./dist/support_workflows/ "$DEST/dist/support_workflows/"
+  fi
+  if [[ -d ./migrations ]]; then
+    rsync -a ./migrations/ "$DEST/migrations/"
+  fi
+  STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
+  if [[ -f "$STAGE_HOOK" ]]; then
+    log "stage extra: ${STAGE_HOOK}"
+    bash "$STAGE_HOOK" "$APP_DIR" "$DEST"
+  fi
 elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.wrangler/edgeever-worker/index.js && -f ./wrangler.jsonc ]]; then
   log "stage slim artifact (edgeever worker + web dist + migrations)"
   cp ./wrangler.jsonc "$DEST/"
@@ -325,8 +348,12 @@ else
   log "smoke GET ${PREVIEW} → HTTP ${CODE}"
 fi
 
-curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${VERSION}/promote" \
-  -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' >/dev/null 2>&1 || true
+if ! promote_out="$(curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${VERSION}/promote" \
+  -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' 2>&1)"; then
+  log "WARN: promote failed for ${PROJECT}/${VERSION} (ingress prod Host may stay stale): ${promote_out}"
+else
+  log "promote ok: $(echo "$promote_out" | jq -r '.prod_url // .prod_version_id // ok' 2>/dev/null || echo "$promote_out")"
+fi
 if [[ "${INGRESS_HOST_ONLY:-1}" != "0" ]]; then
   PROD_CODE=$(http_code_prod "$PROJECT" "/")
   gw_port="${GATEWAY_URL##*:}"
