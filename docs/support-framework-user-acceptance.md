@@ -30,6 +30,8 @@
 
 ## S23 — support-sveltekit.lvh.me（首次访问）
 
+> **复验：** 2026-09-03 · `prepare-artifact.sh` 构建前重置 `wrangler.jsonc`（`main` → `.svelte-kit/cloudflare/_worker.js`）· `deploy-support-app.sh S23` promote **v1**
+
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
 | 首页 | `/` | 200 | h1「Welcome to SvelteKit」 | **PASS** |

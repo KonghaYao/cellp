@@ -60,9 +60,9 @@
 | ID | 框架 | **支持？** | 验证 URL（支持时） | 备注 |
 |----|------|:--------:|-------------------|------|
 | S22 | **Astro** | **支持** | http://support-astro.lvh.me:8787/ | `@astrojs/cloudflare` · `dev/examples/support-astro/` |
-| S23 | **SvelteKit** | **支持** | http://support-sveltekit.lvh.me:8787/ | C3 `adapter-cloudflare` workers · `dev/examples/support-sveltekit/`（`sv` 脚手架 + slim artifact） |
+| S23 | **SvelteKit** | **支持** | http://support-sveltekit.lvh.me:8787/ | C3 `adapter-cloudflare` · `dev/examples/support-sveltekit/`；prod 验收 2026-09-03（v1） |
 | S24 | **Remix** | **支持** | http://support-remix.lvh.me:8787/ | `@remix-run/cloudflare` · `dev/examples/support-remix/`（wrangler bundle + `.cellp-assets`，剔除 `.assetsignore`） |
-| S25 | **Nuxt** | **支持** | http://support-nuxt.lvh.me:8787/ | Nitro `cloudflare_module` · `dev/examples/support-nuxt/`（`nuxi` 脚手架 + wrangler slim）；用户验收 2026-09-03：`GET /` **200 HTML**（`<!DOCTYPE` / `X-Powered-By: Nuxt`，~11ms） |
+| S25 | **Nuxt** | **支持** | http://support-nuxt.lvh.me:8787/ | Nitro `cloudflare_module` · `dev/examples/support-nuxt/`；prod 验收 2026-09-03（v1，含 `/_nuxt/builds/latest.json`）· celld `node:timers` |
 
 ---
 

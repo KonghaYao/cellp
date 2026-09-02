@@ -18,7 +18,7 @@
 
 | ID | Host | GET `/` | `-L` 最终 | 结论 | 用户说明（中文） |
 |----|------|---------|-----------|------|------------------|
-| S01 | support-relay.lvh.me | 404 | 404 | **fail** | 网关返回 `ingress_unknown`，ingress 未注册或未部署 |
+| S01 | support-relay.lvh.me | 404 | 404 | **fail** | 网关返回 `ingress_unknown`，ingress 未注册或未部署（**2026-09-02 后已修**：repromote + seed → 200，请重跑本表） |
 | S05 | support-flaremo.lvh.me | 200 | 200 | **pass** | 首屏 HTML 正常 |
 | S06 | support-memos.lvh.me | 200 | 200 | **pass** | 首屏 HTML 正常 |
 | S07 | support-monolith.lvh.me | 200 | 200 | **pass** | 首屏 HTML 正常 |
