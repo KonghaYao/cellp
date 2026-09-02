@@ -9,4 +9,6 @@
 | 3 | S01–S21 + S22–S25 prod Host 回归文档 | **完成** | `support-curl-user-acceptance.md` §2026-09-03 回归（20/20 支持项） |
 | 4 | `support-matrix.md` §高 Star 表无「测试中」行 | **完成** | 四行均为 **不支持**（2026-09-03） |
 
-**Git：** `245a6df` on `main`.
+**Git：** `245a6df` · `4ccf705` on `main`.
+
+**复验（goal steering）：** `health.sh` 全 OK；A01/A03 + S22–S25 prod `GET /` 200/302；A04 `/?key=…` 200。
