@@ -24,6 +24,7 @@
 
 # --- testing coverage ---
 /coverage
+**/coverage.out
 
 # --- misc ---
 .DS_Store
@@ -73,9 +74,9 @@ dev/bin/
 docs/evidence/
 !docs/evidence/.gitkeep
 
-# --- research clones / agent scratch ---
-/offshoot-research/
-/agent-tools/
+# --- local agent / IDE (workflows & run logs, not product source) ---
+.claude/
+.peri/
 
 # --- vercel ---
 .vercel
