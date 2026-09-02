@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy a community Workers repo onto local cellp for support validation.
-# Usage: deploy-support-app.sh <S-id>   e.g. S01
+# Usage: deploy-support-app.sh <S-id|A-id>   e.g. S01 or A01
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -14,7 +14,11 @@ source dev/.env 2>/dev/null || { echo "FAIL: dev/.env"; exit 1; }
 # shellcheck disable=SC1091
 source e2e/scripts/lib.sh
 
-SID="${1:?S-id e.g. S01}"
+# npm 源（国内默认 npmmirror；可在 dev/.env 覆盖 NPM_CONFIG_REGISTRY）
+export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}"
+export npm_config_registry="${npm_config_registry:-$NPM_CONFIG_REGISTRY}"
+
+SID="${1:?S-id or A-id e.g. S01 or A01}"
 LOG="${EVIDENCE}/support-${SID}.log"
 mkdir -p "$EVIDENCE" "$CORPUS"
 
@@ -45,9 +49,13 @@ lookup() {
     S20) PROJECT=support-r2explorer; REPO_URL=https://github.com/G4brym/R2-Explorer.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
     S21) PROJECT=support-fileworker; REPO_URL=https://github.com/woaiqjj/FileWorker.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
     S22) PROJECT=support-astro; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=astro-blog-starter-template; BUILD_STEPS="npm install" ;;
-    S23) PROJECT=support-sveltekit; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/svelte; BUILD_STEPS="npm install && npm run build" ;;
-    S24) PROJECT=support-remix; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=remix-starter-template; BUILD_STEPS="npm install && npm run build" ;;
-    S25) PROJECT=support-nuxt; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/nuxt; BUILD_STEPS="npm install && npm run build" ;;
+    S23) PROJECT=support-sveltekit; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/svelte; BUILD_STEPS= ;;
+    S24) PROJECT=support-remix; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=remix-starter-template; BUILD_STEPS="npm install" ;;
+    S25) PROJECT=support-nuxt; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/nuxt; BUILD_STEPS= ;;
+    A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
+    A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
+    A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    A04) PROJECT=support-fx-on-workers; REPO_URL=https://github.com/codingstark-dev/fx-on-workers.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
     *) echo "Unknown ${SID}"; exit 1 ;;
   esac
 }
@@ -241,7 +249,14 @@ if [[ -f "$CELLP_PREPARE" ]]; then
     bash "${ROOT}/dev/examples/${PROJECT}/patch-local-dev-hosts.sh" "${APP_DIR}/apps/worker/src/auth.ts"
   fi
   bash "$CELLP_PREPARE" "$APP_DIR"
-  SUPPORT_RSYNC_NO_NODE=1
+  CELLP_PREPARE_ENV="${ROOT}/dev/examples/${PROJECT}/cellp-prepare.env"
+  if [[ -f "$CELLP_PREPARE_ENV" ]]; then
+    # shellcheck disable=SC1090
+    source "$CELLP_PREPARE_ENV"
+  fi
+  if [[ "${CELLP_RSYNC_NODE_MODULES:-}" != "1" ]]; then
+    SUPPORT_RSYNC_NO_NODE=1
+  fi
 fi
 
 ensure_project "$PROJECT"
@@ -263,6 +278,10 @@ if [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.cellp-bundle/index.js && -f .
   if [[ -d ./.cellp-assets ]]; then
     rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
   fi
+  if [[ -d ./.output/server ]]; then
+    mkdir -p "$DEST/.output/server"
+    rsync -a ./.output/server/ "$DEST/.output/server/"
+  fi
   if [[ -d ./apps/web/dist ]]; then
     mkdir -p "$DEST/apps/web"
     rsync -a ./apps/web/dist/ "$DEST/apps/web/dist/"
@@ -282,6 +301,13 @@ elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc ]] && {
   cp ./wrangler.jsonc "$DEST/"
   if [[ -d ./.cellp-assets ]]; then
     rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
+  fi
+  if [[ -d ./.cellp-bundle ]]; then
+    rsync -a ./.cellp-bundle/ "$DEST/.cellp-bundle/"
+  fi
+  if [[ -d ./.svelte-kit/cloudflare ]]; then
+    mkdir -p "$DEST/.svelte-kit"
+    rsync -a ./.svelte-kit/cloudflare/ "$DEST/.svelte-kit/cloudflare/"
   fi
   if [[ -d ./dist/support_workflows ]]; then
     mkdir -p "$DEST/dist/support_workflows"

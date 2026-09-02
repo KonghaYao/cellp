@@ -157,10 +157,71 @@ S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 
 
 ---
 
+## PD-20260902-06 — Nitro `localFetch` SSR 挂起（celld）
+
+| | |
+|--|--|
+| **层级** | celld（`fetch` / 子请求 / `waitUntil`） |
+| **严重度** | major（SSR `/` 无响应直至客户端超时；静态经 `ASSETS` 可 200） |
+| **状态** | `fixed` |
+
+### 现象
+
+- **项目：** S25 Nuxt（Nitro `cloudflare_module`，`dev/examples/support-nuxt/` wrangler slim bundle）。
+- **路径：** `GET /` → 网关/celld **挂起**（smoke 曾见 500；curl `-m 8` → 超时）；`GET /robots.txt`、`/favicon.ico`、`/_nuxt/*` → **200**。
+- **产物：** `.cellp-bundle/index.mjs` 内 SSR 走 `useNitroApp().localFetch(pathname+search, …)`（非仅 `ASSETS.fetch` 白名单路径）。
+
+### 根因
+
+**已钉死（Phase 2）：** Nitro `h3.send()` 把 `res.end` 排到 `setImmediate`（bundle `Xt2 = setImmediate`）。S25 从 `node:timers` 具名导入 `setImmediate` / `clearImmediate`；celld 原先把 `node:timers` 接到 **`__nodeStub`**（可调用、**永不执行回调**），`await e6(r6,s2)` / `localFetch` 永不 settle。`op_fetch` 不在热路径上（Phase 0 E1=0）。修复：`node:timers` 懒模块导出真实 `setImmediate`（`setTimeout(cb, 0)`）。详见 **[NITRO-CELLD-COMPAT.md](./plans/NITRO-CELLD-COMPAT.md)**。
+
+### 应有修复（celld，非应用 patch）
+
+1. `op_fetch` / harness `fetch`：同源 Worker URL → `__cell.selfFetch`（对齐 service binding 同源路径）。
+2. **测试：** 最小 Nitro `cloudflare_module` bundle（或 S25 裁剪），`GET /` 返回 HTML。
+
+### 缓解
+
+- **勿**在 `prepare-artifact.sh` 长期 polyfill `cloudflare:workers` / `caches`。
+- 仅静态验收可依赖 `routeRules` 预渲染 `/`（**不**视为 S25 全栈通过）。
+
+---
+
+## PD-20260903-07 — Gateway → DO WebSocket 升级 502（fx-on-workers 等）
+
+| | |
+|--|--|
+| **层级** | cellp Gateway / celld（DO `fetch` + `Upgrade: websocket`） |
+| **严重度** | major（浏览器 TUI / 长会话 agent 主路径不可用） |
+| **状态** | `mitigated`（A04 overlay：`POST /api/prompt` HTTP 形态，见 `dev/examples/support-fx-on-workers/README.md`） |
+
+### 现象
+
+- `support-fx-on-workers`：`GET /?key=` **200**（静态页）；`GET /session` + WebSocket Upgrade → **502** `bad gateway`。
+- `FxSession` 非 WS 请求返回 **426** `expected websocket`（Worker 路由正常）。
+
+### 影响
+
+- 依赖 **WebSocket + Durable Object** 的 agent（fx TUI、部分 CF Agents 实时通道）在本地 dev 栈无法做浏览器级验收。
+- **不**影响纯 HTTP agent（如 Pi `POST /`、opencode-do `POST /session/.../message`）。
+
+### 缓解
+
+- fx：**HTTP `/api/prompt`**（cellp overlay，不替代上游 WS 设计）。
+- 文档：`dev/README.md`、`dev/examples/support-fx-on-workers/README.md`。
+
+### 应有修复
+
+- Gateway 将 WebSocket 升级正确代理到 celld / workerd DO；回归：`curl -i` Upgrade 期望 **101**。
+
+---
+
 ## 变更 log
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-03 | PD-06 **fixed**：`node:timers` `setImmediate`；S25 `GET /` 200 HTML（~11ms）；证据见 user-acceptance 复验 |
+| 2026-09-01 | PD-06：根因分析见 [NITRO-CELLD-COMPAT.md](./plans/NITRO-CELLD-COMPAT.md)（修正 localFetch 机制描述） |
 | 2026-09-02 | PD-05 fixed：`_routes.json` + 尾斜杠；S22 全路径 200（见 integration-verify-astro-s22-routes.md） |
 | 2026-09-02 | celld：`ensure_external_stub` + `caches`；`check-s3-clock-skew.sh`；S22 v8 全路径验收 |
 | 2026-09-02 | 初版：S22 Astro 暴露 PD-01～04 |

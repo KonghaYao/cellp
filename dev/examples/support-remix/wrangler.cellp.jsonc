@@ -1,0 +1,10 @@
+{
+  "name": "support-remix",
+  "compatibility_date": "2025-10-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./server.ts",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".cellp-assets"
+  }
+}

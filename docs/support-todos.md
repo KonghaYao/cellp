@@ -3,7 +3,9 @@
 > **排序原则：** **有 Web 前端、打开能点** 的优先；API-only / 需另配客户端的往后。  
 > **是否支持（唯一口径）：** **[support-matrix.md](./support-matrix.md)** — 每项仅 **支持** 或 **不支持**。  
 > **框架与 CF 对照：** **[framework-coverage-cellp.md](./framework-coverage-cellp.md)**（**AD-13** 一等公民 · S22–S25）
-> **证据：** `docs/evidence/support-<id>.log`（本地，gitignore）· **踩坑：** [support-validation-lessons.md](./support-validation-lessons.md) · **平台缺陷：** [platform-defects-log.md](./platform-defects-log.md)
+> **高 Star 队列：** **[support-star-queue.md](./support-star-queue.md)**（Sink、Counterscale、ImgBed…）  
+> **Coding Agent 前沿：** **[plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md)** · Pages [research/coding-agent-on-cellp](https://konghayao.github.io/cellp/research/coding-agent-on-cellp)  
+> **证据：** `docs/evidence/support-<id>.log` · **踩坑：** [support-validation-lessons.md](./support-validation-lessons.md) · **平台缺陷：** [platform-defects-log.md](./platform-defects-log.md)
 
 ---
 
@@ -66,9 +68,9 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 | ID | 框架 | 来源 | 命令 |
 |----|------|------|------|
 | S22 | **Astro** | `cloudflare/templates` · `astro-blog-starter-template` | `./dev/scripts/deploy-support-app.sh S22` |
-| S23 | **SvelteKit** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/svelte` | S23（需 `dev/examples/support-sveltekit/` overlay 时再验） |
-| S24 | **Remix** | `cloudflare/templates` · `remix-starter-template` | S24 |
-| S25 | **Nuxt** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/nuxt` | S25 |
+| S23 | **SvelteKit** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/svelte` + `dev/examples/support-sveltekit/` | `./dev/scripts/deploy-support-app.sh S23` · **已验 v1 · 支持** |
+| S24 | **Remix** | `cloudflare/templates` · `remix-starter-template` + `dev/examples/support-remix/` | `./dev/scripts/deploy-support-app.sh S24` · **已验 v2 · 支持** |
+| S25 | **Nuxt** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/nuxt` + `dev/examples/support-nuxt/` | `./dev/scripts/deploy-support-app.sh S25` · **已验 v1 · 支持** |
 
 **Next.js：** 非一等；见 [plans/NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)。
 
@@ -98,6 +100,10 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 GitHub 镜像：`ghfast.top`（见 `deploy-support-app.sh`）。
 
+**npm 源：** `deploy-support-app.sh` 默认 **`https://registry.npmmirror.com`**（`dev/.env` 可设 `NPM_CONFIG_REGISTRY`）。
+
+**框架用户行为验收：** [support-framework-user-acceptance.md](./support-framework-user-acceptance.md)（verification，非仅 HTTP 码）。
+
 **端口 / Gateway（E 类）：** 用户仅 **:8787**；每 version celld 为 **8808+ 内部端口**；Worker `origin` 会偏移 → 见 **`docs/support-migrations.md` §端口与路由**。
 
 ---
@@ -112,7 +118,11 @@ A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面 ·
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-02 | **A04 fx-on-workers**：v5 ready · prod `/?key=cellp-dev-fx-on-workers` **200** · overlay + `prepare-artifact.sh`（celld `no_bundle` 不含 wasm → wrangler dry-run + celld 再 esbuild） |
+| 2026-09-02 | **A02 pi-worker**：`hello-agent` v1 ready · GET/POST `/` 200/400 · **支持**（见 support-matrix §P0 Agent） |
+| 2026-09-02 | **P0 agent deploy:** A01 agents-starter · A02 pi-worker · A03 opencode-do（`deploy-support-app.sh`） |
 | 2026-09-02 | **platform-defects-log.md**：S22 暴露 `cloudflare:workers` / `caches` |
+| 2026-09-02 | **S25 Nuxt**：`support-nuxt` overlay · prod `/robots.txt` 200、`/` SSR 挂起 → **不支持**（PD-20260902-06） |
 | 2026-09-02 | **AD-13**：一等公民 Astro/SvelteKit/Remix/Nuxt；S22–S25 lookup；Next/OpenNext 实验文档 |
 | 2026-09-02 | 批次 5–10 部署；多 **service** 标 **不支持**；S14 partial；ingress repromote；celld crypto |
 | 2026-08-31 | UI 优先排序；批次 3 起改为 r2filebox + pastebin |

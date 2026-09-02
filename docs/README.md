@@ -32,6 +32,9 @@
 | 生产回滚 | [runbooks/rollback.md](./runbooks/rollback.md) |
 | 可观测性 | [observability.md](./observability.md) |
 | 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |
+| **社区 Workers 支持矩阵** | [support-matrix.md](./support-matrix.md) · [support-todos.md](./support-todos.md) · [support-star-queue.md](./support-star-queue.md) |
+| **Coding Agent on cellp（前沿）** | [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md) |
+| **Vercel framework on cellp（后续）** | [plans/VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md) · [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) |
 | Prod offshoot × RustFS | [runbooks/prod-offshoot-rustfs.md](./runbooks/prod-offshoot-rustfs.md) |
 
 ---

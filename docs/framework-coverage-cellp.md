@@ -65,8 +65,8 @@
 | **React + Vite SPA** | ✅ 一等公民 | **一等 · 应支持** | S15/S17/S20 |
 | **Vue + Vite** | ✅ | **一等 · 应支持** | S17 |
 | **Astro** | ✅ static / server | **一等 · 待 S22** | `cloudflare/templates` astro-blog-starter |
-| **SvelteKit** | ✅ adapter-cloudflare | **一等 · 待 S23** | C3 `templates/svelte`（单 Worker） |
-| **Nuxt** | ✅ Nitro cloudflare | **一等 · 待 S25** | C3 `templates/nuxt` |
+| **SvelteKit** | ✅ adapter-cloudflare | **一等 · S23 支持** | C3 `templates/svelte` + `dev/examples/support-sveltekit/` |
+| **Nuxt** | ✅ Nitro cloudflare | **一等 · S25 支持** | C3 `templates/nuxt` + `dev/examples/support-nuxt/`（PD-20260902-06 已修：`node:timers` `setImmediate`） |
 | **Remix** | ✅ | **一等 · 待 S24** | `remix-starter-template` |
 | **Solid / Waku** | ✅ guide 有 | 非一等 · 待测 | `create-cloudflare` scaffold |
 | **Next.js** | ✅ OpenNext / vinext | **非一等 · 实验** | [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
@@ -79,7 +79,7 @@
 | ID | 框架 | 仓库 / 路径 | 部署 |
 |----|------|-------------|------|
 | **S22** | Astro | `cloudflare/templates` → `astro-blog-starter-template` | `./dev/scripts/deploy-support-app.sh S22` |
-| **S23** | SvelteKit | `cloudflare/workers-sdk` → `packages/create-cloudflare/templates/svelte` | S23（浅克隆较大；overlay 待补） |
+| **S23** | SvelteKit | `cloudflare/workers-sdk` → `packages/create-cloudflare/templates/svelte` | `./dev/scripts/deploy-support-app.sh S23` |
 | **S24** | Remix | `cloudflare/templates` → `remix-starter-template` | S24 |
 | **S25** | Nuxt | `cloudflare/workers-sdk` → `packages/create-cloudflare/templates/nuxt` | S25 |
 

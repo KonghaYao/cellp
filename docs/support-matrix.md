@@ -1,0 +1,142 @@
+# 社区 Support 项目 — 支持 / 不支持（唯一口径）
+
+> **判定日期：** 2026-09-02  
+> **环境：** 本地 dev · `lvh.me:8787` Host ingress · 单 Worker / 单 version / 单 celld（**无** `[[services]]` 多 Worker）  
+> **只两档：** **支持** | **不支持**（无 ready / partial / warn / pass）
+
+## 判定规则
+
+| 档位 | 含义 |
+|------|------|
+| **支持** | `deploy-support-app.sh` 可部署到 ready；约定 URL 可打开主界面或**一次**预期重定向（302/307）且**不出现** `ingress_unknown`、502、主流程 **500** |
+| **不支持** | 无法部署、运行时/框架 blocked、依赖**多 service Worker**、或主入口不可用 |
+
+多 Worker / service binding：**平台不支持** → 依赖它的仓库一律 **不支持**（见 [MULTI-WORKER-DEPLOY.md](./plans/MULTI-WORKER-DEPLOY.md)）。
+
+---
+
+## 总表（S01–S21）
+
+| ID | 项目 | **支持？** | 验证 URL（支持时） | 不支持原因 |
+|----|------|:--------:|-------------------|------------|
+| S01 | Relay | **支持** | http://support-relay.lvh.me:8787/ | — |
+| S02 | ni-mail | **不支持** | — | 未验证 / blocked（队列外） |
+| S03 | Tempik | **不支持** | — | 曾可部署，**不纳入产品支持范围** |
+| S04 | Kukuroo | **不支持** | — | 同上 |
+| S05 | FlareMo | **支持** | http://support-flaremo.lvh.me:8787/ | — |
+| S06 | Memos | **支持** | http://support-memos.lvh.me:8787/ | — |
+| S07 | Monolith | **支持** | http://support-monolith.lvh.me:8787/ | — |
+| S08 | EdgeEver | **支持** | http://support-edgeever.lvh.me:8787/ | — |
+| S09 | SonicJS | **支持** | http://support-sonicjs.lvh.me:8787/ | — |
+| S10 | NodeWarden | **支持** | http://support-nodewarden.lvh.me:8787/ | — |
+| S11 | Sink | **不支持** | — | blocked / 未纳入本批 |
+| S12 | Inkstone | **不支持** | — | 同上 |
+| S13 | SaaSMail | **不支持** | — | 同上 |
+| S14 | cloudflarebase | **不支持** | — | 需 **AUTH_AGENT 等多 Worker**；cellp **不编排 service** |
+| S15 | workflows-starter | **支持** | http://support-workflows.lvh.me:8787/ | — |
+| S16 | pastebin-worker | **不支持** | — | celld 二次 esbuild / SSR·Tailwind 管线（A 类） |
+| S17 | r2filebox | **支持** | http://support-r2filebox.lvh.me:8787/ | — |
+| S18 | webhookflare | **支持** | http://support-webhookflare.lvh.me:8787/ | — |
+| S19 | request-bin | **不支持** | — | 根路径无应用；仅 `/new` 可用，**不符合「打开即主界面」** |
+| S20 | R2-Explorer | **支持** | http://support-r2explorer.lvh.me:8787/ | — |
+| S21 | FileWorker | **支持** | http://support-fileworker.lvh.me:8787/ | — |
+
+---
+
+## 汇总
+
+| | 数量 |
+|---|------|
+| **支持** | **13** |
+| **不支持** | **8** |
+| **合计** | **21** |
+
+**支持率（本清单）：** 13/21 ≈ **62%**
+
+---
+
+## 框架验证（S22–S25 · AD-13）
+
+| ID | 框架 | **支持？** | 验证 URL（支持时） | 备注 |
+|----|------|:--------:|-------------------|------|
+| S22 | **Astro** | **支持** | http://support-astro.lvh.me:8787/ | `@astrojs/cloudflare` · `dev/examples/support-astro/` |
+| S23 | **SvelteKit** | **支持** | http://support-sveltekit.lvh.me:8787/ | C3 `adapter-cloudflare` workers · `dev/examples/support-sveltekit/`（`sv` 脚手架 + slim artifact） |
+| S24 | **Remix** | **支持** | http://support-remix.lvh.me:8787/ | `@remix-run/cloudflare` · `dev/examples/support-remix/`（wrangler bundle + `.cellp-assets`，剔除 `.assetsignore`） |
+| S25 | **Nuxt** | **支持** | http://support-nuxt.lvh.me:8787/ | Nitro `cloudflare_module` · `dev/examples/support-nuxt/`（`nuxi` 脚手架 + wrangler slim）；用户验收 2026-09-03：`GET /` **200 HTML**（`<!DOCTYPE` / `X-Powered-By: Nuxt`，~11ms） |
+
+---
+
+## 高 Star 生态（验证队列）
+
+**口径：** 尚未写入 S01–S21 总表 verdict 的明星 OSS；状态 **测试中** / **排队** / **难**。明细与 GitHub 链接：**[support-star-queue.md](./support-star-queue.md)**。
+
+| 项目 | 队列状态 | 备注 |
+|------|----------|------|
+| Sink | **测试中** | ~7k★；原 S11 blocked，重新验证 |
+| Counterscale | **测试中** | 单 Worker 分析 |
+| CloudPaste | **测试中** | 优先 unified SPA Worker |
+| cf-workers-status-page | **测试中** | |
+| CloudFlare-ImgBed · UptimeFlare · microfeed · … | **排队** | 见 star-queue |
+| VibeSDK | **难** | WFP + 多 DO（仅 star-queue 备注，非 Agent 主线） |
+| Cloudflare OS | **🔜 计划支持** | 见 CODING-AGENT 计划 |
+
+**排除：** 各类 **email Worker** 不入队。
+
+---
+
+## Coding Agent on cellp（前沿）
+
+LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent Cloud](https://agents.cloudflare.com/) · Cloudflare OS · Eve · Pi · Deep Agents。
+
+| 目标 | 状态 |
+|------|------|
+| **[Cloudflare OS](https://github.com/cloudflare/cloudflare-os)** | **🔜 计划支持** |
+| **P0 验证** | **A01–A03** → [AGENT-SUPPORT.md §P0](./AGENT-SUPPORT.md#p0--cellp-deploy-support-validation-ordered) |
+| **P1 fx** | **[fx-on-workers](https://github.com/codingstark-dev/fx-on-workers)** ([fx.sh](https://fx.sh)) · **A04** · **支持（部分）** · v5 |
+| **[Cloudflare Agents](https://agents.cloudflare.com/)** | **🔜 对齐 Agent Cloud**（SDK + DO + Workflows；见 P0） |
+| **[Eve](https://github.com/vercel/eve)** (Vercel) | **🔜 研究** |
+| **[Pi](https://github.com/earendil-works/pi)** · **[Deep Agents](https://github.com/langchain-ai/deepagents)** | **🔜 研究** |
+
+
+### P0 Agent 验证（A01–A03）
+
+| ID | 项目 | **支持？** | 验证 URL（支持时） | 备注 |
+|----|------|:--------:|-------------------|------|
+| A02 | **pi-worker** (`hello-agent`) | **支持** | http://support-pi-worker.lvh.me:8787/ | `prepare-artifact.sh` + R2 `FILES`；`GET /` 返回 usage JSON；完整对话需 `OPENROUTER_API_KEY` |
+| A04 | **fx-on-workers** | **支持（部分）** | http://support-fx-on-workers.lvh.me:8787/?key=cellp-dev-fx-on-workers | v5 ready · `prepare-artifact.sh`（wrangler bundle + celld esbuild wasm）· WebSocket 会话需 `AI_GATEWAY_API_KEY` |
+
+**计划：** [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · **Vercel OSS（后续）：** [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md)
+
+---
+
+## Vercel framework on cellp（后续专题）
+
+**口径：** Vercel 托管能力 ❌；仅 wrangler 可投递产物。**[VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md)**
+
+| 组件 | 状态 |
+|------|------|
+| Next.js / OpenNext | ⚠️ 实验 · 非 tier-1 |
+| AI SDK (`vercel/ai`) | ⚠️ 打进 Worker 包 |
+| Workflow SDK | 🔜 对照 CF Workflows |
+| fx → fx-on-workers | **支持（部分）** · A04 · v5 |
+| Eve · open-agents | 🔜 研究 |
+
+---
+
+## 平台能力边界（与上表一致）
+
+| 能力 | |
+|------|---|
+| 单 Worker + D1/KV/R2/Queue/Workflow（一份 wrangler） | **支持** |
+| `wrangler [[services]]` 多 Worker 编排 | **不支持** |
+| Host `*.lvh.me` prod ingress | **支持**（需 promote / `ingress-repromote-support.sh`） |
+
+---
+
+## 其它文档
+
+- 部署过程、HTTP 码、日志：**[support-batch-results.md](./support-batch-results.md)**（历史记录，**以本表为准**）
+- curl 明细：**[support-curl-user-acceptance.md](./support-curl-user-acceptance.md)**
+- 待办队列排序：**[support-todos.md](./support-todos.md)**
+- 高 Star 验证队列：**[support-star-queue.md](./support-star-queue.md)**
+- Coding Agent 前沿：**[plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md)**

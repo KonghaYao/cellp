@@ -1,0 +1,10 @@
+{
+  "name": "support-nuxt",
+  "compatibility_date": "2026-09-02",
+  "compatibility_flags": ["nodejs_compat", "nodejs_als"],
+  "main": "./.output/server/index.mjs",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".cellp-assets"
+  }
+}

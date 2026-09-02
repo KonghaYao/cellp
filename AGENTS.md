@@ -81,7 +81,7 @@ D1_BRANCH_MULTI_SIZE_MB=100 D1_BRANCH_MULTI_COUNT=3 \
 
 ## Subagent 派发
 
-见 [docs/README.md § Subagent](./docs/README.md#subagent-派发约定)。
+见 [docs/README.md § Subagent](./docs/README.md#subagent-派发约定)。**社区 Support / 框架 S22+：** [CLAUDE.md § Support 标准流程](../CLAUDE.md#support-与框架验证--标准流程claude-code)。
 
 ## 证据
 
