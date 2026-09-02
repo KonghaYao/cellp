@@ -92,10 +92,13 @@
 
 | 步骤 | URL | HTTP | 用户可见 | Pass |
 |------|-----|------|----------|------|
-| 部署 | `deploy-support-app.sh A01` | — | 需 `npx vite build`（非 `npm run build`） | 待复测 |
-| Agent/工具 | `/agents/*` | — | 依赖 Workers AI；cellp overlay 无 AI 绑定时仅结构验收 | 待复测 |
+| 部署 | `deploy-support-app.sh A01` | — | `npx vite build` + `prepare-artifact.sh` → **v10** promoted | **PASS** |
+| 生产首页 | `GET /`（Host prod） | 200 | HTML `Agent Starter` + theme script | **PASS** |
+| 静态资源 | `GET /assets/index-*.js` | 200 | 前端 bundle | **PASS** |
+| Agent 路由 | `GET /agents/ChatAgent/default` | 400 | `Invalid request`（非 WS 探测；非 404） | **PASS**（结构） |
+| 多轮推理 | WebSocket + chat | — | 无 Workers AI 绑定，推理不可用 | **FAIL**（平台） |
 
-**A01 总评：待复测**（构建脚本已修于 `deploy-support-app.sh`）
+**A01 总评：PARTIAL**（生产 SPA **200**；完整 agent 对话 blocked by celld Workers AI）
 
 ---
 
@@ -103,12 +106,15 @@
 
 | 步骤 | URL | HTTP | 用户可见 | Pass |
 |------|-----|------|----------|------|
-| 落地 | `GET /` | 200 | attach 说明 | **PASS** |
-| 会话 | `POST /session` | 200 | `ses_*` | **PASS** |
-| 多轮消息 | `POST /session/{id}/message` | 200 | user+assistant 持久化 | **PASS** |
-| SSE | `GET /event` | 超时/空 | Gateway 上长连接未通 | **FAIL** |
+| 部署 | `deploy-support-app.sh A03` | — | overlay only · **v1** promoted | **PASS** |
+| 落地 | `GET /`（Host prod） | 200 | attach 说明 HTML | **PASS** |
+| 健康 | `GET /global/health` | 200 | `{"healthy":true,"version":"0.0.4"}` | **PASS** |
+| 会话 | `POST /session` | 200 | `ses_*` JSON | **PASS** |
+| 多轮消息 | `POST /session/{id}/message` | 200 | user+assistant JSON；assistant 为 Workers AI 错误占位 | **PASS**（协议） |
+| 历史 | `GET /session/{id}/message` | 200 | 两轮消息数组 | **PASS** |
+| SSE | `GET /event` | 超时 | 3s 内无字节（gateway） | **FAIL** |
 
-**A03 总评：PARTIAL**（HTTP 多回合 OK；SSE/推理需外部模型）
+**A03 总评：PARTIAL**（生产 HTTP/OpenCode JSON **OK**；SSE + 真实推理未通）
 
 ---
 

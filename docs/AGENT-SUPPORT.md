@@ -17,6 +17,16 @@ Run on local dev stack: `./dev/scripts/deploy-support-app.sh <id>` · evidence: 
 | **2** | **A02** | [qaml-ai/pi-worker](https://github.com/qaml-ai/pi-worker) → `examples/hello-agent` | Pi-style coding agent on Workers (picked over `pi-agent-cf` for richer harness) |
 | **3** | **A03** | [southpolesteve/opencode-do](https://github.com/southpolesteve/opencode-do) | Small Worker + DO; OpenCode SSE protocol |
 
+### P0 cellp 生产验收（本地 ingress）
+
+`./dev/scripts/health.sh` → `./dev/scripts/deploy-support-app.sh A01|A03`（`GITHUB_CLONE_DIRECT=1 SUPPORT_SKIP_GIT_FETCH=1`）→ prod Host `support-*.lvh.me:8787`（非 preview）。
+
+| ID | **支持？** | **version** | 失败根因 / 边界 | 证据 |
+|----|:--------:|-------------|-----------------|------|
+| **A01** | **支持（部分）** | **v10** | overlay 去掉 Workers AI；`GET /` SPA **200**，`/agents/*` 需 WebSocket 升级；聊天推理在 celld 上无 `env.AI` | `docs/evidence/support-A01.log` · `support-A01-acceptance.log` |
+| **A02** | **支持** | （见 matrix） | — | `docs/evidence/support-A02.log` |
+| **A03** | **支持（部分）** | **v1** | HTTP OpenCode 面 **200/JSON**（`POST /session`、`.../message`）；模型回复占位错误；`GET /event` SSE 在 gateway 上 **超时** | `docs/evidence/support-A03.log` · `support-A03-acceptance.log` |
+
 ### P1 — [fx on Workers](https://github.com/codingstark-dev/fx-on-workers) (`A04`)
 
 Runs **[fx.sh](https://fx.sh)** upstream **[vercel-labs/fx](https://github.com/vercel-labs/fx)** (not Cloudflare Agent Cloud) inside a Worker via **[codingstark-dev/fx-on-workers](https://github.com/codingstark-dev/fx-on-workers)**: **libfx WebAssembly** + [`just-bash`](https://www.npmjs.com/package/just-bash) in **Durable Object** `FxSession`, TUI over WebSocket. Vercel track: [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md).
