@@ -1,0 +1,13 @@
+{
+  "name": "support-fx-on-workers",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ACCESS_KEY": "cellp-dev-fx-on-workers"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "FX_SESSION", "class_name": "FxSession" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FxSession"] }]
+}

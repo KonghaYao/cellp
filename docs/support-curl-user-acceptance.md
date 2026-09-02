@@ -1,8 +1,12 @@
 # Support 应用生产 Ingress 用户验收（curl）
 
-> **日期：** 2026-09-02  
+> **日期：** 2026-09-03（回归）  
 > **环境：** 本地生产 ingress 模拟 · Gateway `http://127.0.0.1:8787` · `Host: support-<name>.lvh.me`  
-> **栈健康：** `./dev/scripts/health.sh` → **OK**（gateway/platform/celld/rustfs 均通过）
+> **栈健康：** `./dev/scripts/health.sh` → **OK**
+
+### 2026-09-03 回归（`GET /` prod Host）
+
+**20/20 支持项可达**（matrix **支持** 项 + S22–S25 + A01–A04）。SonicJS **302**；A04 需 `/?key=cellp-dev-fx-on-workers`。
 
 ## 验收标准
 

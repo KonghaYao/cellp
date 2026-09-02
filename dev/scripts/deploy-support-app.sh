@@ -37,7 +37,7 @@ lookup() {
     S08) PROJECT=support-edgeever; REPO_URL=https://github.com/tianma-if/edgeever.git; WORKDIR_SUB=.; BUILD_STEPS="bun install && bun run build:web && bun run build:worker" ;;
     S09) PROJECT=support-sonicjs; REPO_URL=https://github.com/SonicJs-Org/sonicjs.git; WORKDIR_SUB=my-sonicjs-app; BUILD_STEPS="(cd .. && npm install && npm run build:core)" ;;
     S10) PROJECT=support-nodewarden; REPO_URL=https://github.com/shuaiplus/nodewarden.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
-    S11) PROJECT=support-sink; REPO_URL=https://github.com/miantiao-me/Sink.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S11) PROJECT=support-sink; REPO_URL=https://github.com/miantiao-me/Sink.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S12) PROJECT=support-inkstone; REPO_URL=https://github.com/shuaiplus/inkstone.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
     S13) PROJECT=support-saasmail; REPO_URL=https://github.com/choyiny/saasmail.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
     S14) PROJECT=support-cfbase; REPO_URL=https://github.com/cloudflarebase/cloudflarebase.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;

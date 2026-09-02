@@ -1,0 +1,17 @@
+{
+  "name": "support-pi-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "OPENAI_API_KEY": "public",
+    "OPENAI_BASE_URL": "https:\u002f\u002fopencode.ai\u002fzen\u002fv1",
+    "OPENAI_MODEL": "big-pickle"
+  },
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "hello-agent-files"
+    }
+  ]
+}

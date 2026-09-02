@@ -29,7 +29,7 @@
 | S08 | EdgeEver | **支持** | http://support-edgeever.lvh.me:8787/ | — |
 | S09 | SonicJS | **支持** | http://support-sonicjs.lvh.me:8787/ | — |
 | S10 | NodeWarden | **支持** | http://support-nodewarden.lvh.me:8787/ | — |
-| S11 | Sink | **不支持** | — | blocked / 未纳入本批 |
+| S11 | Sink | **不支持** | — | **pnpm** monorepo + Nuxt + D1 远程 migrate + Pages/worker 双轨；`deploy-support-app` 无法用 `npm ci` 构建（2026-09-03 复验） |
 | S12 | Inkstone | **不支持** | — | 同上 |
 | S13 | SaaSMail | **不支持** | — | 同上 |
 | S14 | cloudflarebase | **不支持** | — | 需 **AUTH_AGENT 等多 Worker**；cellp **不编排 service** |
@@ -72,10 +72,10 @@
 
 | 项目 | 队列状态 | 备注 |
 |------|----------|------|
-| Sink | **测试中** | ~7k★；原 S11 blocked，重新验证 |
-| Counterscale | **测试中** | 单 Worker 分析 |
-| CloudPaste | **测试中** | 优先 unified SPA Worker |
-| cf-workers-status-page | **测试中** | |
+| Sink | **不支持** | 同 matrix S11（pnpm/Nuxt/D1） |
+| Counterscale | **不支持** | turbo **pnpm** monorepo，无单 wrangler 入口 |
+| CloudPaste | **不支持** | 多组件 Pages + Worker 拆分，未纳入单 Worker 槽位 |
+| cf-workers-status-page | **不支持** | 旧 **flareact/webpack** `[site]` 栈，未适配 cellp slim artifact |
 | CloudFlare-ImgBed · UptimeFlare · microfeed · … | **排队** | 见 star-queue |
 | VibeSDK | **难** | WFP + 多 DO（仅 star-queue 备注，非 Agent 主线） |
 | Cloudflare OS | **🔜 计划支持** | 见 CODING-AGENT 计划 |
@@ -102,7 +102,9 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 
 | ID | 项目 | **支持？** | 验证 URL（支持时） | 备注 |
 |----|------|:--------:|-------------------|------|
+| A01 | **agents-starter** | **支持** | http://support-agents-starter.lvh.me:8787/ | v10 · Chat SPA + DO `ChatAgent` · `prepare-artifact.sh` + `.cellp-assets`；Workers AI 绑定已剥离 |
 | A02 | **pi-worker** (`hello-agent`) | **支持** | http://support-pi-worker.lvh.me:8787/ | `prepare-artifact.sh` + R2 `FILES`；`GET /` 返回 usage JSON；完整对话需 `OPENROUTER_API_KEY` |
+| A03 | **opencode-do** | **支持** | http://support-opencode-do.lvh.me:8787/ | v1 · DO `SessionDO` · OpenCode 协议 UI；`wrangler.cellp.jsonc` overlay |
 | A04 | **fx-on-workers** | **支持（部分）** | http://support-fx-on-workers.lvh.me:8787/?key=cellp-dev-fx-on-workers | v5 ready · `prepare-artifact.sh`（wrangler bundle + celld esbuild wasm）· WebSocket 会话需 `AI_GATEWAY_API_KEY` |
 
 **计划：** [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · **Vercel OSS（后续）：** [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md)

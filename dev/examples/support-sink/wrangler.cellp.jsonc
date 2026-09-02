@@ -1,0 +1,40 @@
+{
+  "name": "support-sink",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2025-05-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".output/public",
+    "html_handling": "drop-trailing-slash"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sink",
+      "database_id": "00000000-0000-0000-0000-00000000000b",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "sink"
+    }
+  ],
+  "vars": {
+    "NUXT_SITE_TOKEN": "cellp-dev-sink-site-token-min-32-chars",
+    "NUXT_PUBLIC_PREVIEW_MODE": "true",
+    "NUXT_PUBLIC_SLUG_DEFAULT_LENGTH": "6",
+    "NUXT_PUBLIC_KV_BATCH_LIMIT": "50",
+    "NUXT_API_CORS": "true",
+    "NUXT_DATASET": "sink",
+    "NUXT_DISABLE_AUTO_BACKUP": "true"
+  }
+}
