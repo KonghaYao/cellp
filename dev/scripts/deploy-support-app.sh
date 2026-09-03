@@ -60,6 +60,9 @@ lookup() {
     S31) PROJECT=support-imgbed; REPO_URL=https://github.com/MarSeventh/CloudFlare-ImgBed.git; WORKDIR_SUB=deploy/worker; BUILD_STEPS="(cd ../.. && npm install)" ;;
     S32) PROJECT=support-status-page; REPO_URL=https://github.com/eidam/cf-workers-status-page.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S33) PROJECT=support-uptimeflare; REPO_URL=https://github.com/lyc8503/UptimeFlare.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S34) PROJECT=support-microfeed; REPO_URL=https://github.com/microfeed/microfeed.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S35) PROJECT=support-openstatus; REPO_URL=https://github.com/openstatusHQ/openstatus.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S36) PROJECT=support-triplit; REPO_URL=https://github.com/aspen-cloud/triplit.git; WORKDIR_SUB=packages/cf-worker-server; BUILD_STEPS= ;;
     A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
     A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
     A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
@@ -327,6 +330,22 @@ elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc ]] && {
     mkdir -p "$DEST/dist/support_workflows"
     rsync -a ./dist/support_workflows/ "$DEST/dist/support_workflows/"
   fi
+  if [[ -d ./migrations ]]; then
+    rsync -a ./migrations/ "$DEST/migrations/"
+  fi
+  STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
+  if [[ -f "$STAGE_HOOK" ]]; then
+    log "stage extra: ${STAGE_HOOK}"
+    bash "$STAGE_HOOK" "$APP_DIR" "$DEST"
+  fi
+elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc && -f ./dist/server/entry.mjs ]]; then
+  log "stage slim artifact (astro dist/server + assets; no node_modules)"
+  cp ./wrangler.jsonc "$DEST/"
+  if [[ -d ./.cellp-assets ]]; then
+    rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
+  fi
+  mkdir -p "$DEST/dist"
+  rsync -a ./dist/server/ "$DEST/dist/server/"
   if [[ -d ./migrations ]]; then
     rsync -a ./migrations/ "$DEST/migrations/"
   fi

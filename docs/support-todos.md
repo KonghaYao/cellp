@@ -59,7 +59,7 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 ## 执行状态
 
-**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P1 高 Star **S31 ImgBed ✅ · S32 status-page ✅**；**S30 OpenNext / S33 UptimeFlare（Next 栈）⏸️ 后排**。框架 **S26–S29 ✅**。
+**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P1 高 Star **S31 ImgBed ✅ · S32 status-page ✅ · S35 OpenStatus ✅**；**S30 OpenNext / S33 UptimeFlare（Next 栈）⏸️ 后排**。框架 **S26–S29 ✅**。
 
 **框架一等公民（S22–S25）** 见下表。
 

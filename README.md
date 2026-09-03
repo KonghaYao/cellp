@@ -123,7 +123,7 @@ High-visibility Workers OSS (GitHub stars / CF templates / [awesome-cloudflare](
 | **Counterscale** | Privacy-friendly analytics | ⚠️ | ~2k★ · single Worker |
 | **cf-workers-status-page** | Status page + alerts | ✅ | ~2.8k★ · **S32** · flareact · ESM wrap · prod v2 |
 | **Serverless DNS** | DNS resolver on Workers | ⚠️ | Edge DNS |
-| **OpenStatus** | Open-source status pages | ⚠️ | Hono-style Workers app |
+| **OpenStatus** | Open-source status pages | ✅ | **S35** · official Astro CF Workers template · prod v2 · `support-openstatus.lvh.me` |
 | **Triplit** | Edge sync / data layer | ⚠️ | Workers client |
 
 More: [Cloudflare templates](https://github.com/cloudflare/templates) · [Framework guides](https://developers.cloudflare.com/workers/framework-guides/) · [Full star queue](./docs/support-star-queue.md).

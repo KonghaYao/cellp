@@ -21,7 +21,7 @@
 | P2 | **microfeed** | [microfeed/microfeed](https://github.com/microfeed/microfeed) | 4.1k | **排队** | D1 + Queues + R2 CMS |
 | P2 | **Supermemory SaaS stack** | [supermemoryai/cloudflare-saas-stack](https://github.com/supermemoryai/cloudflare-saas-stack) | 3.7k | **排队** | Next-on-Pages pattern |
 | P2 | **Serverless DNS** | [serverless-dns/serverless-dns](https://github.com/serverless-dns/serverless-dns) | 3.8k | **排队** | Edge DNS resolver |
-| P2 | **OpenStatus** | [openstatusHQ/openstatus](https://github.com/openstatusHQ/openstatus) | — | **排队** | Status pages (verify Workers deploy) |
+| P2 | **OpenStatus** | [openstatusHQ/openstatus](https://github.com/openstatusHQ/openstatus) | — | **支持（S35）** | 主仓 Docker · cellp 用官方 [astro-status-page](https://github.com/openstatusHQ/astro-status-page) Workers 模板 · prod **v2** Host `support-openstatus.lvh.me` **200** · `docs/evidence/support-S35.log` |
 | P2 | **Triplit** | [aspen-cloud/triplit](https://github.com/aspen-cloud/triplit) | 3.1k | **排队** | Edge sync client |
 
 ---

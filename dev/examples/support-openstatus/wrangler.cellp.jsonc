@@ -1,0 +1,22 @@
+{
+  "name": "support-openstatus",
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./dist/server/entry.mjs",
+  "no_bundle": true,
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".cellp-assets",
+    "html_handling": "auto-trailing-slash"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SESSION",
+      "id": "00000000-0000-0000-0000-00000000000f"
+    }
+  ],
+  "vars": {
+    "API_KEY": "cellp-openstatus-smoke",
+    "STATUS_PAGE_ID": "cellp"
+  }
+}
