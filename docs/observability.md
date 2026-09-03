@@ -1,7 +1,19 @@
-# 可观测性（cellp v1）
+# 可观测性（cellp）
 
-> **状态：** 一期（Prometheus + 日志文件）已可用；**请求 trace / tail / Dashboard 日志 UI** 未排期（三期）。  
-> **AD-10：** 不做 SaaS 式 Analytics 产品；运维方自建 Grafana / Loki。
+> **权威架构（唯一）：** [plans/OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md) · **AD-14**  
+> 本文只记 **一期已落地** 的 Prometheus / 进程日志，以及如何接到 AD-14。
+
+---
+
+## 0. 分层（不要合成）
+
+| 档 | 现在 | AD-14 目标 |
+|----|------|------------|
+| **平台 metrics** | `:8790/metrics`（本文 §2） | 保留 |
+| **Live** | 每 version celld stdout 文件 | 门面 `logs/stream`（SSE） |
+| **Investigate / Analyze** | **无** | OTLP → 可换后端；门面 `traces` / `search`；Grafana 深链 |
+
+**AD-10 / AD-14：** 不做 SaaS Analytics；检索引擎外置；Dashboard 只打 `:8790`。
 
 ---
 
@@ -9,18 +21,14 @@
 
 | 层 | 信号 | 入口 |
 |----|------|------|
-| **cellpd** | HTTP metrics、registry 状态 | `:8790/metrics`（Prometheus） |
-| **Gateway** | 路由、upstream 健康 | 同上 + Gateway 访问日志（cellpd stdout） |
-| **celld** | Worker 日志、binding operator | 每 version 进程 stdout / `CELPD_DATA` 下日志文件 |
-| **RustFS / S3** | 对象存储 | RustFS 自带 metrics（外层运维） |
-| **SQLite registry** | project / version / route | 无内置 UI；`sqlite3 cellp-registry.sqlite` 只读查询 |
+| **cellpd** | HTTP metrics、registry 状态 | `:8790/metrics` |
+| **Gateway** | 路由、upstream 健康 | 同上 + Gateway 访问日志（stdout） |
+| **celld** | Worker `console`、binding CLI | `$TMPDIR/celld-{project}-{version}.log`（进程流） |
+| **celld OTEL** | Span / Log（默认关） | `CELLD_OTEL=1` → bucket Parquet 或 OTLP（见 [celld telemetry](../celld/docs/telemetry.md)） |
+| **RustFS / S3** | 对象存储 | RustFS 自带 metrics |
+| **SQLite registry** | project / version / route | `sqlite3` 只读 |
 
-**没有什么：**
-
-- `wrangler tail` 等价物
-- Dashboard 请求日志浏览器
-- 分布式 trace（OpenTelemetry）— 未接入
-- 全球边缘 POP 级 RTT 报表
+**还没有（以 AD-14 为准，未实现）：** 查询门面、Gateway `traceparent`、Dashboard 调查页、`dev --profile otel`。
 
 ---
 
@@ -35,68 +43,54 @@ scrape_configs:
     metrics_path: /metrics
 ```
 
-本地 dev：`./dev/scripts/up.sh` 后 `curl -s localhost:8790/metrics | head`.
+本地：`./dev/scripts/up.sh` 后 `curl -s localhost:8790/metrics | head`。
 
-常用指标（名称以实际 export 为准，见 `cellp/internal/metrics`）：
+指标名以 `cellp/internal/metrics` 为准：HTTP 计数 / 延迟、job 队列、Gateway upstream。
 
-- HTTP 请求计数 / 延迟 histogram
-- Orchestrator job 队列深度
-- Gateway upstream 状态
-
-压测基线见 [test-plan-phase2.md](./test-plan-phase2.md) TP2-L4（500 RPS Gateway）。
+压测基线：[test-plan-phase2.md](./test-plan-phase2.md) TP2-L4。
 
 ---
 
-## 3. 日志
+## 3. 进程日志（Live 的现状）
 
-| 组件 | 位置 | 内容 |
-|------|------|------|
-| cellpd | systemd / docker logs / `screen` | API、orchestrator、saga、archive reaper |
-| celld | 每 version 子进程 | Worker `console.log`、binding CLI stderr |
-| e2e / stress | `docs/evidence/*.log` | 验收与压测（gitignore，本地生成） |
+| 组件 | 位置 |
+|------|------|
+| cellpd | systemd / docker / stdout |
+| celld | 每 version 子进程 stdout/stderr（`manager.go` 落到 `$TMPDIR`） |
+| e2e / stress | `docs/evidence/*.log`（gitignore） |
 
-**Archive reaper** 日志关键字：`orch: archive reaper`。
-
-禁用 reaper：`CELLP_ARCHIVE_REAPER=0`。
+Archive reaper：`orch: archive reaper`。禁用：`CELLP_ARCHIVE_REAPER=0`。
 
 ---
 
-## 4. 运维检查清单
+## 4. 接到 AD-14
+
+1. 发射补齐入站 span + resource `cellp.project` / `cellp.version`  
+2. Gateway 写/传 `traceparent`  
+3. 门面 + `CELLP_OTEL_BACKEND=memory`（测试）  
+4. 生产 `lgtm-prod`；dev `--profile otel`  
+
+**不要**把 DuckDB 扫 `telemetry/*.parquet` 做成 Dashboard 默认搜。bucket 仅冷备。
+
+---
+
+## 5. 运维检查
 
 ```bash
-# 栈健康
 ./dev/scripts/health.sh
-
-# M1 烟雾
 ./e2e/scripts/health-all.sh
-
-# Promote 后 5xx（压测门禁）
-# 见 stress/scripts/gateway-load.sh · test-plan-phase2 TP2-L5
 ```
 
-生产 promote 窗口：对照 [runbooks/rollback.md](./runbooks/rollback.md)，监控 Gateway 5xx 率 &lt; 1%（TP2-L5）。
+promote 窗口：Gateway 5xx &lt; 1%（TP2-L5）· [runbooks/rollback.md](./runbooks/rollback.md)。
 
 ---
 
-## 5. 与 Cloudflare / Vercel 对照
+## 6. 与 CF / Vercel 对照
 
-| 能力 | CF / Vercel | cellp v1 |
-|------|-------------|----------|
-| 实时请求 tail | `wrangler tail` / Logs | **无** — 查 celld stdout 或外层 log agent |
-| Analytics UI | 内置 | **无** — Prometheus + Grafana |
-| Worker 异常告警 | 内置集成 | 自建 Alertmanager |
-| 版本级隔离日志 | 账号维度 | 每 version 独立 celld 进程 → 按 PID/目录分流 |
+| 能力 | CF / Vercel | cellp |
+|------|-------------|--------|
+| 实时 tail | `wrangler tail` | 一期：进程文件；AD-14：`logs/stream`（未实现） |
+| 检索 / 看板 | Workers Logs | AD-14：门面 + 外置 Tempo/Loki/Grafana |
+| Analytics 产品 | 内置 | **不做**（AD-10） |
 
-迁移用户预期管理：[cloudflare-migration.md](./cloudflare-migration.md) · [vercel-migration.md](./vercel-migration.md)。
-
----
-
-## 6. 路线图（非承诺）
-
-| 阶段 | 范围 |
-|------|------|
-| **一期（当前）** | `/metrics`、文件日志、证据目录 |
-| **二期** | 结构化 JSON 日志、统一 log 目录约定 |
-| **三期** | 请求 ID 贯穿 Gateway→celld、Dashboard 只读日志视图 |
-
-三期 **未** 列入 AD-10 核心范畴；issue 不得静默越界为产品必做。
+迁移预期：[cloudflare-migration.md](./cloudflare-migration.md) · [vercel-migration.md](./vercel-migration.md)。

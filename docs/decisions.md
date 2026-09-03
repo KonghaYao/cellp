@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-09-03（含 AD-6 … AD-12 · **AD-13** · Gateway WebSocket ingress）
+> **最后更新：** 2026-09-03（含 AD-6 … AD-13 · **AD-14** · OTEL 门面 / 可换后端）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -323,8 +323,9 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 | 8 | **Worker env** | per-version 覆盖 → `CELLD_VARS_FILE`；`GET/PUT …/env` |
 | 9 | **Registry** | SQLite：project、version、route、prod 指针、jobs |
 | 10 | **Dashboard** | 项目 · 部署 · 存储 · Settings env；**仅**消费 `:8790` API |
+| 11 | **可观测接线（AD-14）** | OTLP 发射 + 查询门面；检索引擎 **外置可换**；**不做**自研 Analytics |
 
-**不是 cellp：** 自托管 Cloudflare、自托管 Vercel、PaaS 托管、Git 平台、账号中心、边缘 CDN。
+**不是 cellp：** 自托管 Cloudflare、自托管 Vercel、PaaS 托管、Git 平台、账号中心、边缘 CDN、**SaaS 式日志检索产品**。
 
 **证据与契约：** `DESIGN.md` · `D1-*-RPC.md` · `test-plan.md` TP-V* / TP-UI-*
 
@@ -429,4 +430,28 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 - **SvelteKit 控制台模板**若含 `[[services]]`（如 cloudflarebase）→ **不支持**（F 类），与「SvelteKit 一等公民」不矛盾：指的是 **单 Worker** adapter 形态。
 
 **证据（规划）：** `deploy-support-app.sh` S22–S25 · `docs/framework-coverage-cellp.md` · `docs/support-todos.md` 框架批次。
+
+---
+
+## 19. AD-14 — OTEL 发射 + 查询门面 + 可换后端
+
+**问题：** 需要全生命周期 **接口 Span + `console` Log + 搜索 + 看板**，且测试不能背 LGTM 全套；OTEL **没有**稳定查询协议（OTLP 只 ingest）。DuckDB 扫 version bucket Parquet **不得**当默认检索。
+
+**权威全文：** [plans/OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md)（**唯一**可观测架构；与本文冲突以该文件为准。）
+
+**决策：**
+
+| 项 | 实现 |
+|----|------|
+| 写入 | **OTLP** traces + logs；resource 必带 `cellp.project` / `cellp.version`；Gateway `traceparent` + ingress span |
+| 读取 | cellpd **Query 门面**（`context` / `traces/{id}` / 模板 `search`）；**仅 `ADMIN_TOKEN`** |
+| Live | 独立进程流（SSE）；黏 AD-1 进程；archived → 410 |
+| 后端 | `CELLP_OTEL_BACKEND`：`none`（默认）· `memory` · `otlp-file` · `jaeger` · `lgtm` · `lgtm-prod` |
+| 生产检索引擎 | Tempo + Loki + Grafana（分进程）；**非** cellp 必选依赖 |
+| Dashboard | 只打 `:8790`；可选 Grafana 深链；**无** SQL / Query Builder |
+| DuckDB | 仅 `otlp-file` 冷读；**不是**默认搜索引擎 |
+
+**否定：** 自研搜索引擎 · 内嵌 CH · `DEPLOY_TOKEN` 读 telemetry · 按 Host 混 version · 无时间窗全集群搜 · 用 live 冒充 history。
+
+**实现状态：** 架构冻结 · 代码未排期（S0 本文）。默认 `run-all.sh` 不拉观测容器。
 

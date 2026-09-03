@@ -3,7 +3,7 @@
 > **给开发者用的产品文档（非本文）：** [https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)  
 > **cellp** — 版本化的 Serverless 应用运行时（cell + platform）  
 > **唯一设计入口（实现 / Agent）** · 管理维度：**Project + Version**（**无用户体系 · AD-10**）  
-> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-10** 产品边界） · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
+> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-10** 产品边界 · **AD-14** 可观测） · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
 
 ---
 
@@ -30,6 +30,7 @@
 | 8 | **Worker env** | per-version 覆盖 → `CELLD_VARS_FILE`；Dashboard / API 可编辑 |
 | 9 | **Registry** | SQLite：project · version · route · prod 指针 · jobs |
 | 10 | **Dashboard** | 运维 UI；**仅**消费 cellpd `:8790` REST API |
+| 11 | **可观测（AD-14）** | OTLP 发射 + 查询门面；后端可换（`memory`…`lgtm-prod`）；**不做**自研 Analytics |
 
 完整否定清单与边界论证见 **[docs/decisions.md §15 AD-10](./docs/decisions.md#15-ad-10--产品边界权威否定与核心范畴)**。
 
@@ -54,7 +55,7 @@
 | **一期** | 核心 Serverless 平台 | **CD 全流程**（外部 CI → artifact → `POST /versions` → preview URL）· **Branch + Version**（App+Data）· **线上稳定**（promote · quiesce · saga · health gate） |
 | **Bindings（本期）** | celld 0.4.0 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld；R2 **清单可见**；D1/KV/R2/Queue **branch**（AD-8） |
 | **二期** | 弹性 | scale-to-zero 唤醒 · **多节点 cellpd**（分布式，非全球边缘）· Gateway 路由缓存（未实现） |
-| **三期** | 可观测 · 性能/统计 | **OTEL / 日志 / 指标** · 用量与性能统计 · （**暂不计划实施**，仅文档占位） |
+| **三期** | 可观测 | **AD-14：** OTLP 发射 + 查询门面 + 可换后端（测试 `memory` / 生产 LGTM）；**不做**自研搜索引擎 · 用量计费（**架构已冻结**，实现按 [OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md) 分期） |
 
 | 阶段 | 能力 | 底层 |
 |------|------|------|
@@ -94,10 +95,16 @@ flowchart TB
     REG["Registry<br/>SQLite"]
     GW["Gateway<br/>cellpd 内置路由"]
     DASH["Dashboard<br/>Project/Version UI"]
+    TEL["Telemetry 门面<br/>AD-14 · 可换驱动"]
   end
 
   subgraph runtime ["运行时层"]
     CLD["celld<br/>Workers + DO + D1 + KV + Queue + Workflow + R2"]
+  end
+
+  subgraph otel ["观测后端（非必选 · AD-14）"]
+    COL["OTLP Collector"]
+    ENG["Tempo / Loki / Jaeger / memory"]
   end
 
   subgraph data ["数据层"]
@@ -117,11 +124,19 @@ flowchart TB
   ORCH --> OBJ
   ORCH --> GW
   DASH --> API
+  DASH --> TEL
+  TEL --> API
   Dev -->|"Preview"| GW
-  GW --> CLD
+  GW -->|"traceparent + ingress span"| CLD
+  GW --> COL
+  CLD -->|"OTLP traces+logs"| COL
+  COL --> ENG
+  TEL --> ENG
   OS -->|"export → D1 seed"| CLD
   CLD --> OBJ
 ```
+
+权威可观测设计：**[docs/plans/OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)**（AD-14）。cellpd **不**内嵌检索引擎。
 
 ### 2.2 确认技术栈（私有化 · 官方依据）
 
@@ -348,7 +363,7 @@ cellp 的护城河不在「包一层 celld」，而在下面 **6 项必须自研
 
 **Bindings 本期攻：** 沿用 celld 0.4.0 的 KV / Queue / Workflow / Cron（见 §8）。**仍延期：** KV/R2/Queue/Workflow **branch/inherit**（celld 尚无）· R2 对象浏览器（无 `celld r2`）· Workflow 实例控制（无 `celld workflow`）· Gateway wake · 多节点 Orchestrator · offshoot↔celld 运行时双向 sync。
 
-**三期（暂不计划，仅文档）：** OTEL / 指标 / 集中日志 · 性能与用量统计 · Dashboard 图表。
+**三期（架构冻结 · 实现未排期）：** [OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)（AD-14）。**不做**用量计费 / 自研搜索。
 
 ---
 
@@ -628,7 +643,7 @@ artifact URL **服务端构造**（防 SSRF）。status：`pending` → … → 
 
 **一期不做：** 实时图表 · 用量统计 · 复杂 SSE 面板（轮询即可）· R2 对象浏览器 · Workflow 控制按钮。
 
-可观测与性能统计 → **三期**（暂不实施）。
+可观测 → **AD-14**（[OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)）；一期 Dashboard **不做**调查页。
 
 ---
 
@@ -742,16 +757,17 @@ web/                            # Dashboard（Vite SPA · web/src/）
 
 **验证：** VALIDATION.md V8 · V12
 
-### 三期 — 可观测 · 性能/统计（暂不计划）
+### 三期 — 可观测（AD-14 · 架构冻结）
 
-> 仅文档占位，**无排期、无实现**；避免与一期/二期 scope 混淆。
+> **唯一设计：** [docs/plans/OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)。实现按该文 S0–S4，**默认 e2e 不拉观测容器**。
 
-| 方向 | 可能包含 |
-|------|----------|
-| 可观测 | OTEL · Prometheus · 集中日志 · 告警 |
-| 性能/统计 | 部署耗时 · version 资源用量 · cell 激活统计 · Dashboard 图表 |
+| 方向 | 决策 |
+|------|------|
+| 发射 | OTLP traces + logs；Gateway `traceparent` |
+| 读取 | cellpd 查询门面；后端 `memory`…`lgtm-prod` 可换 |
+| 看板 | Grafana 深链；**不做**自研 Analytics / 用量计费 |
 
-**验证占位：** VALIDATION.md V20+（待三期立项再细化）
+**验证：** 门面契约测 opt-in（未立 TP 编号前不得塞进 `run-all.sh`）
 
 - [x] dev harness
 - [ ] **P0** Go `cellpd` 替换 mock

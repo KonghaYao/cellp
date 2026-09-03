@@ -7,7 +7,7 @@
 ## 必读（按顺序）
 
 1. **[DESIGN.md](./DESIGN.md)** — 唯一顶层设计
-2. **[docs/decisions.md](./docs/decisions.md)** — 当前有效架构决策（AD-1..10 · D1 · 存储 tier · Bindings）
+2. **[docs/decisions.md](./docs/decisions.md)** — 当前有效架构决策（AD-1..14 · D1 · 存储 tier · Bindings）
 3. **[docs/test-plan.md](./docs/test-plan.md)** — 功能验收门禁
 4. 任务相关子目录 AGENTS：
    - 后端 / 本地栈 → **[dev/AGENTS.md](./dev/AGENTS.md)**
@@ -40,6 +40,7 @@
 - **AD-9：** archived / wake；取消 ready 硬上限
 - **AD-10：** **不做**账号体系 · Git 托管 · DNS/CDN/TLS/WAF · 全球边缘；**做**分布式 Workers 控制面（见 decisions §15）
 - **AD-12：** Gateway **Host** 选 version（path 废弃）；dev Host 配置 **[dev/INGRESS-HOST.md](./dev/INGRESS-HOST.md)**
+- **AD-14：** 可观测 = OTLP + 查询门面 + 可换后端；权威 **[docs/plans/OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)**；**不做**自研搜索引擎
 
 ## 改代码后的验证顺序
 

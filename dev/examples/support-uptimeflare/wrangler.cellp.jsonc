@@ -1,0 +1,18 @@
+{
+  "name": "support-uptimeflare",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2025-04-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".cellp-assets",
+    "html_handling": "auto-trailing-slash"
+  },
+  "d1_databases": [
+    {
+      "binding": "UPTIMEFLARE_D1",
+      "database_name": "uptimeflare_d1",
+      "database_id": "00000000-0000-0000-0000-00000000000c"
+    }
+  ]
+}

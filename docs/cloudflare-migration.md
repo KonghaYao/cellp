@@ -90,7 +90,7 @@ cellp 沿用 celld 0.4.0 wrangler 绑定；控制面只解析清单并包装已�
 | 能力 | cellp / celld 现状 |
 |------|-------------------|
 | **`wrangler deploy` / `wrangler dev` 直连** | 无；用外部 CI + `POST /versions` + Gateway URL |
-| **`wrangler tail` / 实时日志** | 无内置 tail；三期 OTEL/日志仅占位，未实施 |
+| **`wrangler tail` / 实时日志** | 一期：进程 stdout；**AD-14** 门面 `logs/stream` + OTLP **架构冻结、未实现**（[OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md)）；**不做** CF Workers Logs 产品 |
 | **Workers AI** | celld：**No**（见 [cloudflare-compat.md](../celld/docs/cloudflare-compat.md)）；实验性 `CELLD_AI_URL` 适配器非 CF 托管 AI |
 | **Vectorize · Hyperdrive · Browser Rendering · Email Workers · Python Workers** | celld：**No** |
 | **全球边缘 PoP / Anycast** | 不做；私有化分布式多节点即可（AD-10 §15.2） |
