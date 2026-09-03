@@ -84,16 +84,6 @@ VERDICT: PASS/FAIL per app.
 | `docs/support-framework-user-acceptance.md` | verification |
 | `docs/platform-defects-log.md` | coder（仅新平台缺口） |
 
-## Ultracode 工作流
-
-| 任务 | 脚本 | 并发 |
-|------|------|------|
-| Nitro loopback：并行 review → 实现 → review-fix → **verify S25** | `.claude/workflows/nitro-loopback-ultracode.mjs` | `maxConcurrency: 5` |
-| CF Web Crypto | `.claude/workflows/cf-web-crypto-ultracode.mjs` | — |
-| cloudflare:workers polyfill | `.claude/workflows/cf-workers-polyfill-ultracode.mjs` | — |
-
-阶段：`ParallelReview` → `ParallelImplement` → `ReviewFix` → `VerifyNitro`。设计依据 `docs/plans/NITRO-CELLD-LOOPBACK-DESIGN.md` v0.2。
-
 ## Subagent 选型
 
 | 任务 | Agent |

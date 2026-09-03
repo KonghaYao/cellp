@@ -181,22 +181,7 @@ flowchart LR
 
 ---
 
-## 9. 与 ultracode 工作流的关系
-
-编排脚本：`.claude/workflows/websocket-ingress-ultracode.mjs`
-
-| 阶段 | 产出 |
-|------|------|
-| Opus 计划 | `WEBSOCKET-INGRESS-DESIGN.md` v0.1→v0.2 |
-| 分期决议 | `WEBSOCKET-INGRESS-DESIGN.md` §0 |
-| Coder 评审 / 修复 | Gateway 代码、wsecho e2e |
-| Verification subagent | 四格 101、日志（**由 agent 执行，非用户手跑**） |
-
-本文件是上述产物的**可读摘要**；实现细节以 DESIGN v0.2 为准。
-
----
-
-## 10. 结论（一页纸）
+## 9. 结论（一页纸）
 
 1. **WebSocket 是 DO / 终端 agent 的一等 ingress 能力**，与 AD-12 Host 路由正交、不可省略。  
 2. **历史主因 H1**：Gateway 未 Hijack → 502 `bad gateway`；**WS-M1 已修**。  
@@ -206,7 +191,7 @@ flowchart LR
 
 ---
 
-## 12. 实现差距有多大？离「生产」有多远？
+## 10. 实现差距有多大？离「生产」有多远？
 
 ### 12.1 先分清三种「生产」
 
