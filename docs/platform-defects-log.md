@@ -268,6 +268,7 @@ AD-1 为每个 ready route 常驻 **celld**（dev 可达 ~28 进程）。Orchest
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-03 | PD-10 **垫片落地、S30 未过**：loopback 重入 + `CelldHttpBodyStream` BYOB；v42 `GET /` 仍 0-byte hang。实录 [S30-OPENNEXT-HARD-PROBLEM.md](./plans/S30-OPENNEXT-HARD-PROBLEM.md) |
 | 2026-09-03 | PD-09 **fixed**：`CELLP_CELLD_DEPLOY_CONCURRENCY` + deploy slot/retry；见 `cellp/internal/runtime/deploy_limit.go` |
 | 2026-09-03 | PD-06 **fixed**：`node:timers` `setImmediate`；S25 `GET /` 200 HTML（~11ms）；证据见 user-acceptance 复验 |
 | 2026-09-01 | PD-06：根因分析见 [NITRO-CELLD-COMPAT.md](./plans/NITRO-CELLD-COMPAT.md)（修正 localFetch 机制描述） |

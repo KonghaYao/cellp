@@ -75,13 +75,19 @@ if [[ -f .cellp-bundle/worker.js && ! -f .cellp-bundle/index.js ]]; then
 fi
 [[ -f .cellp-bundle/index.js ]] || { echo "missing .cellp-bundle/index.js" >&2; exit 1; }
 
+if [[ "${CELLP_OPENNEXT_SKIP_PATCH:-}" == "1" ]]; then
+  log "skip bundle patches (CELLP_OPENNEXT_SKIP_PATCH=1)"
+else
 log "patch Next slash redirect + Location: ? (celld absolute request.url)"
+export CELLP_OPENNEXT_PROTO_PATCH_ONLY="${CELLP_OPENNEXT_PROTO_PATCH_ONLY:-}"
 node <<'NODE'
 const fs = require('fs');
 const p = '.cellp-bundle/index.js';
 let s = fs.readFileSync(p, 'utf8');
 let patched = 0;
+const protoOnly = process.env.CELLP_OPENNEXT_PROTO_PATCH_ONLY === '1';
 
+if (!protoOnly) {
 if (!s.includes('__cellpSlashPath')) {
   const needleA = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
             if (urlNoQuery?.match(/(\\\\|\\/\\/)/)) {`;
@@ -210,26 +216,47 @@ if (s.includes(hrsIfFrom) && !s.includes('event.rawPath !== "/"')) {
   patched++;
 }
 
+} // !protoOnly
+
+const cellpProtoRelToPath =
+  'if (typeof url === "string" && url.startsWith("//")) { try { const __u = new URL(url, process.env.PUBLIC_BASE_URL || process.env.DEPLOY_URL || "http://celld.local/"); url = (__u.pathname || "/") + (__u.search || ""); } catch { url = "/" + url.replace(/^\\/+/, "") || "/"; } }';
+
 const imageUrlFrom = `  const url = urls[0];
   if (url.length > 3072) {`;
 const imageUrlTo = `  let url = urls[0];
-  if (typeof url === "string" && url.startsWith("//")) {
-    url = "/" + url.replace(/^\\/+/, "") || "/";
-  }
+  ${cellpProtoRelToPath}
   /* __cellpImageUrl */ if (url.length > 3072) {`;
 if (s.includes(imageUrlFrom) && !s.includes('__cellpImageUrl')) {
   s = s.replace(imageUrlFrom, imageUrlTo);
   patched++;
 }
 
-const protoRelNorm =
-  'if (url.startsWith("//")) { try { url = new URL(url, process.env.PUBLIC_BASE_URL || process.env.DEPLOY_URL || "http://celld.local/").href; } catch { url = "http:" + url; } } /* __cellpProtoRel */';
+const protoRelNorm = `${cellpProtoRelToPath} /* __cellpProtoRel */`;
 const protoRelRe =
   /if \(url\.startsWith\("\/\/"\)\) return \{ errorMessage: '"url" parameter cannot be a protocol-relative URL \(\/\/\)'\ };/g;
+const brokenValidateRe =
+  /if \(typeof url === "string" && url\.startsWith\("\/\/"\)\) \{ url = "\/" \+ url\.replace\(\/\^\\\/\+\/, ""\) \|\| "\/"; \} \/\* __cellpValidateParamsUrl \*\/ if \(url\.startsWith\("\/\/"\)\) return \{ errorMessage: '"url" parameter cannot be a protocol-relative URL \(\/\/\)'\ };/g;
+if (brokenValidateRe.test(s)) {
+  s = s.replace(brokenValidateRe, protoRelNorm);
+  patched++;
+}
 if (!s.includes('__cellpProtoRel')) {
   const before = s;
   s = s.replace(protoRelRe, protoRelNorm);
   if (s !== before) patched++;
+}
+const dropProtoRelRe =
+  /if \(false && url\.startsWith\("\/\/"\)\) return \{ errorMessage: '"url" parameter cannot be a protocol-relative URL \(\/\/\)'\ };/g;
+if (dropProtoRelRe.test(s)) {
+  s = s.replace(dropProtoRelRe, protoRelNorm);
+  patched++;
+}
+// Upgrade prior patches that resolved to absolute http(s) href (SSR fetch hang).
+const protoRelAbsRe =
+  /if \(url\.startsWith\("\/\/"\)\) \{ try \{ url = new URL\(url, process\.env\.PUBLIC_BASE_URL \|\| process\.env\.DEPLOY_URL \|\| "http:\/\/celld\.local\/"\)\.href; \} catch \{ url = "http:" \+ url; \} \} \/\* __cellpProtoRel \*\//g;
+if (protoRelAbsRe.test(s)) {
+  s = s.replace(protoRelAbsRe, protoRelNorm);
+  patched++;
 }
 
 const protoBlockFrom = `  if (url.startsWith("//")) {
@@ -239,11 +266,24 @@ const protoBlockFrom = `  if (url.startsWith("//")) {
     };
     return result;
   }`;
-const protoBlockTo = `  if (url.startsWith("//")) {
-    try { url = new URL(url, process.env.PUBLIC_BASE_URL || process.env.DEPLOY_URL || "http://celld.local/").href; } catch { url = "http:" + url; }
-  } /* __cellpProtoBlock */`;
+const protoBlockTo = `  ${cellpProtoRelToPath}
+  /* __cellpProtoBlock */`;
 if (s.includes(protoBlockFrom) && !s.includes('__cellpProtoBlock')) {
   s = s.replace(protoBlockFrom, protoBlockTo);
+  patched++;
+}
+const protoBlockAbsRe =
+  /if \(url\.startsWith\("\/\/"\)\) \{\s*try \{ url = new URL\(url, process\.env\.PUBLIC_BASE_URL \|\| process\.env\.DEPLOY_URL \|\| "http:\/\/celld\.local\/"\)\.href; \} catch \{ url = "http:" \+ url; \} \s*\} \/\* __cellpProtoBlock \*\//g;
+if (protoBlockAbsRe.test(s)) {
+  s = s.replace(protoBlockAbsRe, protoBlockTo);
+  patched++;
+}
+const dropProtoRel2From = `  if (url.startsWith("//")) {
+    const result = { ok: true, url: "/", static: false }; /* __cellpDropProtoRel2 */
+    return result;
+  }`;
+if (s.includes('__cellpDropProtoRel2')) {
+  s = s.replace(dropProtoRel2From, protoBlockTo);
   patched++;
 }
 
@@ -275,7 +315,7 @@ if (cookieParserRe.test(s) && !s.includes('typeof cookie !== "string"')) {
   patched++;
 }
 
-if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname') && s.includes('typeof cookie !== "string"') && s.includes('__cellpImageUrl') && s.includes('__cellpProtoRel')) {
+if (patched === 0 && (protoOnly || (s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname') && s.includes('typeof cookie !== "string"'))) && s.includes('__cellpImageUrl') && s.includes('__cellpProtoRel') && s.includes('__cellpProtoBlock')) {
   console.log('prepare-artifact: bundle already patched');
 } else if (patched === 0) {
   console.error('prepare-artifact: no patches applied');
@@ -286,6 +326,7 @@ if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWit
 
 fs.writeFileSync(p, s);
 NODE
+fi
 
 log "stage .open-next/assets → .cellp-assets"
 rm -rf .cellp-assets

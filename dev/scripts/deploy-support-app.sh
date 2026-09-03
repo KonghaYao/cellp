@@ -103,7 +103,7 @@ pick_support_version() {
       absent|null|gone) VERSION="$v"; return ;;
       ready) VERSION="$v"; return ;;
       deploying|pending|starting) VERSION="$v"; return ;;
-      failed|destroyed|draining) continue ;;
+      failed|destroyed|draining|archived) continue ;;
       *) VERSION="$v"; return ;;
     esac
   done

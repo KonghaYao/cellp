@@ -19,7 +19,7 @@
 |--------|--------|
 | **产品文档（如何用 cellp）** | **[GitHub Pages](https://konghayao.github.io/cellp/)** |
 | 理解整体架构 | [DESIGN.md](../DESIGN.md) |
-| 查当前有效决策（AD-1..10、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
+| 查当前有效决策（AD-1..14、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
 | 跑验收 / 看门禁 | [test-plan.md](./test-plan.md) |
 | 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
 | 改 Dashboard | [../web/AGENTS.md](../web/AGENTS.md) |
@@ -30,7 +30,7 @@
 | 从 Cloudflare Workers 迁移（内部对照） | [cloudflare-migration.md](./cloudflare-migration.md) |
 | 从 Vercel 迁移（内部对照） | [vercel-migration.md](./vercel-migration.md) |
 | 生产回滚 | [runbooks/rollback.md](./runbooks/rollback.md) |
-| 可观测性 | [observability.md](./observability.md) |
+| 可观测性（**权威 AD-14**） | [plans/OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md) · 一期现状 [observability.md](./observability.md) |
 | 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |
 | **社区 Workers 支持矩阵** | [support/README.md](./support/README.md)（索引）· [support-matrix.md](./support-matrix.md) · [support-unsupported-by-capability.md](./support-unsupported-by-capability.md) |
 | **证据目录说明** | [evidence-index.md](./evidence-index.md)（`docs/evidence/` 本地 gitignore） |
@@ -47,6 +47,7 @@
 | [plans/D1-IMPORT-RPC.md](./plans/D1-IMPORT-RPC.md) | 根 version：`celld d1 import` CLI + HTTP | ✅ 已落地 |
 | [plans/D1-BRANCH-RPC.md](./plans/D1-BRANCH-RPC.md) | 子 version：`celld d1 branch` CLI + HTTP | ✅ 已落地 |
 | [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md) | AD-12 Tier B：`port_allocations`、稳定 prod 口 | 📋 P5 待实现 |
+| [plans/OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md) | AD-14：OTLP · 查询门面 · 可换后端 | 📋 架构冻结 · 实现未排期 |
 | [../cellp/api/openapi.yaml](../cellp/api/openapi.yaml) | REST API | ✅ TP-API-7 |
 
 ---
@@ -62,7 +63,9 @@
 | [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md) | AD-12 Port 台账与稳定 prod 口 |
 | [plans/WEBSOCKET-SUPPORT-ANALYSIS.md](./plans/WEBSOCKET-SUPPORT-ANALYSIS.md) | **WebSocket 专题分析**（Gateway/DO/agent · M1/M2/M3） |
 | [plans/WEBSOCKET-INGRESS-DESIGN.md](./plans/WEBSOCKET-INGRESS-DESIGN.md) | WS ingress 工程规格 v0.2 |
+| [plans/OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md) | **AD-14 权威：** OTLP + 查询门面 + 可换后端 |
 | [plans/FX-LLM-CREDENTIALS.md](./plans/FX-LLM-CREDENTIALS.md) | fx **仅 Vercel AI Gateway**；cellp 不做 OpenCode 适配 |
+| [plans/S30-OPENNEXT-HARD-PROBLEM.md](./plans/S30-OPENNEXT-HARD-PROBLEM.md) | **S30 OpenNext `GET /` hang**（暂停实录） |
 
 ---
 
@@ -81,6 +84,7 @@
 | 8 | [phase-8-binding-branch.md](./plans/phase-8-binding-branch.md) | AD-8 | **已落地** — KV / R2 / Queue branch |
 | 9 | [phase-9-version-archive.md](./plans/phase-9-version-archive.md) | AD-9 | **已落地** — archived / wake / 取消 5 ready 上限 |
 | — | [decisions.md §15](./decisions.md#15-ad-10--产品边界权威否定与核心范畴) | AD-10 | **已落地** — 产品边界（账号/Git/链路/边缘否定 + 核心范畴） |
+| — | [plans/OTEL-OBSERVABILITY.md](./plans/OTEL-OBSERVABILITY.md) · [decisions.md §19](./decisions.md#19-ad-14--otel-发射查询门面可换后端) | AD-14 | **架构冻结** — 实现未排期 |
 
 ### v1 收尾（2026-08-29）
 
