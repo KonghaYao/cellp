@@ -3,7 +3,7 @@ layout: home
 hero:
   name: cellp
   text: Fork the Worker and the data
-  tagline: Self-hosted Cloudflare-style Workers. A child version is a real copy-on-write branch of D1, KV, R2, and Queues — not an empty preview that still reads production.
+  tagline: Private Workers control plane on your hardware — not a Cloudflare account. Each child version copy-on-write branches D1, KV, R2, and Queues instead of sharing production data.
   actions:
     - theme: brand
       text: Install
@@ -41,7 +41,24 @@ features:
     linkText: KV
 ---
 
-<p class="cellp-kicker">Worker + D1 + KV + R2 + Queue · each one versioned · data bindings branch</p>
+<p class="cellp-kicker">Worker + D1 + KV + R2 + Queue · versioned together · celld runs it · cellp orchestrates it</p>
+
+## Position
+
+**cellp** is the **control plane** for private Workers: CI posts a version, you get a preview Host, you **promote** to production. **[celld](https://github.com/KonghaYao/celld)** is the **runtime** (Workers APIs, bindings). cellp does not re-implement the isolate — it runs one celld per ready version and forks data with **offshoot**.
+
+This is **not** self-hosted Cloudflare: no account, no Anycast edge, no built-in DNS/TLS/CDN. You keep Git, CI, and your load balancer. [Why cellp](/why) · [Compare](/compare) · [From Cloudflare](/migrate/cloudflare)
+
+## cellp + celld
+
+| Piece | Role |
+|-------|------|
+| **celld** | Execute `fetch`, D1, KV, R2, Queues, Workflows, Cron from your wrangler bundle |
+| **cellp** | Registry, Gateway (Host ingress), promote saga, D1/KV/R2/Queue branch orchestration |
+| **offshoot** | Copy-on-write data fork between parent and child versions |
+| **RustFS** | Private S3 for artifacts and per-version storage |
+
+[What is cellp](/what-is-cellp) · [How it works](/how-it-works) · [Coding Agent on cellp](/research/coding-agent-on-cellp)
 
 <BindingStrip :items="[
   { name: 'Worker', href: '/build/' },

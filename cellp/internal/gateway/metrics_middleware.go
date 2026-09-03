@@ -1,6 +1,9 @@
 package gateway
 
 import (
+	"bufio"
+	"errors"
+	"net"
 	"net/http"
 
 	"github.com/cellp/cellp/internal/metrics"
@@ -9,6 +12,24 @@ import (
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+}
+
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("gateway statusRecorder: underlying ResponseWriter is not a Hijacker")
+	}
+	return h.Hijack()
+}
+
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (r *statusRecorder) WriteHeader(code int) {

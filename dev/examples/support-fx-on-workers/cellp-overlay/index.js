@@ -18,12 +18,11 @@ export default {
 			return new Response("unauthorized — append ?key=<ACCESS_KEY>", { status: 401 });
 		}
 
-		// cellp：无 WebSocket 时用 HTTP 多轮（见 dev/examples/support-fx-on-workers/README.md）
 		if (url.pathname === "/api/health" && request.method === "GET") {
 			return Response.json({
 				ok: true,
 				modes: ["http-prompt", "websocket-tui"],
-				note: "cellp local stack: prefer POST /api/prompt; WebSocket /session may 502",
+				note: "cellp: WebSocket /session supported on Worker/DO path (WS-M2); HTTP /api/prompt for automation",
 			});
 		}
 

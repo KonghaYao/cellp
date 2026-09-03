@@ -4,7 +4,8 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "ACCESS_KEY": "cellp-dev-fx-on-workers"
+    "ACCESS_KEY": "cellp-dev-fx-on-workers",
+    "FX_MODEL": "minimax/minimax-m3-free"
   },
   "durable_objects": {
     "bindings": [{ "name": "FX_SESSION", "class_name": "FxSession" }]

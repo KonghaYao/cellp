@@ -6,5 +6,9 @@
   "assets": {
     "binding": "ASSETS",
     "directory": ".open-next/assets"
+  },
+  "vars": {
+    "DEPLOY_URL": "__CELLP_DEPLOY_URL__",
+    "PUBLIC_BASE_URL": "__CELLP_DEPLOY_URL__"
   }
 }

@@ -8,10 +8,19 @@ FRAMEWORK="${CELP_C3_FRAMEWORK:?set CELP_C3_FRAMEWORK (solid|qwik|waku)}"
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 SCAFFOLD="${APP_DIR}/cellp-${FRAMEWORK}-app"
 OVERLAY="${ROOT}/dev/examples/support-c3-framework/wrangler.${FRAMEWORK}.cellp.jsonc"
-C3_TEMPLATES="${APP_DIR}/../.."
 [[ -f "$OVERLAY" ]] || { echo "missing overlay ${OVERLAY}" >&2; exit 1; }
 
 log() { echo "prepare-artifact: $*"; }
+
+# workers-sdk clone: APP_DIR may be hello-world ts stub or templates/<framework>
+c3_templates_root() {
+  if [[ -f "${APP_DIR}/c3.ts" && -d "${APP_DIR}/templates" ]]; then
+    cd "${APP_DIR}/.." && pwd
+  else
+    cd "${APP_DIR}/../.." && pwd
+  fi
+}
+C3_TEMPLATES="$(c3_templates_root)"
 
 parse_jsonc() {
   node -e '
@@ -26,29 +35,61 @@ process.stdout.write(JSON.stringify(JSON.parse(raw)));
 }
 
 scaffold_solid() {
-  log "solid: create-cloudflare web-framework (create-solid)"
+  local solid_tpl="${C3_TEMPLATES}/solid/templates"
+  log "solid: create-solid (SolidStart v2, basic) + C3 template overlay"
   rm -rf "$SCAFFOLD"
   (
     cd "$APP_DIR"
-    if ! CI=1 npx --yes create-cloudflare@2.51.0 "${SCAFFOLD##*/}" \
-      --category=web-framework \
-      --framework=solid \
-      --platform=workers \
-      --lang=ts \
-      --no-git \
-      --no-deploy \
-      --accept-defaults 2>&1; then
-      true
-    fi
+    CI=1 DEBIAN_FRONTEND=noninteractive npx --yes create-solid@latest \
+      -p "${SCAFFOLD##*/}" \
+      -s --v2 --ts -t basic
   )
-  if [[ ! -f "${SCAFFOLD}/package.json" ]]; then
-    echo "prepare-artifact: SolidStart C3 scaffold failed (create-solid needs interactive template selection / ENOENT in CI). Use deploy from workers-sdk template or run locally once." >&2
+  [[ -d "$solid_tpl" ]] || {
+    echo "prepare-artifact: missing ${solid_tpl} (clone cloudflare/workers-sdk for S27)" >&2
     exit 1
-  fi
-  if ! grep -q solid-start "${SCAFFOLD}/package.json" 2>/dev/null && ! grep -q '@solidjs/start' "${SCAFFOLD}/package.json" 2>/dev/null; then
-    echo "prepare-artifact: SolidStart scaffold did not produce a SolidStart app (got hello-world stub). Non-interactive C3 solid is unsupported." >&2
-    exit 1
-  fi
+  }
+  rsync -a "${solid_tpl}/" "${SCAFFOLD}/"
+  cd "$SCAFFOLD"
+  local wname
+  wname="$(parse_jsonc "$OVERLAY" | node -e 'let j="";process.stdin.on("data",d=>j+=d);process.stdin.on("end",()=>console.log(JSON.parse(j).name))')"
+  node -e "
+const fs = require('fs');
+const overlay = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+let raw = fs.readFileSync('wrangler.jsonc', 'utf8');
+raw = raw.replace(/<WORKER_NAME>/g, overlay.name || process.argv[2]);
+raw = raw.replace(/<COMPATIBILITY_DATE>/g, overlay.compatibility_date || '2026-09-03');
+fs.writeFileSync('wrangler.jsonc', raw);
+" "$OVERLAY" "$wname"
+  node <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const candidates = ['vite.config.ts', 'vite.config.js'];
+const file = candidates.find((c) => fs.existsSync(c));
+if (!file) process.exit(0);
+let src = fs.readFileSync(file, 'utf8');
+if (src.includes('cloudflare-module')) process.exit(0);
+if (!/nitro\s*\(/.test(src)) {
+  console.error('prepare-artifact: vite.config missing nitro() call');
+  process.exit(1);
+}
+src = src.replace(
+  /nitro\s*\(\s*\{([^}]*)\}\s*\)/,
+  (m, inner) => {
+    if (/preset\s*:/.test(inner)) {
+      return m.replace(/preset\s*:\s*['"][^'"]+['"]/, "preset: 'cloudflare-module'");
+    }
+    const trimmed = inner.trim();
+    const prefix = trimmed ? `${trimmed}, ` : '';
+    return `nitro({ ${prefix}preset: 'cloudflare-module' })`;
+  }
+);
+if (!src.includes('cloudflare-module')) {
+  src = src.replace(/nitro\s*\(\s*\)/, "nitro({ preset: 'cloudflare-module' })");
+}
+fs.writeFileSync(file, src);
+NODE
+  npm install
+  npm install -D wrangler
 }
 
 scaffold_qwik() {
@@ -109,6 +150,32 @@ if [[ "$FRAMEWORK" == "qwik" ]] && [[ -f wrangler.jsonc ]] && grep -q '.cellp-bu
   npx qwik add cloudflare-workers --skipConfirmation=true
 fi
 
+apply_qwik_wrangler_overlay() {
+  [[ "$FRAMEWORK" == "qwik" ]] || return 0
+  [[ -f wrangler.jsonc || -f wrangler.toml ]] || return 0
+  export OVERLAY_PATH="$OVERLAY"
+  node <<'NODE'
+const fs = require('fs');
+function parseJsonc(raw) {
+  raw = raw.replace(/\/\*[\s\S]*?\*\//g, '');
+  raw = raw.replace(/^\s*\/\/.*$/gm, '');
+  raw = raw.replace(/,\s*([}\]])/g, '$1');
+  return JSON.parse(raw);
+}
+const overlay = JSON.parse(fs.readFileSync(process.env.OVERLAY_PATH, 'utf8'));
+const p = fs.existsSync('wrangler.jsonc') ? 'wrangler.jsonc' : 'wrangler.toml';
+const j = parseJsonc(fs.readFileSync(p, 'utf8'));
+j.name = overlay.name || j.name;
+j.compatibility_date = overlay.compatibility_date || j.compatibility_date;
+j.compatibility_flags = overlay.compatibility_flags || ['global_fetch_strictly_public'];
+delete j.no_bundle;
+fs.writeFileSync('wrangler.jsonc', JSON.stringify(j, null, 2) + '\n');
+NODE
+  log "qwik: wrangler compat (no nodejs_compat — avoids unenv vs celld Process on load)"
+}
+
+apply_qwik_wrangler_overlay
+
 export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-false}"
 log "build"
 if grep -q '"build"' package.json; then
@@ -121,17 +188,25 @@ CFG="wrangler.jsonc"
 [[ -f wrangler.toml ]] && CFG="wrangler.toml"
 if [[ "$FRAMEWORK" == "waku" && -f dist/server/wrangler.json ]]; then
   npx wrangler deploy --config dist/server/wrangler.json --dry-run --outdir .cellp-bundle
+elif [[ "$FRAMEWORK" == "solid" && -f .output/server/wrangler.json ]]; then
+  npx wrangler deploy --config .output/server/wrangler.json --dry-run --outdir .cellp-bundle
 else
   npx wrangler deploy --config "$CFG" --dry-run --outdir .cellp-bundle
 fi
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 fi
+if [[ ! -f .cellp-bundle/index.js && -f .cellp-bundle/index.mjs ]]; then
+  cp .cellp-bundle/index.mjs .cellp-bundle/index.js
+fi
 [[ -f .cellp-bundle/index.js ]] || { echo "missing .cellp-bundle/index.js" >&2; exit 1; }
 
 rm -rf .cellp-assets
 mkdir -p .cellp-assets
-if [[ -d dist/public ]]; then
+if [[ -d .output/public ]]; then
+  log "stage assets from .output/public"
+  rsync -a --exclude '.assetsignore' .output/public/ .cellp-assets/
+elif [[ -d dist/public ]]; then
   log "stage assets from dist/public"
   rsync -a --exclude '.assetsignore' dist/public/ .cellp-assets/
 elif [[ -d dist ]]; then
@@ -167,7 +242,11 @@ if (!p) throw new Error('no wrangler config');
 const j = parseJsonc(fs.readFileSync(p, 'utf8'));
 j.name = overlay.name || j.name;
 j.compatibility_date = overlay.compatibility_date || j.compatibility_date;
-j.compatibility_flags = overlay.compatibility_flags || j.compatibility_flags || ['nodejs_compat'];
+if (process.env.CELP_C3_FRAMEWORK === 'qwik') {
+  j.compatibility_flags = overlay.compatibility_flags || ['global_fetch_strictly_public'];
+} else {
+  j.compatibility_flags = overlay.compatibility_flags || j.compatibility_flags || ['nodejs_compat'];
+}
 if (process.env.CELP_C3_FRAMEWORK === 'waku' && !j.compatibility_flags.includes('nodejs_als')) {
   j.compatibility_flags.push('nodejs_als');
 }

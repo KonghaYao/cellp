@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -146,8 +147,12 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 
 // Restart stops then starts celld so CELLD_VARS_FILE is re-read.
 func (m *Manager) Restart(ctx context.Context, project, version string) error {
-	_ = m.Stop(ctx, project, version)
-	_, _, err := m.Start(ctx, project, version)
+	port := m.AllocatePort(project, version)
+	if err := m.Stop(ctx, project, version); err != nil {
+		return err
+	}
+	waitForTCPPortFree("127.0.0.1", port, 15*time.Second)
+	_, _, err := m.StartOnPort(ctx, project, version, "127.0.0.1", port)
 	return err
 }
 
@@ -712,4 +717,17 @@ func (m *Manager) Stop(ctx context.Context, project, version string) error {
 	}
 	removeEphemeralWatch(watchDir)
 	return nil
+}
+
+func waitForTCPPortFree(host string, port int, maxWait time.Duration) {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	deadline := time.Now().Add(maxWait)
+	for time.Now().Before(deadline) {
+		c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		if err != nil {
+			return
+		}
+		_ = c.Close()
+		time.Sleep(200 * time.Millisecond)
+	}
 }

@@ -13,9 +13,21 @@ if (!file) {
 
 let s = fs.readFileSync(file, "utf8");
 
+const envOld = `      env: { AI_GATEWAY_API_KEY: key, HOME },`;
+const envNew = `      env: {
+        AI_GATEWAY_API_KEY: key,
+        HOME,
+        ...(this.env.FX_MODEL ? { FX_MODEL: String(this.env.FX_MODEL) } : {}),
+      },`;
+if (s.includes(envOld) && !s.includes("FX_MODEL")) {
+  s = s.replace(envOld, envNew);
+  console.log("patch-session: FX_MODEL passthrough");
+}
+
 if (s.includes("X-Cellp-Mode")) {
-	console.log("patch-session: already patched");
-	process.exit(0);
+  console.log("patch-session: already patched (http)");
+  fs.writeFileSync(file, s);
+  process.exit(0);
 }
 
 const fetchOld = `  async fetch(request) {

@@ -1,8 +1,8 @@
-# 多 Worker 部署（讨论稿）
+# 多 Worker / Service Binding 部署
 
-> **状态：** Draft · 与产品/架构对齐用  
-> **触发：** S14 cloudflarebase — 主站 + AUTH_AGENT / DB_AGENT / HOSTING_AGENT / STORAGE_AGENT  
-> **非目标：** 本稿不承诺实现时间表
+> **状态：不支持（Deferred）** — 2026-09-02 产品决定：cellp **不**编排 `wrangler [[services]]` 多 Worker 栈（如 cloudflarebase 的 AUTH_AGENT 等）。单 version = 单 celld = 单主 Worker + 本 manifest 内 bindings（D1/KV/R2/Queue…）。  
+> **验收影响：** S14 等依赖多 service 的项目仅 **partial**（可打开营销/重定向，**无**完整控制台登录链）。  
+> 若未来重启，见下文方案 B 草案。
 
 ---
 
@@ -75,4 +75,14 @@
 2. PoC：`support-cfbase` + `support-cfbase-auth` 两 version，主 wrangler `services` 指向内部 host  
 3. 扩展 `deploy-support-app.sh`：`MULTI_WORKER_MANIFEST=dev/examples/support-cfbase/manifest.yaml`
 
-请回复倾向 **A / B / D** 或组合（例如「S14 标 partial，B 进 V0b」）。
+请回复倾向 **A / B / D** 或组合（例如「S14 标 partial，B 进 V0b」）。**当前采纳：A（不支持，S14 partial）。**
+
+---
+
+## 6. 当前产品声明（2026-09-02）
+
+| 能力 | cellp |
+|------|--------|
+| 单 Worker + D1/KV/R2/Queue/Workflow（单 manifest） | **支持** |
+| `[[services]]` 指向其它 Worker（多部署单元） | **不支持** |
+| wrangler overlay | 须 **merge** 保留 bindings；禁止删掉 `services` 后声称 full 支持 |

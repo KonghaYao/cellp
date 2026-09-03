@@ -32,6 +32,35 @@ if [[ -f .cellp-bundle/worker.js && ! -f .cellp-bundle/index.js ]]; then
 fi
 [[ -f .cellp-bundle/index.js ]] || { echo "missing .cellp-bundle/index.js" >&2; exit 1; }
 
+log "patch Next slash redirect (ignore http:// in req.url)"
+node <<'NODE'
+const fs = require('fs');
+const p = '.cellp-bundle/index.js';
+let s = fs.readFileSync(p, 'utf8');
+const needle = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
+            if (urlNoQuery?.match(/(\\\\|\\/\\/)/)) {`;
+const replacement = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
+            let __cellpSlashPath = urlNoQuery;
+            try { if (/^https?:\\/\\//i.test(urlNoQuery)) __cellpSlashPath = new URL(urlNoQuery).pathname; } catch {}
+            if (__cellpSlashPath?.match(/(\\\\|\\/\\/)/)) {`;
+if (!s.includes(needle)) {
+  console.error('prepare-artifact: handleRequestImpl slash-redirect needle not found');
+  process.exit(1);
+}
+s = s.replace(needle, replacement);
+const locFrom = '    return location2;\n  }\n  const locationURL = new URL(location2);';
+const locTo = '    return location2 === "?" ? "/" : location2;\n  }\n  const locationURL = new URL(location2);';
+if (s.includes(locFrom)) {
+  s = s.replace(locFrom, locTo);
+}
+const relFrom = '    return href.slice(origin.length);\n  }\n  return href;';
+const relTo = '    const rel = href.slice(origin.length);\n    return rel === "?" ? "/" : rel;\n  }\n  return href;';
+if (s.includes(relFrom)) {
+  s = s.replace(relFrom, relTo);
+}
+fs.writeFileSync(p, s);
+NODE
+
 log "stage .open-next/assets → .cellp-assets"
 rm -rf .cellp-assets
 mkdir -p .cellp-assets

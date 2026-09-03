@@ -1,5 +1,6 @@
 # Vercel → cellp 迁移指南
 
+> **Vercel OSS on cellp（专题）：** [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) · [plans/VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md)  
 > **定位：** cellp 是**私有化 Workers 平台控制面**，不是 Vercel 替代品。  
 > **决策：** [decisions.md](./decisions.md) **AD-10**（不做 Git 托管 · 不做账号/RBAC）  
 > **若你跑 Next.js SSR / Node serverless：** 见 [supported-stacks.md](./supported-stacks.md) — **非目标运行时**。

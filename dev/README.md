@@ -17,6 +17,8 @@ curl -H "Host: commerce-store.lvh.me" http://127.0.0.1:8787/stats
 
 完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策 **[AD-12](../docs/decisions.md#17-ad-12--hostname--port-ingress废弃-path-选-version)** · Ingress **[INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)** · 验证 **[docs/test-plan.md](../docs/test-plan.md)**。
 
+**Support / Agent 注意：** 本地 Gateway 对 **Durable Object WebSocket 升级**（如 fx-on-workers `/session`）目前验收为 **502**；见 [`docs/platform-defects-log.md`](../docs/platform-defects-log.md) 与 [`dev/examples/support-fx-on-workers/README.md`](./examples/support-fx-on-workers/README.md)（HTTP `/api/prompt` 替代形态）。
+
 ## Ingress（AD-12，摘要）
 
 | 角色 | Host 形态 |

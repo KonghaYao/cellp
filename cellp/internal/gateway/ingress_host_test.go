@@ -74,8 +74,8 @@ func TestHostIngressPathPreserved(t *testing.T) {
 	if gotHost != synthetic {
 		t.Fatalf("upstream Host = %q want %q", gotHost, synthetic)
 	}
-	if gotXFH != host {
-		t.Fatalf("X-Forwarded-Host = %q want %q", gotXFH, host)
+	if gotXFH != host+":8787" {
+		t.Fatalf("X-Forwarded-Host = %q want %q", gotXFH, host+":8787")
 	}
 	if gotXFProto != "http" {
 		t.Fatalf("X-Forwarded-Proto = %q want http", gotXFProto)

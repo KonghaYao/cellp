@@ -53,8 +53,8 @@ lookup() {
     S24) PROJECT=support-remix; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=remix-starter-template; BUILD_STEPS="npm install" ;;
     S25) PROJECT=support-nuxt; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/nuxt; BUILD_STEPS= ;;
     S26) PROJECT=support-hono; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
-    S27) PROJECT=support-solidstart; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
-    S28) PROJECT=support-qwik; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
+    S27) PROJECT=support-solidstart; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/solid; BUILD_STEPS= ;;
+    S28) PROJECT=support-qwik; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/qwik/workers; BUILD_STEPS= ;;
     S29) PROJECT=support-waku; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
     S30) PROJECT=support-opennext; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=next-starter-template; BUILD_STEPS= ;;
     A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
@@ -100,7 +100,9 @@ pick_support_version() {
   done
   VERSION="v10"
 }
-pick_support_version
+if [[ -z "${SUPPORT_SKIP_VERSION_PICK:-}" ]]; then
+  pick_support_version
+fi
 log "deploy version ${VERSION}"
 
 CLONE_DIR="${CORPUS}/${PROJECT}"
@@ -209,7 +211,11 @@ if [[ -f "$OVERLAY" ]]; then
     gw_port="${gw_port%%/*}"
     gw_port="${gw_port:-8787}"
     scheme="${CELLP_PUBLIC_SCHEME_PREVIEW:-http}"
-    deploy_url="${scheme}://$(preview_host "$PROJECT" "$VERSION"):${gw_port}"
+    if [[ "$PROJECT" == "support-opennext" ]]; then
+      deploy_url="${scheme}://$(prod_host "$PROJECT"):${gw_port}/"
+    else
+      deploy_url="${scheme}://$(preview_host "$PROJECT" "$VERSION"):${gw_port}"
+    fi
     log "inject DEPLOY_URL=${deploy_url}"
     node -e "
 const fs = require('fs');
@@ -374,6 +380,17 @@ if ! poll_version "$PROJECT" "$VERSION" ready "${SUPPORT_POLL_SECS:-120}" >/dev/
   api_get "/v1/projects/${PROJECT}/versions/${VERSION}" | jq -r '.status,.error' 2>/dev/null || true
   echo "FAIL: version ${VERSION} failed (wanted ready)"
   exit 1
+fi
+
+if [[ "$SID" == "A04" && -n "${AI_GATEWAY_API_KEY:-}" ]]; then
+  FX_MODEL="${FX_MODEL:-minimax/minimax-m3-free}"
+  log "A04: worker env AI_GATEWAY_API_KEY + FX_MODEL=${FX_MODEL}"
+  if ! api_put "/v1/projects/${PROJECT}/versions/${VERSION}/env" \
+    "{\"vars\":{\"AI_GATEWAY_API_KEY\":\"${AI_GATEWAY_API_KEY}\",\"FX_MODEL\":\"${FX_MODEL}\"}}" \
+    "$ADMIN_TOKEN" >/dev/null; then
+    echo "WARN: PUT version env failed (set AI_GATEWAY_API_KEY in dev/.env)"
+  fi
+  sleep 2
 fi
 
 if [[ -f "${DEST}/wrangler.jsonc" ]] && { [[ -d "${DEST}/migrations" ]] || [[ -d "${DEST}/drizzle" ]]; }; then

@@ -60,4 +60,4 @@ Cloudflare may publish guides for additional frameworks. cellp does not assign t
 
 - [From Cloudflare](./cloudflare.md) — deploy path and bindings
 - [Supported stacks](./stacks.md) — short summary
-- Internal: [AD-13](https://github.com/KonghaYao/cellp/blob/main/docs/decisions.md#18-ad-13--前端框架一等公民与-nextjs-边界)
+- Contributor matrix: [framework-coverage-cellp.md](https://github.com/KonghaYao/cellp/blob/main/docs/framework-coverage-cellp.md) · [support-matrix.md](https://github.com/KonghaYao/cellp/blob/main/docs/support-matrix.md)

@@ -59,6 +59,9 @@
 | [plans/REVIEW-celld-d1-branch.md](./plans/REVIEW-celld-d1-branch.md) | D1 branch 对抗审查（APPROVE-WITH-CHANGES） |
 | [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) | AD-12 Host / Gateway |
 | [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md) | AD-12 Port 台账与稳定 prod 口 |
+| [plans/WEBSOCKET-SUPPORT-ANALYSIS.md](./plans/WEBSOCKET-SUPPORT-ANALYSIS.md) | **WebSocket 专题分析**（Gateway/DO/agent · M1/M2/M3） |
+| [plans/WEBSOCKET-INGRESS-DESIGN.md](./plans/WEBSOCKET-INGRESS-DESIGN.md) | WS ingress 工程规格 v0.2 |
+| [plans/FX-LLM-CREDENTIALS.md](./plans/FX-LLM-CREDENTIALS.md) | fx **仅 Vercel AI Gateway**；cellp 不做 OpenCode 适配 |
 
 ---
 

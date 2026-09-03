@@ -18,6 +18,11 @@ log "cellp fx overlay (HTTP /api/prompt)"
 cp "${OVERLAY_DIR}/cellp-overlay/index.js" ./src/index.js
 node "${OVERLAY_DIR}/cellp-overlay/patch-session.mjs" ./src/session.js
 
+if [[ -f "${OVERLAY_DIR}/cellp-overlay/inject-wrangler-local-secrets.mjs" ]]; then
+  AI_GATEWAY_API_KEY="${AI_GATEWAY_API_KEY:-}" FX_MODEL="${FX_MODEL:-minimax/minimax-m3-free}" \
+    node "${OVERLAY_DIR}/cellp-overlay/inject-wrangler-local-secrets.mjs" ./wrangler.jsonc
+fi
+
 log "ensure fx-term.wasm in src/"
 if [[ ! -f src/fx-term.wasm ]]; then
   test -f node_modules/libfx/fx-term.wasm

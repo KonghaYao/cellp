@@ -30,7 +30,8 @@ Start on this site. Deep links into GitHub when you need a file:
 ## Docs you want as a contributor / agent
 
 - [`DESIGN.md`](https://github.com/KonghaYao/cellp/blob/main/DESIGN.md) — architecture
-- [`docs/decisions.md`](https://github.com/KonghaYao/cellp/blob/main/docs/decisions.md) — AD-1…10
+- [`docs/decisions.md`](https://github.com/KonghaYao/cellp/blob/main/docs/decisions.md) — AD-1…13
+- [`docs/support-matrix.md`](https://github.com/KonghaYao/cellp/blob/main/docs/support-matrix.md) — community Workers validation
 - [`docs/test-plan.md`](https://github.com/KonghaYao/cellp/blob/main/docs/test-plan.md) — acceptance
 - [`AGENTS.md`](https://github.com/KonghaYao/cellp/blob/main/AGENTS.md) — how to change the repo
 

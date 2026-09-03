@@ -1,9 +1,23 @@
 # Support 框架用户行为验收（AD-13）
 
-> **日期：** 2026-09-02  
+> **日期：** 2026-09-02（末批复验 **2026-09-03**）  
 > **Gateway：** `http://127.0.0.1:8787`（prod Host：`*.lvh.me`）  
 > **验收方：** verification subagent（端口 + HTML 内容，非仅 HTTP 码）  
-> **健康检查：** `./dev/scripts/health.sh` — 全部 OK
+> **健康检查：** `./dev/scripts/health.sh` — 全部 OK（deep health 503 允许）
+
+## 2026-09-03 同步全量复验
+
+证据：`docs/evidence/verify-restart-20260903.log`、`verify-full-20260903.log`
+
+| 范围 | 总评 |
+|------|------|
+| S22–S26 prod | **PASS**（fleet 冷启动时需先 reconcile / 拉起 upstream celld） |
+| S27 | **FAIL**（未改） |
+| S28 / S29 | **FAIL**（deploy health timeout + worker load 错误；prod `ingress_unknown`） |
+| S30 OpenNext **v10** | **FAIL**（promote ready 后 prod 仍 **308** `Location: ?`） |
+| A01 / A03 / A04 prod HTTP | **PASS**（与既有 PARTIAL 口径一致） |
+| `go test ./...` | **PASS** |
+| `e2e/run-all.sh` | **FAIL**（本机缺 offshoot CLI） |
 
 ## 验收标准（用户行为）
 
@@ -15,6 +29,8 @@
 ---
 
 ## S22 — support-astro.lvh.me（读者模拟）
+
+> **复验：** 2026-09-03 同步 verify 批次 · prod grep **PASS**
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
@@ -30,7 +46,7 @@
 
 ## S23 — support-sveltekit.lvh.me（首次访问）
 
-> **复验：** 2026-09-03 · `prepare-artifact.sh` 构建前重置 `wrangler.jsonc`（`main` → `.svelte-kit/cloudflare/_worker.js`）· `deploy-support-app.sh S23` promote **v1**
+> **复验：** 2026-09-03 · `prepare-artifact.sh` 构建前重置 `wrangler.jsonc`（`main` → `.svelte-kit/cloudflare/_worker.js`）· `deploy-support-app.sh S23` promote **v1** · 2026-09-03 同步 verify **PASS**
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
@@ -44,6 +60,8 @@
 
 
 ## S24 — support-remix.lvh.me（Remix starter）
+
+> **复验：** 2026-09-03 同步 verify 批次 · prod **PASS**
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
@@ -76,7 +94,7 @@
 
 ## S26 — support-hono.lvh.me（C3 Hono · Workers Assets）
 
-> **复验：** 2026-09-03 · `GITHUB_CLONE_DIRECT=1 SUPPORT_SKIP_GIT_FETCH=1 SUPPORT_POLL_SECS=300 ./dev/scripts/deploy-support-app.sh S26`（promote **v3**）
+> **复验：** 2026-09-03 · `GITHUB_CLONE_DIRECT=1 SUPPORT_SKIP_GIT_FETCH=1 SUPPORT_POLL_SECS=300 ./dev/scripts/deploy-support-app.sh S26`（promote **v3**）· 2026-09-03 同步 verify **PASS**
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
@@ -106,29 +124,49 @@
 
 ## S28 — support-qwik.lvh.me（Qwik City · C3）
 
-> **复验：** 2026-09-03 · `prepare-artifact`（`create-qwik` + `cloudflare-workers`）· `deploy-support-app.sh S28` **v3**
+> **复验：** 2026-09-03 同步 verify · `deploy-support-app.sh S28` **v4** · celld `445569a`
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
 | slim artifact | — | — | wrangler dry-run + `.cellp-assets`（无 `.assetsignore`） | **PASS** |
-| prod | `support-qwik.lvh.me` | — | `celld health timeout`（platform） | **FAIL** |
-| 读者模拟 | `/` | — | 未验收 `Welcome to Qwik` | **FAIL** |
+| deploy | platform | — | `start celld: celld health timeout` **8833** | **FAIL** |
+| worker load | 手动 celld | — | `Cannot set property stdin of #<Process>`（unenv / `nodejs_compat`） | **FAIL** |
+| prod | `support-qwik.lvh.me` | **404** | `ingress_unknown` | **FAIL** |
+| 读者模拟 | `/` | — | 未 `grep 'Welcome to Qwik'` | **FAIL** |
 
-**S28 总评：FAIL**（构建链 OK，prod 未 ready）
+**S28 总评：FAIL**（构建链 OK；runtime load + prod route 未通）
 
 ---
 
 ## S29 — support-waku.lvh.me（Waku · C3）
 
-> **复验：** 2026-09-03 · `create-waku` + workers-sdk `templates/waku` overlay · `deploy-support-app.sh S29` **v5**
+> **复验：** 2026-09-03 同步 verify · `deploy-support-app.sh S29` **v6** · celld `445569a`
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
 | slim artifact | — | — | `dist/server/wrangler.json` dry-run · `nodejs_als` · 无 `rules`/`.assetsignore` | **PASS** |
-| prod | `support-waku.lvh.me` | — | `celld health timeout` | **FAIL** |
-| 读者模拟 | `/` | — | 未验收（模板含 `generator=Waku` / `An internet website!`） | **FAIL** |
+| deploy | platform | — | `start celld: celld health timeout` **8834** | **FAIL** |
+| worker load | 手动 celld | — | `does not provide an export named 'r'` | **FAIL** |
+| prod | `support-waku.lvh.me` | **404** | `ingress_unknown` | **FAIL** |
+| 读者模拟 | `/` | — | 未验收 `Waku` / `An internet website!` | **FAIL** |
 
-**S29 总评：FAIL**（构建链 OK，prod 未 ready）
+**S29 总评：FAIL**（构建链 OK；runtime load + prod route 未通）
+
+---
+
+## S30 — support-opennext.lvh.me（Next.js · OpenNext / C3 template）
+
+> **复验：** 2026-09-03 同步 verify · `SUPPORT_VERSION=v10` · `deploy-support-app.sh S30` promote **v10** · celld `445569a` · 无 `global_fetch_strictly_public` · `CELLD_TRUST_FORWARDED_HEADERS=1`
+
+| 步骤 | URL | HTTP | 用户可见结果 | Pass |
+|------|-----|------|--------------|------|
+| deploy | platform | — | version **v10** **ready** + promote ok | **PASS** |
+| prod 首页 | `/` | **308** | `Location: ?` · body `?` · `X-Opennext: 1` · **非** Next HTML | **FAIL** |
+| 读者模拟 | `/` | **308** | 无 `<!DOCTYPE html>` / Next 标题 | **FAIL** |
+
+**根因（当前）：** OpenNext/Next 重复斜杠或 URL 规范化链在 cellp ingress 下仍产出 **`Location: ?`**（见 `docs/plans/FRAMEWORK-README-EXT-ANALYSIS.md` §10、`NEXT-OPENNEXT-S30-ROOT-CAUSE.md`）。wasm（PD-08）已 fixed。
+
+**S30 总评：FAIL**（celld ready；prod 语义未达 tier-1）
 
 ---
 
@@ -148,6 +186,8 @@
 
 ## A01 — support-agents-starter
 
+> **复验：** 2026-09-03 同步 verify · prod `GET /` **PASS**
+
 | 步骤 | URL | HTTP | 用户可见 | Pass |
 |------|-----|------|----------|------|
 | 部署 | `deploy-support-app.sh A01` | — | `npx vite build` + `prepare-artifact.sh` → **v10** promoted | **PASS** |
@@ -161,6 +201,8 @@
 ---
 
 ## A03 — support-opencode-do
+
+> **复验：** 2026-09-03 同步 verify · `/` + `/global/health` **PASS**
 
 | 步骤 | URL | HTTP | 用户可见 | Pass |
 |------|-----|------|----------|------|
@@ -178,12 +220,15 @@
 
 ## A04 — support-fx-on-workers (fx agent)
 
+> **复验：** 2026-09-03 同步 verify · 401/200 TUI **PASS**
+
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
 | 无 key | `GET /` | 401 | `unauthorized — append ?key=<ACCESS_KEY>` | **PASS** |
 | TUI 首页 | `GET /?key=cellp-dev-fx-on-workers` | 200 | HTML `fx on Cloudflare` + xterm 容器 | **PASS** |
 | Session（非 WS） | `GET /session?key=...` | 426 | `expected websocket` | **PASS** |
 | 终端 WebSocket | `GET /session` + Upgrade | **101** | 握手成功（2026-09-03 WS-M2 复验） | **PASS** |
+| **WS 会话帧** | `dev/scripts/fx-websocket-smoke.sh` | — | 101 + JSON 事件（无 key 时为 `AI_GATEWAY` error 帧） | **PASS** |
 | ingress | 各 Host 正文 | — | 无 `ingress_unknown` | **PASS** |
 
 **A04 总评：PARTIAL**（HTTP TUI + **WS 101**；完整 agent 回合仍需 `AI_GATEWAY_API_KEY`）
@@ -204,12 +249,16 @@ curl -sS -H "Host: support-sveltekit.lvh.me" http://127.0.0.1:8787/ | grep -i sv
 # S24
 curl -sS -H "Host: support-remix.lvh.me" http://127.0.0.1:8787/ | grep -i remix
 curl -sS -o /dev/null -w '%{http_code}\n' -H "Host: support-remix.lvh.me" http://127.0.0.1:8787/assets/root-CS6YCbpS.css
-# S25（预期首页超时）
-curl -sS -m 10 -H "Host: support-nuxt.lvh.me" http://127.0.0.1:8787/ || echo timeout
+# S25
+curl -sS -m 15 -H "Host: support-nuxt.lvh.me" http://127.0.0.1:8787/ | grep -i 'Welcome to Nuxt'
 curl -sS -H "Host: support-nuxt.lvh.me" http://127.0.0.1:8787/robots.txt
+# S30 OpenNext（须 200 HTML，非 308 Location: ?）
+curl -sS -D - -o /tmp/s30.html -H "Host: support-opennext.lvh.me" http://127.0.0.1:8787/ | head -15
+grep -iE 'next|<!DOCTYPE' /tmp/s30.html | head -3
 # A02 工具多轮
 curl -sS -m 300 -X POST -H "Host: support-pi-worker.lvh.me" -H "Content-Type: application/json" \
   http://127.0.0.1:8787/ -d '{"prompt":"Use write tool to create cellp-agent-test.txt with line: ok. Then ls path . and report filenames."}'
 # A04
 curl -sS -H "Host: support-fx-on-workers.lvh.me" "http://127.0.0.1:8787/?key=cellp-dev-fx-on-workers" | head
+bash dev/scripts/fx-websocket-smoke.sh
 ```

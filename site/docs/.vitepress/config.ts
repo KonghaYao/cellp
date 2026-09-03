@@ -5,7 +5,7 @@ const siteUrl = 'https://konghayao.github.io/cellp/'
 export default defineConfig({
   title: 'cellp',
   description:
-    'Private, versioned Workers platform. Every deploy versions the app and its data. Preview, promote, self-host.',
+    'Private Workers control plane. Version app and data on every deploy. Preview, promote, self-host — not self-hosted Cloudflare.',
   lang: 'en-US',
   base: '/cellp/',
   appearance: 'dark',
@@ -25,7 +25,7 @@ export default defineConfig({
       {
         property: 'og:description',
         content:
-          'Self-hosted control plane for Cloudflare-style Workers. Preview every deploy with forked D1, KV, R2, and Queues. Promote when ready.',
+          'Private Workers control plane — not self-hosted Cloudflare. Version app and data on every deploy; preview branches D1, KV, R2, and Queues; promote when ready.',
       },
     ],
     ['meta', { property: 'og:url', content: siteUrl }],
@@ -106,6 +106,13 @@ export default defineConfig({
             { text: 'Queues', link: '/bindings/queues' },
             { text: 'Workflows', link: '/bindings/workflows' },
             { text: 'Cron', link: '/bindings/cron' },
+          ],
+        },
+        {
+          text: 'Research',
+          items: [
+            { text: 'Coding Agent on cellp', link: '/research/coding-agent-on-cellp' },
+            { text: 'Vercel framework on cellp', link: '/research/vercel-on-cellp' },
           ],
         },
         {

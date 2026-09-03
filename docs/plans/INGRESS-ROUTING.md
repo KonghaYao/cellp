@@ -117,7 +117,11 @@ celld：**`CELLD_TRUST_FORWARDED_HEADERS=1` 为 ready 门禁**；public listener
 
 ### 4.4 WebSocket
 
-Gateway 透传 `Upgrade` / `Connection`；Tier A 依赖外层 `wss` + `X-Forwarded-Proto: https`。
+Gateway **透传** hop-by-hop 升级头（`Upgrade` / `Connection` / `Sec-WebSocket-*`）；`applyUpstreamHeaders` **不**删除上述头。中间件链（含 `MetricsMiddleware` 的 `statusRecorder`）必须 **Hijacker-safe**：实现 `http.Hijacker` / `http.Flusher` 并委托内层（推荐 `Unwrap() http.ResponseWriter`），以便 `httputil.ReverseProxy` 在 **101 Switching Protocols** 上 `Hijack()`。
+
+`proxyIngress` 对 WebSocket 使用 `FlushInterval = -1`；Upgrade 代理失败时 structured log 区分 dial / hijack / other（正文仍为 `bad gateway`）。
+
+Tier A 依赖外层 `wss` + `X-Forwarded-Proto: https`。WS-M1 关门见 [WEBSOCKET-INGRESS-DESIGN.md](./WEBSOCKET-INGRESS-DESIGN.md)；**关闭 PD-07** 需 WS-M2（A04 `GET /session` → 101）。
 
 ---
 

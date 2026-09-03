@@ -2,7 +2,7 @@
 
 **cellp** is a **private Workers platform control plane**. It versions your Worker **and** its data on every deploy, serves a preview URL, and lets you promote that version to production.
 
-It is not a Cloudflare account, not a Vercel clone, and not a Git host. You keep GitHub (or GitLab, or Forgejo), your CI, and your load balancer. cellp sits in the middle: **receive an artifact, run an isolated version, route traffic**.
+It is **not** a Cloudflare account and **not** self-hosted Cloudflare. It is not Vercel and not a Git host. You keep GitHub (or GitLab, or Forgejo), your CI, and your load balancer. cellp sits in the middle: **receive an artifact, run an isolated [celld](https://github.com/KonghaYao/celld) process, route traffic**.
 
 ## The product
 

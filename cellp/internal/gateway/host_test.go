@@ -60,6 +60,26 @@ func TestPublicSchemeForRole(t *testing.T) {
 	}
 }
 
+func TestPublicSchemeForRequestDevGatewayPort(t *testing.T) {
+	gw := NewWithConfig(nil, GatewayConfig{
+		PublicSchemeProd: "https",
+		GatewayPort:      8787,
+	})
+	r := httptest.NewRequest("GET", "http://127.0.0.1:8787/", nil)
+	if got := gw.publicSchemeForRequest(r, registry.IngressRoleProd); got != "http" {
+		t.Fatalf("prod on :8787 got %q want http", got)
+	}
+}
+
+func TestClientAuthorityForIngressAppendsPort(t *testing.T) {
+	r := httptest.NewRequest("GET", "http://127.0.0.1:8787/", nil)
+	r.Host = "support-opennext.lvh.me"
+	got := clientAuthorityForIngress(r, "http", 8787)
+	if got != "support-opennext.lvh.me:8787" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func mustParseCIDR(t *testing.T, s string) []*net.IPNet {
 	t.Helper()
 	_, n, err := net.ParseCIDR(s)

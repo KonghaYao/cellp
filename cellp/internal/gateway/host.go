@@ -3,6 +3,7 @@ package gateway
 import (
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/cellp/cellp/internal/registry"
@@ -21,6 +22,48 @@ func clientAuthority(r *http.Request) string {
 		host = r.URL.Host
 	}
 	return host
+}
+
+// clientAuthorityForIngress is the authority celld should treat as the public Host
+// (X-Forwarded-Host), including the outward gateway port when non-default.
+func clientAuthorityForIngress(r *http.Request, publicProto string, gatewayPort int) string {
+	auth := clientAuthority(r)
+	if auth == "" {
+		return auth
+	}
+	if h, p, err := net.SplitHostPort(auth); err == nil && p != "" {
+		return auth
+	} else if err == nil {
+		auth = h
+	}
+	return appendGatewayPortIfNeeded(auth, publicProto, gatewayPort)
+}
+
+func appendGatewayPortIfNeeded(host, scheme string, port int) string {
+	host = strings.TrimSpace(host)
+	if host == "" || port <= 0 {
+		return host
+	}
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		return host
+	}
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if scheme == "http" && port == 80 {
+		return host
+	}
+	if scheme == "https" && port == 443 {
+		return host
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+// Dev Gateway listens on :8787 without TLS; never advertise https on that port.
+func schemeForDevGatewayPort(scheme string, gatewayPort int) string {
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if scheme == "https" && gatewayPort == 8787 {
+		return "http"
+	}
+	return scheme
 }
 
 func (g *Gateway) effectiveHost(r *http.Request) string {
@@ -66,5 +109,6 @@ func (g *Gateway) publicSchemeForRequest(r *http.Request, role string) string {
 	if r != nil && r.TLS != nil {
 		return "https"
 	}
-	return g.publicSchemeForRole(role)
+	scheme := g.publicSchemeForRole(role)
+	return schemeForDevGatewayPort(scheme, g.cfg.GatewayPort)
 }

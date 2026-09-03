@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -193,10 +194,11 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 		http.Error(w, "bad upstream", http.StatusBadGateway)
 		return
 	}
-	clientAuth := clientAuthority(r)
 	publicProto := g.publicSchemeForRequest(r, binding.Role)
+	clientAuth := clientAuthorityForIngress(r, publicProto, g.cfg.GatewayPort)
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.FlushInterval = -1
 	origDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		origDirector(req)
@@ -211,8 +213,13 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 		}
 		return nil
 	}
+	upgrade := isUpgradeRequest(r)
 	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, e error) {
 		metrics.RecordGatewayUpstream(http.StatusBadGateway)
+		if upgrade {
+			log.Printf("gateway websocket proxy error class=%s method=%s path=%s host=%s err=%v",
+				classifyProxyError(e), req.Method, req.URL.Path, req.Host, e)
+		}
 		http.Error(rw, "bad gateway", http.StatusBadGateway)
 	}
 	proxy.ServeHTTP(w, r)

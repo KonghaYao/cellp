@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/cellp/cellp/internal/api"
 	"github.com/cellp/cellp/internal/artifact"
@@ -75,9 +76,13 @@ func Run(ctx context.Context) error {
 
 	apiSrv := api.NewServer(store, queue, o, rm, cfg)
 
-	if err := lm.ReconcileIngressListeners(ctx); err != nil {
+	// Boot ingress reconcile must not use the signal ctx: fleet reconcile / restart races can cancel it before API listens.
+	bootIngress, bootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	if err := lm.ReconcileIngressListeners(bootIngress); err != nil {
+		bootCancel()
 		return fmt.Errorf("ingress listeners boot reconcile: %w", err)
 	}
+	bootCancel()
 
 	apiServer := &http.Server{Addr: cfg.APIAddr(), Handler: apiSrv.Handler()}
 	gwServer := &http.Server{Addr: cfg.GatewayAddr(), Handler: gw.Handler()}

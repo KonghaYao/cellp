@@ -35,7 +35,7 @@ Runs **[fx.sh](https://fx.sh)** upstream **[vercel-labs/fx](https://github.com/v
 |------|--------|
 | **Deploy** | `./dev/scripts/deploy-support-app.sh A04` |
 | **Overlay** | `dev/examples/support-fx-on-workers/wrangler.cellp.jsonc` |
-| **Secrets** | `AI_GATEWAY_API_KEY` (fx wasm calls Vercel AI Gateway — not Workers AI) |
+| **Secrets** | `AI_GATEWAY_API_KEY` (fx wasm → **Vercel AI Gateway only**; **not** OpenCode — cellp 不做协议适配，见 [FX-LLM-CREDENTIALS.md](./plans/FX-LLM-CREDENTIALS.md)) |
 | **cellp bar** | ready + `GET /?key=` **200**；**HTTP** `POST /api/prompt?key=`（overlay，见 `dev/examples/support-fx-on-workers/README.md`）收集 `command` 事件；浏览器 TUI 依赖 **WebSocket `/session`**（本地栈常 **502**，见 `platform-defects-log`） |
 | **Size** | ~2.2 MiB gzip bundle — watch Workers bundle limits |
 

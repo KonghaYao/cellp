@@ -1,6 +1,6 @@
 # Preview & production
 
-cellp selects the target version with **HTTP Host** ([AD-12](https://github.com/konghayao/cellp/blob/main/docs/decisions.md#17-ad-12--hostname--port-ingress废弃-path-选-version)). Gateway forwards the request path **unchanged** from `/`. Using `/{project}/{version}/` or `/{project}/` as a version selector is **deprecated**.
+cellp selects the target version with **HTTP Host** ([ingress routing plan](https://github.com/KonghaYao/cellp/blob/main/docs/plans/INGRESS-ROUTING.md)). Gateway forwards the request path **unchanged** from `/`. Using `/{project}/{version}/` or `/{project}/` as a version selector is **deprecated**.
 
 ## Preview
 
