@@ -187,7 +187,38 @@ if (s.includes(hrsIfFrom) && !s.includes('event.rawPath !== "/"')) {
   patched++;
 }
 
-if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname')) {
+const imageUrlFrom = `  const url = urls[0];
+  if (url.length > 3072) {`;
+const imageUrlTo = `  let url = urls[0];
+  if (typeof url === "string" && url.startsWith("//")) {
+    url = "/" + url.replace(/^\\/+/, "") || "/";
+  }
+  /* __cellpImageUrl */ if (url.length > 3072) {`;
+if (s.includes(imageUrlFrom) && !s.includes('__cellpImageUrl')) {
+  s = s.replace(imageUrlFrom, imageUrlTo);
+  patched++;
+}
+
+const cookieParserRe =
+  /function getCookieParser\(headers\) \{\s*return function\(\) \{\s*let \{ cookie \} = headers;\s*if \(!cookie\) return \{\};\s*let \{ parse: parseCookieFn \} = require_cookie\(\);\s*return parseCookieFn\(Array\.isArray\(cookie\) \? cookie\.join\("; "\) : cookie\);\s*\};\s*\}/;
+const cookieParserRepl = `function getCookieParser(headers) {
+        return function() {
+          let cookie = headers == null ? void 0 : headers.cookie;
+          if (cookie == null || cookie === "") return {};
+          if (typeof cookie !== "string") {
+            if (Array.isArray(cookie)) cookie = cookie.join("; ");
+            else return {};
+          }
+          let { parse: parseCookieFn } = require_cookie();
+          return parseCookieFn(cookie);
+        };
+      }`;
+if (cookieParserRe.test(s) && !s.includes('typeof cookie !== "string"')) {
+  s = s.replace(cookieParserRe, cookieParserRepl);
+  patched++;
+}
+
+if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname') && s.includes('typeof cookie !== "string"') && s.includes('__cellpImageUrl')) {
   console.log('prepare-artifact: bundle already patched');
 } else if (patched === 0) {
   console.error('prepare-artifact: no patches applied');
