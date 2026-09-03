@@ -121,7 +121,7 @@ High-visibility Workers OSS (GitHub stars / CF templates / [awesome-cloudflare](
 | **Supermemory SaaS stack** | Full-stack SaaS starter | ⚠️ | ~3.7k★ · auth + D1 + R2 |
 | **CloudPaste** | File share / WebDAV UI | ⚠️ | ~2.6k★ · prefer unified SPA Worker |
 | **Counterscale** | Privacy-friendly analytics | ⚠️ | ~2k★ · single Worker |
-| **cf-workers-status-page** | Status page + alerts | ⚠️ | ~2.8k★ · **S32** · flareact · **不支持**（celld load `default not object`） |
+| **cf-workers-status-page** | Status page + alerts | ✅ | ~2.8k★ · **S32** · flareact · ESM wrap · prod v2 |
 | **Serverless DNS** | DNS resolver on Workers | ⚠️ | Edge DNS |
 | **OpenStatus** | Open-source status pages | ⚠️ | Hono-style Workers app |
 | **Triplit** | Edge sync / data layer | ⚠️ | Workers client |
