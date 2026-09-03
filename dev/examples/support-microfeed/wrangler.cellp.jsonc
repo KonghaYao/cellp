@@ -1,0 +1,46 @@
+{
+  "name": "support-microfeed",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./dist/server/entry.mjs",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".cellp-assets",
+    "html_handling": "auto-trailing-slash"
+  },
+  "d1_databases": [
+    {
+      "binding": "FEED_DB",
+      "database_name": "microfeed-feed",
+      "database_id": "00000000-0000-0000-0000-00000000000e",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "support-microfeed-media"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "WEBHOOK_QUEUE",
+        "queue": "support-microfeed-webhooks"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "support-microfeed-webhooks",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5
+      }
+    ]
+  },
+  "vars": {
+    "UPLOAD_SIGNING_KEY": "cellp-microfeed-upload-signing-key-32b",
+    "BETTER_AUTH_SECRET": "cellp-microfeed-better-auth-secret-32",
+    "WEBHOOK_SECRET_KEY": "cellp-microfeed-webhook-secret-key-32"
+  }
+}

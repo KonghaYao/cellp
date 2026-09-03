@@ -116,7 +116,7 @@ High-visibility Workers OSS (GitHub stars / CF templates / [awesome-cloudflare](
 |---------|------|:-:|--------|
 | **Sink** | Short links + analytics UI | ✅ | ~7k★ · matrix S11 |
 | **CloudFlare-ImgBed** | Image & file hosting (R2/D1) | ✅ | ~6k★ · **S31** · prod v1 |
-| **microfeed** | Blog / podcast CMS | ⚠️ | ~4k★ · D1, Queues, R2 |
+| **microfeed** | Blog / podcast CMS | ✅ | **S34** · D1, Queues, R2 · `support-microfeed.lvh.me` |
 | **UptimeFlare** | Uptime checks + status page | ⏸️ | ~3.8k★ · **S33 暂缓** · Next prod **500** · 后排 |
 | **Supermemory SaaS stack** | Full-stack SaaS starter | ⚠️ | ~3.7k★ · auth + D1 + R2 |
 | **CloudPaste** | File share / WebDAV UI | ⚠️ | ~2.6k★ · prefer unified SPA Worker |
