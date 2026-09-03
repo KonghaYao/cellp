@@ -2,7 +2,8 @@
 
 > **判定日期：** 2026-09-02  
 > **环境：** 本地 dev · `lvh.me:8787` Host ingress · 单 Worker / 单 version / 单 celld（**无** `[[services]]` 多 Worker）  
-> **只两档：** **支持** | **不支持**（无 ready / partial / warn / pass）
+> **只两档：** **支持** | **不支持**（无 ready / partial / warn / pass）  
+> **不支持原因（按能力缺口）：** [support-unsupported-by-capability.md](./support-unsupported-by-capability.md)
 
 ## 判定规则
 

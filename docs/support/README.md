@@ -10,6 +10,7 @@
 | 文档 | 用途 |
 |------|------|
 | [support-matrix.md](../support-matrix.md) | S01–S30、P0 Agent — **支持 / 不支持** |
+| [support-unsupported-by-capability.md](../support-unsupported-by-capability.md) | **不支持** → **cellp/celld 能力缺口**（按能力维度） |
 | [support-todos.md](../support-todos.md) | 待办与优先级队列 |
 | [support-star-queue.md](../support-star-queue.md) | 高 Star 生态验证队列 |
 
