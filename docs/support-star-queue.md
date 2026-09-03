@@ -22,7 +22,7 @@
 | P2 | **Supermemory SaaS stack** | [supermemoryai/cloudflare-saas-stack](https://github.com/supermemoryai/cloudflare-saas-stack) | 3.7k | **排队** | Next-on-Pages pattern |
 | P2 | **Serverless DNS** | [serverless-dns/serverless-dns](https://github.com/serverless-dns/serverless-dns) | 3.8k | **排队** | Edge DNS resolver |
 | P2 | **OpenStatus** | [openstatusHQ/openstatus](https://github.com/openstatusHQ/openstatus) | — | **支持（S35）** | 主仓 Docker · cellp 用官方 [astro-status-page](https://github.com/openstatusHQ/astro-status-page) Workers 模板 · prod **v2** Host `support-openstatus.lvh.me` **200** · `docs/evidence/support-S35.log` |
-| P2 | **Triplit** | [aspen-cloud/triplit](https://github.com/aspen-cloud/triplit) | 3.1k | **排队** | Edge sync client |
+| P2 | **Triplit** | [aspen-cloud/triplit](https://github.com/aspen-cloud/triplit) | 3.1k | **不支持（S36）** | **S36** · `packages/cf-worker-server` · Yarn 4 + turbo · overlay `dev/examples/support-triplit/` · prod **v1** · Host `support-triplit.lvh.me` · `GET /health` **200** · `GET /` **401** JSON（无 Web 主界面）· `docs/evidence/support-S36.log` |
 
 ---
 

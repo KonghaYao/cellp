@@ -89,6 +89,7 @@
 | CloudFlare-ImgBed | **已纳入 S31** | **支持** · `dev/examples/support-imgbed/` · Workers `deploy/worker` · prod **v1**（2026-09-03） |
 | UptimeFlare | **⏸️ 暂缓（S33）** | v1 ready · prod **500** Next 栈 · **不支持** · 与 **S30 OpenNext** 同排后排 · 未 commit overlay |
 | OpenStatus | **已纳入 S35 · 支持** | **S35** · `dev/examples/support-openstatus/`（主仓无 wrangler · `prepare-artifact.sh` 构建 [astro-status-page](https://github.com/openstatusHQ/astro-status-page) Astro `@astrojs/cloudflare` · prod **v2** Host `support-openstatus.lvh.me` **200** · `docs/evidence/support-S35.log`） |
+| Triplit | **已纳入 S36 · 不支持** | **S36** · [aspen-cloud/triplit](https://github.com/aspen-cloud/triplit) `packages/cf-worker-server` · DO + `nodejs_compat` · overlay `dev/examples/support-triplit/`（Yarn 4 + turbo + wrangler dry-run slim）· prod **v1** · Host `support-triplit.lvh.me` · `GET /health` **200** · `GET /` **401** JSON（Edge sync API，无 Web 主界面）· `docs/evidence/support-S36.log` |
 | microfeed · … | **排队** | 见 star-queue |
 | VibeSDK | **难** | WFP + 多 DO（仅 star-queue 备注，非 Agent 主线） |
 | Cloudflare OS | **🔜 计划支持** | 见 CODING-AGENT 计划 |
