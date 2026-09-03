@@ -15,7 +15,7 @@
 | P0 | **Sink** | [miantiao-me/Sink](https://github.com/miantiao-me/Sink) | 7.1k | **支持（S11）** | matrix · `prepare-artifact.sh` + overlay · prod v2 2026-09-03 |
 | P0 | **Counterscale** | [benvinegar/counterscale](https://github.com/benvinegar/counterscale) | 2.1k | **不支持** | turbo pnpm monorepo |
 | P0 | **CloudPaste** (unified SPA Worker) | [ling-drag0n/CloudPaste](https://github.com/ling-drag0n/CloudPaste) | 2.6k | **不支持** | Pages+Worker 拆分 |
-| P1 | **CloudFlare-ImgBed** | [MarSeventh/CloudFlare-ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) | 6.3k | **排队** | Validate Workers-only path (not Docker) |
+| P1 | **CloudFlare-ImgBed** | [MarSeventh/CloudFlare-ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) | 6.3k | **支持（S31）** | `deploy/worker` + `prepare-artifact.sh` · KV `img_url` + R2 · prod **v1** 2026-09-03 · 无 `IMAGES` binding |
 | P1 | **cf-workers-status-page** | [eidam/cf-workers-status-page](https://github.com/eidam/cf-workers-status-page) | 2.8k | **不支持** | flareact/webpack `[site]` 未适配 |
 | P1 | **UptimeFlare** | [lyc8503/UptimeFlare](https://github.com/lyc8503/UptimeFlare) | 3.8k | **排队** | Workers + Pages — more moving parts |
 | P2 | **microfeed** | [microfeed/microfeed](https://github.com/microfeed/microfeed) | 4.1k | **排队** | D1 + Queues + R2 CMS |

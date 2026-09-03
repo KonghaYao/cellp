@@ -86,7 +86,8 @@
 | Counterscale | **不支持** | turbo **pnpm** monorepo，无单 wrangler 入口 |
 | CloudPaste | **不支持** | 多组件 Pages + Worker 拆分，未纳入单 Worker 槽位 |
 | cf-workers-status-page | **不支持** | 旧 **flareact/webpack** `[site]` 栈，未适配 cellp slim artifact |
-| CloudFlare-ImgBed · UptimeFlare · microfeed · … | **排队** | 见 star-queue |
+| CloudFlare-ImgBed | **已纳入 S31** | **支持** · `dev/examples/support-imgbed/` · Workers `deploy/worker` · prod **v1**（2026-09-03） |
+| UptimeFlare · microfeed · … | **排队** | 见 star-queue |
 | VibeSDK | **难** | WFP + 多 DO（仅 star-queue 备注，非 Agent 主线） |
 | Cloudflare OS | **🔜 计划支持** | 见 CODING-AGENT 计划 |
 
