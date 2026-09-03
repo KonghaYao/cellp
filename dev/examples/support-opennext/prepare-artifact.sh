@@ -26,38 +26,117 @@ fi
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+# wrangler.jsonc may already point at .cellp-bundle from a prior run; dry-run needs .open-next/worker.js.
+node <<'NODE'
+const fs = require('fs');
+const src = 'wrangler.jsonc';
+let raw = fs.readFileSync(src, 'utf8');
+let j;
+try {
+  j = JSON.parse(raw);
+} catch {
+  raw = raw.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/,\s*([}\]])/g, '$1');
+  j = JSON.parse(raw);
+}
+j.main = '.open-next/worker.js';
+j.assets = j.assets || { binding: 'ASSETS', directory: '.open-next/assets' };
+if (!j.assets.directory) j.assets.directory = '.open-next/assets';
+if (!j.assets.binding) j.assets.binding = 'ASSETS';
+delete j.no_bundle;
+fs.writeFileSync('wrangler.cellp-dry-run.jsonc', JSON.stringify(j, null, 2) + '\n');
+NODE
+npx --yes wrangler@4 deploy --config wrangler.cellp-dry-run.jsonc --dry-run --outdir .cellp-bundle
+rm -f wrangler.cellp-dry-run.jsonc
 if [[ -f .cellp-bundle/worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/worker.js .cellp-bundle/index.js
 fi
 [[ -f .cellp-bundle/index.js ]] || { echo "missing .cellp-bundle/index.js" >&2; exit 1; }
 
-log "patch Next slash redirect (ignore http:// in req.url)"
+log "patch Next slash redirect + Location: ? (celld absolute request.url)"
 node <<'NODE'
 const fs = require('fs');
 const p = '.cellp-bundle/index.js';
 let s = fs.readFileSync(p, 'utf8');
-const needle = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
+let patched = 0;
+
+if (!s.includes('__cellpSlashPath')) {
+  const needleA = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
             if (urlNoQuery?.match(/(\\\\|\\/\\/)/)) {`;
-const replacement = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
+  const needleB = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
+            if (urlNoQuery?.match(/(^\\/\\/|^\\\\\\\\)/)) {`;
+  const slashRepl = `            let urlNoQuery = (req.url || "").split("?", 1)[0];
             let __cellpSlashPath = urlNoQuery;
             try { if (/^https?:\\/\\//i.test(urlNoQuery)) __cellpSlashPath = new URL(urlNoQuery).pathname; } catch {}
             if (__cellpSlashPath?.match(/(\\\\|\\/\\/)/)) {`;
-if (!s.includes(needle)) {
-  console.error('prepare-artifact: handleRequestImpl slash-redirect needle not found');
+  if (s.includes(needleA)) {
+    s = s.replace(needleA, slashRepl);
+    patched++;
+  } else if (s.includes(needleB)) {
+    s = s.replace(needleB, slashRepl);
+    patched++;
+  } else {
+    console.error('prepare-artifact: handleRequestImpl slash-redirect needle not found');
+    process.exit(1);
+  }
+}
+
+const normLocRe = /function normalizeLocationHeader\(location2, baseUrl, encodeQuery = false\) \{[\s\S]*?\n\}/;
+const normLocRepl = `function normalizeLocationHeader(location2, baseUrl, encodeQuery = false) {
+  if (!URL.canParse(location2)) {
+    return location2 === "?" || location2 === "//" || location2 === "" ? "/" : location2;
+  }
+  const locationURL = new URL(location2);
+  const origin = new URL(baseUrl).origin;
+  let search = locationURL.search;
+  if (encodeQuery && search) {
+    search = \`?\${stringifyQs(parseQs(search.slice(1)))}\`;
+  }
+  const href = \`\${locationURL.origin}\${locationURL.pathname}\${search}\${locationURL.hash}\`;
+  if (locationURL.origin === origin) {
+    let rel = href.slice(origin.length);
+    if (!rel || rel === "?" || rel.startsWith("//")) rel = "/";
+    return rel;
+  }
+  return href;
+}`;
+if (!normLocRe.test(s)) {
+  console.error('prepare-artifact: normalizeLocationHeader function not found');
   process.exit(1);
 }
-s = s.replace(needle, replacement);
-const locFrom = '    return location2;\n  }\n  const locationURL = new URL(location2);';
-const locTo = '    return location2 === "?" ? "/" : location2;\n  }\n  const locationURL = new URL(location2);';
-if (s.includes(locFrom)) {
-  s = s.replace(locFrom, locTo);
+if (!s.includes('rel.startsWith("//")')) {
+  s = s.replace(normLocRe, normLocRepl);
+  patched++;
 }
-const relFrom = '    return href.slice(origin.length);\n  }\n  return href;';
-const relTo = '    const rel = href.slice(origin.length);\n    return rel === "?" ? "/" : rel;\n  }\n  return href;';
-if (s.includes(relFrom)) {
-  s = s.replace(relFrom, relTo);
+
+const relParseRe =
+  /href: href\.slice\(origin\.length\), slashes: void 0 \}/;
+const relParseRepl = `href: (() => {
+        const rel = href.slice(origin.length);
+        return !rel || rel === "?" || rel.startsWith("//") ? "/" : rel;
+      })(), slashes: void 0 }`;
+if (relParseRe.test(s) && !s.includes('__cellpParseRel')) {
+  s = s.replace(relParseRe, relParseRepl.replace('(() => {', '/* __cellpParseRel */ (() => {'));
+  patched++;
 }
+
+const repeatedSlashFrom =
+  'Location: normalizeRepeatedSlashes(new URL(event.url))';
+const repeatedSlashTo =
+  'Location: normalizeLocationHeader(normalizeRepeatedSlashes(new URL(event.url)), event.url)';
+if (s.includes(repeatedSlashFrom) && !s.includes(repeatedSlashTo)) {
+  s = s.replaceAll(repeatedSlashFrom, repeatedSlashTo);
+  patched++;
+}
+
+if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")')) {
+  console.log('prepare-artifact: bundle already patched');
+} else if (patched === 0) {
+  console.error('prepare-artifact: no patches applied');
+  process.exit(1);
+} else {
+  console.log('prepare-artifact: applied', patched, 'patch(es)');
+}
+
 fs.writeFileSync(p, s);
 NODE
 
