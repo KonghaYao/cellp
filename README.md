@@ -86,7 +86,7 @@ Real open-source Workers apps and framework stacks we exercise on cellp before c
 | **SolidStart** | ✅ | S27 · `dev/examples/support-solidstart/` · prod **200** · `Hello world!` · celld 动态 `import()` + `nodejs_als` |
 | **Qwik City** | ✅ | **S28 v7** · `templates/qwik/workers` · prod `Welcome to Qwik` · 无 `nodejs_compat` |
 | **Waku** | ✅ | `create-waku` + C3 overlay · **S29 v9** · `docs/evidence/support-S29.log` |
-| **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · `dev/examples/support-opennext/` · **v22** ready + promote · prod **400**（`//` URL · 非 200 HTML）· [evidence](./docs/evidence/support-S30.log) · [plan](./docs/plans/NEXT-OPENNEXT-CELLP.md) |
+| **Next.js** (OpenNext / vinext) | ⏸️ | **后排** · **S30 暂停** · prod v22 **400** · 非 AD-13 门禁 · [plan](./docs/plans/NEXT-OPENNEXT-CELLP.md) |
 
 **Apps & stacks**
 
@@ -115,9 +115,9 @@ High-visibility Workers OSS (GitHub stars / CF templates / [awesome-cloudflare](
 | Project | Kind | | Notes |
 |---------|------|:-:|--------|
 | **Sink** | Short links + analytics UI | ✅ | ~7k★ · matrix S11 |
-| **CloudFlare-ImgBed** | Image & file hosting (R2/D1) | ⚠️ | ~6k★ |
+| **CloudFlare-ImgBed** | Image & file hosting (R2/D1) | ✅ | ~6k★ · **S31** · prod v1 |
 | **microfeed** | Blog / podcast CMS | ⚠️ | ~4k★ · D1, Queues, R2 |
-| **UptimeFlare** | Uptime checks + status page | ⚠️ | ~3.8k★ · Workers + Pages |
+| **UptimeFlare** | Uptime checks + status page | ⏸️ | ~3.8k★ · **S33 暂缓** · Next prod **500** · 后排 |
 | **Supermemory SaaS stack** | Full-stack SaaS starter | ⚠️ | ~3.7k★ · auth + D1 + R2 |
 | **CloudPaste** | File share / WebDAV UI | ⚠️ | ~2.6k★ · prefer unified SPA Worker |
 | **Counterscale** | Privacy-friendly analytics | ⚠️ | ~2k★ · single Worker |
@@ -140,7 +140,7 @@ cellp is **not** Vercel. This track maps **[Vercel open source](https://github.c
 
 | Vercel OSS | What | | On cellp |
 |------------|------|:-:|----------|
-| **[Next.js](https://github.com/vercel/next.js)** | React framework | ❌ | No Next hosting · **⚠️** pre-built [OpenNext](https://opennext.js.org/) → single Worker ([plan](./docs/plans/NEXT-OPENNEXT-CELLP.md)) |
+| **[Next.js](https://github.com/vercel/next.js)** | React framework | ⏸️ | **后排** · 不做 Next 托管 · OpenNext 实验 **S30 暂停**（[plan](./docs/plans/NEXT-OPENNEXT-CELLP.md)） |
 | **[AI SDK](https://github.com/vercel/ai)** | TypeScript AI toolkit (`ai`, `@ai-sdk/*`) | ⚠️ | Bundle in your Worker + **your** provider keys |
 | **[Workflow SDK](https://github.com/vercel/workflow)** | Durable steps (Workflow DevKit) | 🔜 | Compare to **CF Workflows** on celld — not Vercel’s managed executor |
 | **[fx](https://github.com/vercel-labs/fx)** | [fx.sh](https://fx.sh) coding agent (Zig + wasm embed) | ⚠️ | **P1** on Workers: [fx-on-workers](https://github.com/codingstark-dev/fx-on-workers) · `./dev/scripts/deploy-support-app.sh A04` |

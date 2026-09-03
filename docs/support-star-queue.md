@@ -17,7 +17,7 @@
 | P0 | **CloudPaste** (unified SPA Worker) | [ling-drag0n/CloudPaste](https://github.com/ling-drag0n/CloudPaste) | 2.6k | **不支持** | Pages+Worker 拆分 |
 | P1 | **CloudFlare-ImgBed** | [MarSeventh/CloudFlare-ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed) | 6.3k | **支持（S31）** | `deploy/worker` + `prepare-artifact.sh` · KV `img_url` + R2 · prod **v1** 2026-09-03 · 无 `IMAGES` binding |
 | P1 | **cf-workers-status-page** | [eidam/cf-workers-status-page](https://github.com/eidam/cf-workers-status-page) | 2.8k | **支持（S32）** | overlay + `prepare-artifact.sh` + `cellp-entry.mjs`（webpack IIFE → ESM default）· prod **v2** 2026-09-03 · Host `support-status-page.lvh.me` **200** |
-| P1 | **UptimeFlare** | [lyc8503/UptimeFlare](https://github.com/lyc8503/UptimeFlare) | 3.8k | **排队** | Workers + Pages — more moving parts |
+| P1 | **UptimeFlare** | [lyc8503/UptimeFlare](https://github.com/lyc8503/UptimeFlare) | 3.8k | **⏸️ 暂缓** | **S33** 试验：v1 ready · prod **500**（Next `_error`）· **与 S30/OpenNext 同排后排** · overlay 未纳入矩阵 |
 | P2 | **microfeed** | [microfeed/microfeed](https://github.com/microfeed/microfeed) | 4.1k | **排队** | D1 + Queues + R2 CMS |
 | P2 | **Supermemory SaaS stack** | [supermemoryai/cloudflare-saas-stack](https://github.com/supermemoryai/cloudflare-saas-stack) | 3.7k | **排队** | Next-on-Pages pattern |
 | P2 | **Serverless DNS** | [serverless-dns/serverless-dns](https://github.com/serverless-dns/serverless-dns) | 3.8k | **排队** | Edge DNS resolver |
@@ -67,7 +67,8 @@ Documented on Cloudflare; cellp framework slots in [support-matrix.md](./support
 |-----------|--------|
 | Astro, SvelteKit, Remix | **支持** (when example overlay green) |
 | Nuxt | 待验 |
-| Hono, SolidStart, Qwik, Waku, Next (OpenNext) | **测试中** / experimental — see README |
+| Hono, SolidStart, Qwik, Waku | **支持** — S26–S29 · 见 [support-matrix.md](./support-matrix.md) |
+| Next (OpenNext) · UptimeFlare (Next/Pages) | **⏸️ 后排** — S30 / S33 暂停，见 [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 

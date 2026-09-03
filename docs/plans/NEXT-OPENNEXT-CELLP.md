@@ -1,6 +1,6 @@
 # Next.js / OpenNext on cellp（实验路径）
 
-> **状态：** 非一等公民 · **不**纳入 [support-matrix.md](../support-matrix.md) 门禁  
+> **状态：** 非一等公民 · **不**纳入 [support-matrix.md](../support-matrix.md) 门禁 · **⏸️ 2026-09-03 后排**（S30 · UptimeFlare/S33 同栈暂缓，优先单 Worker / flareact 类）  
 > **决策：** [decisions.md §18 AD-13](../decisions.md#18-ad-13--前端框架一等公民与-nextjs-边界)  
 > **对照：** [framework-coverage-cellp.md](../framework-coverage-cellp.md)
 
