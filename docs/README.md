@@ -33,7 +33,7 @@
 | 可观测性 | [observability.md](./observability.md) |
 | 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |
 | **社区 Workers 支持矩阵** | [support/README.md](./support/README.md)（索引）· [support-matrix.md](./support-matrix.md) |
-| **证据目录索引** | [evidence/README.md](./evidence/README.md) |
+| **证据目录说明** | [evidence-index.md](./evidence-index.md)（`docs/evidence/` 本地 gitignore） |
 | **Coding Agent on cellp（前沿）** | [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md) |
 | **Vercel framework on cellp（后续）** | [plans/VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md) · [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) |
 | Prod offshoot × RustFS | [runbooks/prod-offshoot-rustfs.md](./runbooks/prod-offshoot-rustfs.md) |
@@ -115,7 +115,7 @@
 
 运行前：`mkdir -p docs/evidence`  
 临时文件 `*.log` / `*.out` 已 gitignore。  
-**完整索引：** [evidence/README.md](./evidence/README.md)
+**说明：** [evidence-index.md](./evidence-index.md) · 运行前 `mkdir -p docs/evidence`
 
 ### D1 数据面
 

@@ -32,4 +32,4 @@
 | [platform-defects-log.md](../platform-defects-log.md) | 平台缺陷（PD-*）登记 |
 | [framework-coverage-cellp.md](../framework-coverage-cellp.md) | 框架覆盖对照 |
 
-**证据 log：** `docs/evidence/support-*.log` · 索引 [evidence/README.md](../evidence/README.md)
+**证据 log：** `docs/evidence/support-*.log` · [evidence-index.md](../evidence-index.md)
