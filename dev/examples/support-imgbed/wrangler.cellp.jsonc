@@ -23,5 +23,7 @@
   "images": {
     "binding": "IMAGES"
   },
-  "vars": {}
+  "vars": {
+    "disable_telemetry": "true"
+  }
 }
