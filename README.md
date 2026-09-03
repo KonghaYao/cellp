@@ -86,7 +86,7 @@ Real open-source Workers apps and framework stacks we exercise on cellp before c
 | **SolidStart** | ❌ | C3 `create-solid` 非交互 scaffold 失败（S27）· `dev/examples/support-solidstart/` |
 | **Qwik City** | ❌ | `prepare-artifact` OK · prod celld health timeout（S28）· 预期 `Welcome to Qwik` |
 | **Waku** | ❌ | `create-waku` + C3 overlay · prod celld health timeout（S29） |
-| **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · pre-built only (`dev/examples/support-opennext/`) · artifact OK · **no** prod HTML on `:8787` yet ([evidence](./docs/evidence/support-S30.log)) |
+| **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · pre-built only (`dev/examples/support-opennext/`) · **v5** celld **ready**（wasm PD-08）· prod **308**（非 200 HTML）· [evidence](./docs/evidence/support-S30.log) |
 
 **Apps & stacks**
 

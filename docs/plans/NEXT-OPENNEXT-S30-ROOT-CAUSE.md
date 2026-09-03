@@ -155,5 +155,21 @@ Caused by:
 
 ## 待补章节
 
-- [ ] Gateway / `GET /` 行为（celld 起来之后）
+- [x] Gateway / `GET /` 行为（celld 起来之后）— 见 §修复验证
 - [ ] `nodejs_compat` / OpenNext API 缺口矩阵
+
+---
+
+## §修复验证（PD-08 · 2026-09-03）
+
+**celld 变更：** `deploy.rs` 在 `no_bundle` 路径对入口文件所在目录调用 `read_wasm_modules_from_dir`（与 esbuild outdir 相同语义：basename 模块名）。单元测试 `no_bundle_includes_sibling_wasm_modules`。
+
+| 步骤 | 结果 |
+|------|------|
+| `cargo test -p celld` | 49 passed |
+| `celld deploy` dry-run（v5 artifact） | Total Upload **8623.49 KiB**（含 resvg/yoga wasm；修复前 ~7190 KiB 仅 JS） |
+| `deploy-support-app.sh S30` **v5** | `status: ready`，promote **v5** |
+| `$TMPDIR/celld-support-opennext-v5.log` | `isolate started` · `ready_gate_open` · **无** `instantiate: <none>` |
+| `curl -H 'Host: support-opennext.lvh.me' http://127.0.0.1:8787/` | **308**，`Location: ?`，`X-Opennext: 1`（重定向环；**非** PD-08） |
+
+**结论：** wasm 侧车缺口已闭合；S30 仍 **不支持** tier-1，下一阻塞为 OpenNext 在 cellp Host 下的 **308 / URL 解析**（与 `global_fetch_strictly_public` 或 request URL 相关，待单独矩阵项）。

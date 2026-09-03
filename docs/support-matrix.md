@@ -72,7 +72,7 @@
 | S27 | **SolidStart** | **不支持** | — | `dev/examples/support-solidstart/` → `support-c3-framework/prepare-artifact.sh` · **非交互 C3 失败**：`create-cloudflare --category=web-framework --framework=solid` 派发 `create-solid` 需 TTY 选模板 / ENOENT（无 SolidStart `package.json`） |
 | S28 | **Qwik City** | **不支持** | — | `create-qwik` playground + `qwik add cloudflare-workers` · slim artifact 可构建 · prod **v3** `start celld: celld health timeout`（`docs/evidence/support-S28.log`）· 未 `grep 'Welcome to Qwik'` |
 | S29 | **Waku** | **不支持** | — | `create-waku` + workers-sdk C3 overlay · `dist/server/wrangler.json` dry-run · prod **v5** `celld health timeout` · 剔除 `rules`/`.assetsignore` · 未 prod `grep 'Waku'`/`An internet website` |
-| S30 | **Next.js (OpenNext)** | **不支持** | — | CF `next-starter-template` + `@opennextjs/cloudflare` · `dev/examples/support-opennext/` · `prepare-artifact` + `no_bundle`（~8.6 MiB wrangler dry-run 通过）· **未** prod `GET /` 200（v1/v2 `celld health timeout`，见 `docs/evidence/support-S30.log`）· [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| S30 | **Next.js (OpenNext)** | **不支持** | — | CF `next-starter-template` + `@opennextjs/cloudflare` · `dev/examples/support-opennext/` · `prepare-artifact` + `no_bundle`（~8.6 MiB）· **v5** `ready`（PD-08 wasm）· prod `GET /` **308** `Location: ?`（非 200 HTML）· 见 `docs/evidence/support-S30.log` · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 

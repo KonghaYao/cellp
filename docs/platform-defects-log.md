@@ -193,7 +193,7 @@ S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 
 |--|--|
 | **层级** | cellp Gateway / celld（DO `fetch` + `Upgrade: websocket`） |
 | **严重度** | major（浏览器 TUI / 长会话 agent 主路径不可用） |
-| **状态** | `mitigated`（A04 overlay：`POST /api/prompt` HTTP 形态，见 `dev/examples/support-fx-on-workers/README.md`） |
+| **状态** | **`fixed`**（WS-M2：2026-09-03 verification — Gateway `GET /session` Upgrade → **101**；证据 `docs/evidence/ws-ingress-verify.log`、`websocket-ingress-h1h2.md`） |
 
 ### 现象
 
@@ -222,7 +222,7 @@ S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 
 |--|--|
 | **层级** | celld（`deploy.rs` · `no_bundle`） |
 | **严重度** | major（OpenNext 等 wrangler 产物含 wasm 时 version 无法 `ready`） |
-| **状态** | `open` |
+| **状态** | `fixed`（celld `no_bundle` 收录入口目录 sibling `*.wasm`；S30 **v5** `ready`，但 prod `GET /` 仍为 **308** `Location: ?`，矩阵仍 **不支持**） |
 
 ### 现象
 
@@ -243,7 +243,7 @@ celld 收录 sibling wasm，或 artifact 改用 A04 式 `CompiledWasm` + celld e
 
 | 日期 | 变更 |
 |------|------|
-| 2026-09-03 | PD-08 **open**：S30 OpenNext `no_bundle` 丢 wasm → health timeout；见 NEXT-OPENNEXT-S30-ROOT-CAUSE.md |
+| 2026-09-03 | PD-08 **fixed**（celld `read_wasm_modules_from_dir` + `no_bundle`）；S30 v5 health **ready** · prod **308** 非 wasm · 见 NEXT-OPENNEXT-S30-ROOT-CAUSE §修复验证 |
 | 2026-09-03 | PD-06 **fixed**：`node:timers` `setImmediate`；S25 `GET /` 200 HTML（~11ms）；证据见 user-acceptance 复验 |
 | 2026-09-01 | PD-06：根因分析见 [NITRO-CELLD-COMPAT.md](./plans/NITRO-CELLD-COMPAT.md)（修正 localFetch 机制描述） |
 | 2026-09-02 | PD-05 fixed：`_routes.json` + 尾斜杠；S22 全路径 200（见 integration-verify-astro-s22-routes.md） |
