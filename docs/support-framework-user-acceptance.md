@@ -217,9 +217,9 @@
 | 会话 | `POST /session` | 200 | `ses_*` JSON | **PASS** |
 | 多轮消息 | `POST /session/{id}/message` | 200 | user+assistant JSON；assistant 为 Workers AI 错误占位 | **PASS**（协议） |
 | 历史 | `GET /session/{id}/message` | 200 | 两轮消息数组 | **PASS** |
-| SSE | `GET /event` | 超时 | 3s 内无字节（gateway） | **FAIL** |
+| SSE | `GET /event` | 200 chunked | 3s 内 `event: message` + `server.connected`（连接保持至客户端断开；curl `-m` EOF 超时 ≠ 失败） | **PASS** |
 
-**A03 总评：PARTIAL**（生产 HTTP/OpenCode JSON **OK**；SSE + 真实推理未通）
+**A03 总评：PARTIAL**（生产 HTTP/OpenCode JSON **OK** · SSE **OK**；真实推理仍 blocked by Workers AI）
 
 ---
 
@@ -260,6 +260,10 @@ curl -sS -H "Host: support-nuxt.lvh.me" http://127.0.0.1:8787/robots.txt
 # S30 OpenNext（须 200 HTML，非 308 Location: ?）
 curl -sS -D - -o /tmp/s30.html -H "Host: support-opennext.lvh.me" http://127.0.0.1:8787/ | head -15
 grep -iE 'next|<!DOCTYPE' /tmp/s30.html | head -3
+# A03 SSE（看首字节；curl -m EOF=保持连接，不是 gateway 超时）
+curl -sS -N --max-time 3 -D - -o /tmp/a03-event.bin -H "Host: support-opencode-do.lvh.me" \
+  -H "Accept: text/event-stream" http://127.0.0.1:8787/event || true
+head -c 80 /tmp/a03-event.bin; echo
 # A02 工具多轮
 curl -sS -m 300 -X POST -H "Host: support-pi-worker.lvh.me" -H "Content-Type: application/json" \
   http://127.0.0.1:8787/ -d '{"prompt":"Use write tool to create cellp-agent-test.txt with line: ok. Then ls path . and report filenames."}'

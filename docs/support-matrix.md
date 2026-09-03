@@ -120,7 +120,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 |----|------|:--------:|-------------------|------|
 | A01 | **agents-starter** | **支持（部分）** | http://support-agents-starter.lvh.me:8787/ | **v10** · prod `GET /` **200**（Agent Starter SPA + `/assets/*`）· `prepare-artifact.sh` + overlay 无 `AI` · 多轮推理依赖 **Workers AI**（celld 缺口） |
 | A02 | **pi-worker** (`hello-agent`) | **支持** | http://support-pi-worker.lvh.me:8787/ | OpenAI 兼容 **OpenCode Zen**（`OPENAI_*`）+ R2 工具多轮；overlay `hello-agent.src` |
-| A03 | **opencode-do** | **支持（部分）** | http://support-opencode-do.lvh.me:8787/ | **v1** · prod `GET /` **200** · `POST /session` + `POST/GET .../message` **JSON 多轮持久化** · assistant 文案为 Workers AI 不可用占位 · `GET /event` SSE **长连接超时** |
+| A03 | **opencode-do** | **支持（部分）** | http://support-opencode-do.lvh.me:8787/ | **v1** · prod `GET /` **200** · `POST /session` + `POST/GET .../message` **JSON 多轮持久化** · `GET /event` SSE **PASS**（首包 `server.connected`）· assistant 文案为 Workers AI 不可用占位 |
 | A04 | **fx-on-workers** | **支持** | http://support-fx-on-workers.lvh.me:8787/?key=cellp-dev-fx-on-workers | **v9** · **WebSocket `/session` 101** + TUI（`fx-websocket-smoke.sh`）· **`AI_GATEWAY_API_KEY`** + `FX_MODEL`（Vercel Gateway，非 OpenCode） |
 
 **计划：** [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · **Vercel OSS（后续）：** [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md)

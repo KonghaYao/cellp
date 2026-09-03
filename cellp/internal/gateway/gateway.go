@@ -198,6 +198,8 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 	clientAuth := clientAuthorityForIngress(r, publicProto, g.cfg.GatewayPort)
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	// Immediate flush: WebSocket 101 and SSE must not wait for the default
+	// 50ms / full-response buffer. http.Server here has no WriteTimeout.
 	proxy.FlushInterval = -1
 	origDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
@@ -210,6 +212,13 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 		metrics.RecordGatewayUpstream(resp.StatusCode)
 		if resp.StatusCode >= 200 && resp.StatusCode < 500 {
 			g.touchLastAccessThrottled(projectID, versionID)
+		}
+		ct := resp.Header.Get("Content-Type")
+		if strings.HasPrefix(ct, "text/event-stream") {
+			resp.Header.Set("X-Accel-Buffering", "no")
+			if resp.Header.Get("Cache-Control") == "" {
+				resp.Header.Set("Cache-Control", "no-cache")
+			}
 		}
 		return nil
 	}

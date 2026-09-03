@@ -25,7 +25,7 @@ Run on local dev stack: `./dev/scripts/deploy-support-app.sh <id>` · evidence: 
 |----|:--------:|-------------|-----------------|------|
 | **A01** | **支持（部分）** | **v10** | overlay 去掉 Workers AI；`GET /` SPA **200**，`/agents/*` 需 WebSocket 升级；聊天推理在 celld 上无 `env.AI` | `docs/evidence/support-A01.log` · `support-A01-acceptance.log` |
 | **A02** | **支持** | （见 matrix） | — | `docs/evidence/support-A02.log` |
-| **A03** | **支持（部分）** | **v1** | HTTP OpenCode 面 **200/JSON**（`POST /session`、`.../message`）；模型回复占位错误；`GET /event` SSE 在 gateway 上 **超时** | `docs/evidence/support-A03.log` · `support-A03-acceptance.log` |
+| **A03** | **支持（部分）** | **v1** | HTTP OpenCode 面 **200/JSON**；`GET /event` SSE **PASS**（3s 内 `event: message` / `server.connected`，连接保持）；模型回复仍为 Workers AI 占位 | `docs/evidence/support-A03.log` · `support-A03-acceptance.log` |
 
 ### P1 — [fx on Workers](https://github.com/codingstark-dev/fx-on-workers) (`A04`)
 

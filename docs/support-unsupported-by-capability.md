@@ -32,7 +32,7 @@
 
 | 能力缺口 | 表现 | 现状 | 受影响示例 | 备注 |
 |----------|------|------|--------------|------|
-| **Ingress 长连接 / SSE** | `/event` 等 **chunked 长响应** | Gateway/代理 **超时** 未按产品级 SSE 验收 | **A03** opencode-do（**部分支持**） | cellp gateway 策略，非 celld Worker |
+| **Ingress 长连接 / SSE** | `/event` 等 **chunked 长响应** | **已通**：gateway `FlushInterval=-1` + `statusRecorder.Flush`；`text/event-stream` 设 `X-Accel-Buffering: no`。`http.Server` **无** `WriteTimeout`。celld 默认 `CELLD_HANDLER_BUDGET_S=300`，流式 body 走 waitUntil pump（对标 CF Worker 持连流式）。验收勿用「整连接必须在 3s 结束」——SSE **不结束**，看 **首字节**。 | **A03** `GET /event` **PASS**（`server.connected`）。仍 **部分支持** 因 Workers AI 占位 | 长连接 hang 是协议；不是 gateway 超时 |
 | **单 Host 多 Worker 控制台** | 同域名下多后端 service | 与 **services 编排** 同源 | **S14** | 见 §1 多 Worker |
 | **Deploy 并发 / 内存** | 大 bundle `celld deploy` **SIGKILL** | **PD-09** `CELLP_CELLD_DEPLOY_CONCURRENCY` · 非功能缺口但阻塞验证 | 历史 S27/S28/S30 部署 | [platform-defects-log.md](./platform-defects-log.md) |
 
@@ -70,7 +70,7 @@
 | 仅 API 无 Web `/` | S36 |
 | `/` 非主界面 | S19 |
 | Workers AI 全链路 | A01 部分 |
-| SSE 长连接 | A03 部分 |
+| SSE 长连接 | **已通**（A03 `/event` 首字节）；A03 部分因 Workers AI |
 | `IMAGES` 变换 | S31：MVP 已接；`draw`/部分选项仍缺 |
 
 ---
