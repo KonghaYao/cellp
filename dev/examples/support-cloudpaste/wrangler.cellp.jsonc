@@ -1,0 +1,30 @@
+{
+  "name": "support-cloudpaste",
+  "main": "unified-entry.js",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENCRYPTION_SECRET": "cellp-cloudpaste-encryption-secret",
+    "ADMIN_TOKEN_EXPIRY_DAYS": "7"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloudpaste-db",
+      "database_id": "00000000-0000-0000-0000-000000000010"
+    }
+  ],
+  "workflows": [
+    {
+      "binding": "JOB_WORKFLOW",
+      "name": "job-workflow",
+      "class_name": "JobWorkflow"
+    }
+  ],
+  "assets": {
+    "directory": ".cellp-assets",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/dav/*"]
+  }
+}

@@ -63,6 +63,8 @@ lookup() {
     S34) PROJECT=support-microfeed; REPO_URL=https://github.com/microfeed/microfeed.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S35) PROJECT=support-openstatus; REPO_URL=https://github.com/openstatusHQ/openstatus.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S36) PROJECT=support-triplit; REPO_URL=https://github.com/aspen-cloud/triplit.git; WORKDIR_SUB=packages/cf-worker-server; BUILD_STEPS= ;;
+    S37) PROJECT=support-serverless-dns; REPO_URL=https://github.com/serverless-dns/serverless-dns.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
+    S39) PROJECT=support-cloudpaste; REPO_URL=https://github.com/ling-drag0n/CloudPaste.git; WORKDIR_SUB=backend; BUILD_STEPS= ;;
     A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
     A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
     A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;

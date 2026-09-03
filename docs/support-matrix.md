@@ -84,7 +84,7 @@
 |------|----------|------|
 | Sink | **已纳入 S11** | **支持** · `dev/examples/support-sink/` · prod **v2**（2026-09-03） |
 | Counterscale | **不支持** | turbo **pnpm** monorepo，无单 wrangler 入口 |
-| CloudPaste | **不支持** | 多组件 Pages + Worker 拆分，未纳入单 Worker 槽位 |
+| CloudPaste | **已纳入 S39 · 支持** | **S39** · [ling-drag0n/CloudPaste](https://github.com/ling-drag0n/CloudPaste) · 官方 **unified SPA**（`backend/wrangler.spa.toml`）· overlay `dev/examples/support-cloudpaste/`（Vite 前端 + wrangler dry-run → `.cellp-bundle` · D1 + Workflows）· prod **v1** Host `support-cloudpaste.lvh.me` **200** SPA · `GET /api/health` **200** · `docs/evidence/support-S39.log` |
 | cf-workers-status-page | **已纳入 S32 · 支持** | **S32** · `dev/examples/support-status-page/`（flareact 双 webpack + ESM `cellp-entry.mjs` wrap `addEventListener` → `export default { fetch }`）· prod **v2** Host `support-status-page.lvh.me` **200** HTML · `docs/evidence/support-S32.log` |
 | CloudFlare-ImgBed | **已纳入 S31** | **支持** · `dev/examples/support-imgbed/` · Workers `deploy/worker` · prod **v1**（2026-09-03） |
 | UptimeFlare | **⏸️ 暂缓（S33）** | v1 ready · prod **500** Next 栈 · **不支持** · 与 **S30 OpenNext** 同排后排 · 未 commit overlay |

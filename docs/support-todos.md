@@ -59,7 +59,7 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 ## 执行状态
 
-**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P2 **S34 microfeed ✅**（Astro · D1+Queue+R2 · prod **v4** `support-microfeed.lvh.me` **200**）；P1 高 Star **S31 ImgBed ✅ · S32 status-page ✅ · S35 OpenStatus ✅**；**S36 Triplit** prod v1 ready · **不支持**（API-only）；**S30 OpenNext / S33 UptimeFlare（Next 栈）⏸️ 后排**。框架 **S26–S29 ✅**。
+**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；P2 **S34 microfeed ✅**（Astro · D1+Queue+R2 · prod **v4** `support-microfeed.lvh.me` **200**）；P1 高 Star **S31 ImgBed ✅ · S32 status-page ✅ · S35 OpenStatus ✅**；**S36 Triplit** prod v1 ready · **不支持**（API-only）；**S30 OpenNext / S33 UptimeFlare（Next 栈）⏸️ 后排**。框架 **S26–S29 ✅**。
 
 **框架一等公民（S22–S25）** 见下表。
 
@@ -120,6 +120,7 @@ A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面 ·
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-03 | **S39 CloudPaste**：`support-cloudpaste` · `deploy-support-app.sh S39` · overlay `dev/examples/support-cloudpaste/`（`wrangler.spa` 路径）· prod **v1** Host **200** · **支持** |
 | 2026-09-03 | **S34 microfeed**：`support-microfeed` · `deploy-support-app.sh S34` · overlay `dev/examples/support-microfeed/` · prod **v4** Host **200** · **支持** |
 | 2026-09-03 | **S36 Triplit**：`support-triplit` · prod **v1** · overlay `dev/examples/support-triplit/` · **不支持**（无 Web 主界面 · `/health` 200 · `/` 401） |
 | 2026-09-02 | **A04 fx-on-workers**：v5 ready · prod `/?key=cellp-dev-fx-on-workers` **200** · overlay + `prepare-artifact.sh`（celld `no_bundle` 不含 wasm → wrangler dry-run + celld 再 esbuild） |
