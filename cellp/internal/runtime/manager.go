@@ -211,6 +211,7 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 		fmt.Sprintf("AWS_REGION=%s", m.region),
 		fmt.Sprintf("CELLD_WATCH=%s", watch),
 		fmt.Sprintf("CELLD_READY_FLEET_GATE_MS=%s", gateMs),
+		"CELLD_TRUST_FORWARDED_HEADERS=1",
 	}
 	if m.envLoader != nil {
 		workerEnv, err := m.envLoader(ctx, project, version)
@@ -267,7 +268,7 @@ func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
 		return nil
 	}
 	bucket := m.versionBucket(project, version)
-	cmd := exec.CommandContext(ctx, "celld", "diagnose",
+	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", "diagnose",
 		"--bucket", bucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
@@ -325,7 +326,7 @@ func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir strin
 	}
 	defer cleanup()
 	bucket := m.versionBucket(project, version)
-	cmd := exec.CommandContext(ctx, "celld", "deploy", deployDir,
+	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", "deploy", deployDir,
 		"--bucket", bucket, "--endpoint", m.endpoint, "--region", m.region)
 	env := append(os.Environ(),
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),

@@ -54,8 +54,11 @@ j.no_bundle = true;
 j.assets = j.assets || {};
 j.assets.directory = '.cellp-assets';
 j.assets.binding = j.assets.binding || 'ASSETS';
-if (!j.compatibility_flags?.includes('nodejs_compat')) {
-  j.compatibility_flags = [...(j.compatibility_flags || []), 'nodejs_compat'];
+j.compatibility_flags = (j.compatibility_flags || []).filter(
+  (f) => f !== 'global_fetch_strictly_public'
+);
+if (!j.compatibility_flags.includes('nodejs_compat')) {
+  j.compatibility_flags.push('nodejs_compat');
 }
 delete j.observability;
 delete j.upload_source_maps;

@@ -88,3 +88,16 @@ S26（Hono）已 **支持**。
 - **celld** `54957b2`：`read_wasm_modules_from_dir` · 已 push。
 - **cellp** `fae65b7`：submodule + PD-08 **fixed**（wasm）；S30 矩阵仍 **不支持**（308）。
 - 完整 explorer 长文见会话记录；本文为仓库内可维护摘要。
+
+---
+
+## 10. 复验结果（2026-09-03 · P0 实施）
+
+| ID | 变更 | 复验 |
+|----|------|------|
+| **S30** | `wrangler.cellp.jsonc` 去掉 `global_fetch_strictly_public`；`prepare-artifact.sh` 过滤该 flag；**cellp** `runtime.Manager` 启动 celld 时设 `CELLD_TRUST_FORWARDED_HEADERS=1`（AD-12） | **v5** 在 trust-forwarded 下 prod 仍 **308** `Location: ?`（OpenNext `handleRepeatedSlashRedirect` / URL 规范化，待 **v6** 重部署 artifact + 路径复验） |
+| **S29** | **celld** `no_bundle` 递归收录 `.cellp-bundle/**/*.js`（`read_js_modules_from_dir`） | `cargo test -p celld` **50 passed**；待 `deploy-support-app.sh S29` → ready + prod `grep` |
+| **S28** | 读 `$TMPDIR/celld-support-qwik-v3.log` | **load 失败**（非 timeout）：`Cannot set property stdin of #<Process>`（`@cloudflare/unenv-preset` / `nodejs_compat`）· 待 celld 或 artifact compat |
+| **S27** | — | 未做（余力外） |
+
+**celld 提交：** `no_bundle` sibling ESM + `request_url` 路径 `//` 折叠（防御性）。
