@@ -33,7 +33,17 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
 
 ## 3. 推荐优化流水线（对齐 support 套路）
 
-与 S08 / S14 / S19 已验证的 **prepare-artifact** 一致：
+与 S08 / S14 / S19 已验证的 **prepare-artifact** 一致。
+
+**S30 PoC（2026-09-03）固定路径：**
+
+| 项 | 值 |
+|----|-----|
+| 上游 | [cloudflare/templates `next-starter-template`](https://github.com/cloudflare/templates/tree/main/next-starter-template) |
+| 构建 | `npm run build` → `npx opennextjs-cloudflare build` → `.open-next/worker.js` + `.open-next/assets` |
+| celld 入口 | `wrangler deploy --dry-run --outdir .cellp-bundle` → `main: .cellp-bundle/index.js`，`no_bundle: true` |
+| 静态 | `.open-next/assets` → `.cellp-assets`（wrangler `assets.directory`） |
+| overlay | `dev/examples/support-opennext/` · deploy `S30` |
 
 ```text
 1. CI: opennext build（或 @opennextjs/cloudflare 文档命令）
@@ -48,6 +58,8 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
    - assets + not_found_handling: "single-page-application"（若适用）
 6. POST /versions → Host ingress 验收
 ```
+
+**S30 本地结论（未 prod HTML）：** artifact 阶段通过（wrangler dry-run ~8.6 MiB）；`POST /versions` 后 **celld health timeout**（`docs/evidence/support-S30.log`），`Host: support-opennext.lvh.me:8787` 无 200。**矩阵：** **不支持**（实验路径，非 tier-1）。
 
 **禁止：** 把完整 monorepo `node_modules` 打进 artifact（用 slim stage，见 `deploy-support-app.sh`）。
 

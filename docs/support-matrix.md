@@ -72,7 +72,7 @@
 | S27 | **SolidStart** | **验证中** | — | C3 `create-cloudflare` · `dev/examples/support-solidstart/` |
 | S28 | **Qwik City** | **验证中** | — | 同上 · `support-qwik` |
 | S29 | **Waku** | **验证中** | — | 同上 · `support-waku` |
-| S30 | **Next.js (OpenNext)** | **验证中** | — | 见 `docs/plans/NEXT-OPENNEXT-CELLP.md` |
+| S30 | **Next.js (OpenNext)** | **不支持** | — | CF `next-starter-template` + `@opennextjs/cloudflare` · `dev/examples/support-opennext/` · `prepare-artifact` + `no_bundle`（~8.6 MiB wrangler dry-run 通过）· **未** prod `GET /` 200（v1/v2 `celld health timeout`，见 `docs/evidence/support-S30.log`）· [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 
@@ -127,7 +127,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 
 | 组件 | 状态 |
 |------|------|
-| Next.js / OpenNext | ⚠️ 实验 · 非 tier-1 |
+| Next.js / OpenNext | **不支持**（S30 实验）· 见 [support-S30-opennext-20260903.md](./evidence/support-S30-opennext-20260903.md) |
 | AI SDK (`vercel/ai`) | ⚠️ 打进 Worker 包 |
 | Workflow SDK | 🔜 对照 CF Workflows |
 | fx → fx-on-workers | **支持（部分）** · A04 · v5 |

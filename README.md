@@ -86,7 +86,7 @@ Real open-source Workers apps and framework stacks we exercise on cellp before c
 | **SolidStart** | ⚠️ | [CF full-stack frameworks](https://blog.cloudflare.com/blazing-fast-development-with-full-stack-frameworks-and-cloudflare/) · testing on cellp |
 | **Qwik City** | ⚠️ | Same · testing on cellp |
 | **Waku** | ⚠️ | Same · testing on cellp |
-| **Next.js** (OpenNext / vinext) | ⚠️ | Pre-built Workers bundle only; testing on cellp |
+| **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · pre-built only (`dev/examples/support-opennext/`) · artifact OK · **no** prod HTML on `:8787` yet ([evidence](./docs/evidence/support-S30.log)) |
 
 **Apps & stacks**
 

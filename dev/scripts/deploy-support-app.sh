@@ -56,7 +56,7 @@ lookup() {
     S27) PROJECT=support-solidstart; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
     S28) PROJECT=support-qwik; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
     S29) PROJECT=support-waku; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
-    S30) PROJECT=support-opennext; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
+    S30) PROJECT=support-opennext; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=next-starter-template; BUILD_STEPS= ;;
     A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
     A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
     A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
