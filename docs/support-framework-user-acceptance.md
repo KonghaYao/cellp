@@ -231,7 +231,7 @@
 | **WS 会话帧** | `dev/scripts/fx-websocket-smoke.sh` | — | 101 + JSON 事件（无 key 时为 `AI_GATEWAY` error 帧） | **PASS** |
 | ingress | 各 Host 正文 | — | 无 `ingress_unknown` | **PASS** |
 
-**A04 总评：PARTIAL**（HTTP TUI + **WS 101**；完整 agent 回合仍需 `AI_GATEWAY_API_KEY`）
+**A04 总评：支持**（WebSocket 101 + 会话帧 smoke PASS；完整 LLM 回合需 **Vercel AI Gateway** key，非 OpenCode）
 
 ---
 

@@ -17,7 +17,7 @@ curl -H "Host: commerce-store.lvh.me" http://127.0.0.1:8787/stats
 
 完整设计见 **[DESIGN.md §11](../DESIGN.md#11-本地单机-devagent-闭环)** · 决策 **[AD-12](../docs/decisions.md#17-ad-12--hostname--port-ingress废弃-path-选-version)** · Ingress **[INGRESS-ROUTING.md](../docs/plans/INGRESS-ROUTING.md)** · 验证 **[docs/test-plan.md](../docs/test-plan.md)**。
 
-**Support / Agent 注意：** 本地 Gateway 对 **Durable Object WebSocket 升级**（如 fx-on-workers `/session`）目前验收为 **502**；见 [`docs/platform-defects-log.md`](../docs/platform-defects-log.md) 与 [`dev/examples/support-fx-on-workers/README.md`](./examples/support-fx-on-workers/README.md)（HTTP `/api/prompt` 替代形态）。
+**Support / Agent：** Gateway **WebSocket 升级**（Host ingress → celld → Worker/DO）**已支持**（WS-M1/M2 · PD-20260903-07 **fixed**）。验收：`bash e2e/scripts/v1-websocket-ingress.sh`、`bash dev/scripts/fx-websocket-smoke.sh`。专题：[`docs/plans/WEBSOCKET-SUPPORT-ANALYSIS.md`](../docs/plans/WEBSOCKET-SUPPORT-ANALYSIS.md) · fx overlay：[`examples/support-fx-on-workers/README.md`](./examples/support-fx-on-workers/README.md)。
 
 ## Ingress（AD-12，摘要）
 
@@ -87,6 +87,7 @@ cellpd 启动后按 `CELLP_GC_INTERVAL` 后台清理：
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `CELLP_ORCH_WORKERS` | `1` | Orchestrator 并行 worker goroutine 数（SQLite dev 仍为单写；PostgreSQL prod 配合 `SKIP LOCKED`） |
+| `CELLP_CELLD_DEPLOY_CONCURRENCY` | `1` | 进程内并发 `celld deploy` 子进程上限（AD-1 多 celld 常驻 + deploy 峰值内存；dev 批量 support 验证建议保持 `1`） |
 | `CELLP_QUEUE_MAX` | `10000` | 部署队列 pending jobs 上限；超过后 `POST /versions` 返回 **503** |
 | `CELLP_LENIENT_DEPLOY` | （未设） | 设为 `1` 时 offshoot / D1 seed&branch 失败仅 warn 仍尝试 ready；**默认关闭（fail-closed）**。`CELLP_STRICT_OFFSHOOT_FORK=1` 已废弃，与默认等价 |
 

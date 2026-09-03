@@ -36,7 +36,7 @@ Runs **[fx.sh](https://fx.sh)** upstream **[vercel-labs/fx](https://github.com/v
 | **Deploy** | `./dev/scripts/deploy-support-app.sh A04` |
 | **Overlay** | `dev/examples/support-fx-on-workers/wrangler.cellp.jsonc` |
 | **Secrets** | `AI_GATEWAY_API_KEY` (fx wasm → **Vercel AI Gateway only**; **not** OpenCode — cellp 不做协议适配，见 [FX-LLM-CREDENTIALS.md](./plans/FX-LLM-CREDENTIALS.md)) |
-| **cellp bar** | ready + `GET /?key=` **200**；**HTTP** `POST /api/prompt?key=`（overlay，见 `dev/examples/support-fx-on-workers/README.md`）收集 `command` 事件；浏览器 TUI 依赖 **WebSocket `/session`**（本地栈常 **502**，见 `platform-defects-log`） |
+| **cellp bar** | ready + `GET /?key=` **200**；**WebSocket** `/session` → **101**（`dev/scripts/fx-websocket-smoke.sh`）；**HTTP** `POST /api/prompt?key=` 自动化备用；完整 fx 回合需 **`AI_GATEWAY_API_KEY`**（见 [FX-LLM-CREDENTIALS.md](./plans/FX-LLM-CREDENTIALS.md)） |
 | **Size** | ~2.2 MiB gzip bundle — watch Workers bundle limits |
 
 **Overlays (P0):** `dev/examples/support-agents-starter|support-pi-worker|support-opencode-do/wrangler.cellp.jsonc` — **Workers AI** bindings omitted (celld gap). **Agent 验收：** 多轮 + 工具调用。Pi（A02）在 cellp 用 **OpenAI 兼容** 接 Zen：`OPENAI_BASE_URL=https://opencode.ai/zen/v1`、`OPENAI_API_KEY=public`、`OPENAI_MODEL=big-pickle`，overlay `hello-agent.src/index.ts` 走 **pi-worker `Agent` + `getModel`**（非手写 fetch 循环）。

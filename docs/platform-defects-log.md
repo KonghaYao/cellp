@@ -239,11 +239,36 @@ celld 收录 sibling wasm，或 artifact 改用 A04 式 `CompiledWasm` + celld e
 
 ---
 
+## PD-20260903-09 — 多 celld 常驻 + 并发 deploy → OOM SIGKILL（cellp）
+
+| | |
+|--|--|
+| **层级** | cellp（`runtime/manager.go` · dev AD-1 fleet） |
+| **严重度** | blocker（version `failed`: `celld deploy: signal: killed`） |
+| **状态** | `fixed`（`CELLP_CELLD_DEPLOY_CONCURRENCY` 默认 1 + deploy 槽位；SIGKILL 一次重试） |
+
+### 现象
+
+- **S27** SolidStart：artifact ~324 KiB `no_bundle` OK；orch 子进程 **`celld deploy: signal: killed`**（无 stderr），`docs/evidence/support-S27-20260903-deploy.log`。
+- **S29** 等同日 batch 多次 `signal: killed`；**v9** 在内存压力降低后 deploy **ready**（`docs/evidence/support-S29.log`）。
+- **对比：** artifact 目录手工 `celld deploy --bucket s3://cellp-celld/...` **可成功**（无并发 deploy、无额外 orch 峰值）。
+
+### 根因
+
+AD-1 为每个 ready route 常驻 **celld**（dev 可达 ~28 进程）。Orchestrator / promote reconcile 再 fork **`celld deploy`**（esbuild 读盘 + S3 上传）时，与 `context.WithoutCancel` 无关，**macOS 内存压力**对 deploy 子进程发 **SIGKILL**；`exec` 表现为 `signal: killed`、CombinedOutput 为空。
+
+### 修复 / 缓解
+
+1. **cellp：** `withCelldDeploySlot` 限制并发 deploy（`CELLP_CELLD_DEPLOY_CONCURRENCY`，默认 **1**）；`signal: killed` **重试 1 次**（间隔 3s）。
+2. **运维：** 批量 support 验证前 `./dev/scripts/health.sh`；仍 OOM 时 archive 非必要 ready preview 或增大主机内存；大 bundle 用 `prepare-artifact` wrangler dry-run + `no_bundle`（见 S27/S28）。
+
+---
+
 ## 变更 log
 
 | 日期 | 变更 |
 |------|------|
-| 2026-09-03 | PD-08 **fixed**（celld `read_wasm_modules_from_dir` + `no_bundle`）；S30 v5 health **ready** · prod **308** 非 wasm · 见 NEXT-OPENNEXT-S30-ROOT-CAUSE §修复验证 |
+| 2026-09-03 | PD-09 **fixed**：`CELLP_CELLD_DEPLOY_CONCURRENCY` + deploy slot/retry；见 `cellp/internal/runtime/deploy_limit.go` |
 | 2026-09-03 | PD-06 **fixed**：`node:timers` `setImmediate`；S25 `GET /` 200 HTML（~11ms）；证据见 user-acceptance 复验 |
 | 2026-09-01 | PD-06：根因分析见 [NITRO-CELLD-COMPAT.md](./plans/NITRO-CELLD-COMPAT.md)（修正 localFetch 机制描述） |
 | 2026-09-02 | PD-05 fixed：`_routes.json` + 尾斜杠；S22 全路径 200（见 integration-verify-astro-s22-routes.md） |

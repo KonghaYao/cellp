@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-09-02（含 AD-6 … AD-12 · **AD-13**）
+> **最后更新：** 2026-09-03（含 AD-6 … AD-12 · **AD-13** · Gateway WebSocket ingress）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -36,7 +36,7 @@
 | celld | 每个 **ready version** 独立子进程 + 独立端口（`8792+N`） |
 | bucket | `s3://cellp-celld/{project}/{version}` 每 version 隔离 |
 | Registry `routes` | 每 version 记录 `upstream_host` + `upstream_port` |
-| Gateway | **AD-12：** Host / opt-in listen port → `ingress_bindings` → route 反代（**废弃** path 选 version） |
+| Gateway | **AD-12：** Host / opt-in listen port → `ingress_bindings` → route 反代（**废弃** path 选 version）；**WebSocket Upgrade**（RFC6455）透传 celld **已支持**（2026-09-03 · [WEBSOCKET-SUPPORT-ANALYSIS.md](./plans/WEBSOCKET-SUPPORT-ANALYSIS.md)） |
 | 本地 watch | **默认临时目录**（`$TMPDIR/cellp-celld-*`）；进程 `Stop` 后删除。**S3/RustFS 为唯一持久层** |
 | 调试 | `CELLP_CELLD_WATCH_PERSIST=1` 恢复 `dev/data/celld-watch/{project}/{version}` 持久路径 |
 

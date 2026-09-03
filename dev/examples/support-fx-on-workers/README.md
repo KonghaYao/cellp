@@ -4,7 +4,7 @@
 
 ## WebSocket 冒烟（Worker / DO 通路）
 
-WS-M2 之后，经 Gateway 的 **`GET /session`** Upgrade 应返回 **101**，并在连接上收到 TUI **binary** 帧和/或 **text** JSON 事件（`status`、`ready`、`error`、`command` 等）。
+**cellp：** WebSocket ingress **已支持**（Gateway 101 → DO 会话帧；见 `docs/plans/WEBSOCKET-SUPPORT-ANALYSIS.md`）。
 
 ```bash
 ./dev/scripts/fx-websocket-smoke.sh

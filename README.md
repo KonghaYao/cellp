@@ -21,7 +21,7 @@ Private **control plane** on your hardware — **not** a Cloudflare account, **n
 | cellp does | cellp does not |
 |------------|----------------|
 | Version **App + Data** together; preview **branch**; **promote** / rollback | Global edge, built-in DNS/TLS/CDN/WAF |
-| Gateway **Host** ingress (preview + prod) | User accounts, SSO, RBAC |
+| Gateway **Host** ingress (preview + prod) · **WebSocket** Upgrade → celld | User accounts, SSO, RBAC |
 | Dashboard + REST (`:8790`) | Hosted cellp cloud |
 
 > **cellp versions Worker + D1/KV/R2/Queue on every deploy** — preview is a real data fork, production is an explicit promote.

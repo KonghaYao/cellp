@@ -102,7 +102,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 |------|------|
 | **[Cloudflare OS](https://github.com/cloudflare/cloudflare-os)** | **🔜 计划支持** |
 | **P0 验证** | **A01–A03** → [AGENT-SUPPORT.md §P0](./AGENT-SUPPORT.md#p0--cellp-deploy-support-validation-ordered) |
-| **P1 fx** | **[fx-on-workers](https://github.com/codingstark-dev/fx-on-workers)** ([fx.sh](https://fx.sh)) · **A04** · **支持（部分）** · v5 |
+| **P1 fx** | **[fx-on-workers](https://github.com/codingstark-dev/fx-on-workers)** ([fx.sh](https://fx.sh)) · **A04** · **支持** · v9 |
 | **[Cloudflare Agents](https://agents.cloudflare.com/)** | **🔜 对齐 Agent Cloud**（SDK + DO + Workflows；见 P0） |
 | **[Eve](https://github.com/vercel/eve)** (Vercel) | **🔜 研究** |
 | **[Pi](https://github.com/earendil-works/pi)** · **[Deep Agents](https://github.com/langchain-ai/deepagents)** | **🔜 研究** |
@@ -113,9 +113,9 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 | ID | 项目 | **支持？** | 验证 URL（支持时） | 备注 |
 |----|------|:--------:|-------------------|------|
 | A01 | **agents-starter** | **支持（部分）** | http://support-agents-starter.lvh.me:8787/ | **v10** · prod `GET /` **200**（Agent Starter SPA + `/assets/*`）· `prepare-artifact.sh` + overlay 无 `AI` · 多轮推理依赖 **Workers AI**（celld 缺口） |
-| A02 | **pi-worker** (`hello-agent`) | **支持** | http://support-pi-worker.lvh.me:8787/ | `prepare-artifact.sh` + R2 `FILES`；`GET /` 返回 usage JSON；完整对话需 `OPENROUTER_API_KEY` |
+| A02 | **pi-worker** (`hello-agent`) | **支持** | http://support-pi-worker.lvh.me:8787/ | OpenAI 兼容 **OpenCode Zen**（`OPENAI_*`）+ R2 工具多轮；overlay `hello-agent.src` |
 | A03 | **opencode-do** | **支持（部分）** | http://support-opencode-do.lvh.me:8787/ | **v1** · prod `GET /` **200** · `POST /session` + `POST/GET .../message` **JSON 多轮持久化** · assistant 文案为 Workers AI 不可用占位 · `GET /event` SSE **长连接超时** |
-| A04 | **fx-on-workers** | **支持（部分）** | http://support-fx-on-workers.lvh.me:8787/?key=cellp-dev-fx-on-workers | v5 ready · `prepare-artifact.sh`（wrangler bundle + celld esbuild wasm）· WebSocket 会话需 `AI_GATEWAY_API_KEY` |
+| A04 | **fx-on-workers** | **支持** | http://support-fx-on-workers.lvh.me:8787/?key=cellp-dev-fx-on-workers | **v9** · **WebSocket `/session` 101** + TUI（`fx-websocket-smoke.sh`）· **`AI_GATEWAY_API_KEY`** + `FX_MODEL`（Vercel Gateway，非 OpenCode） |
 
 **计划：** [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · **Vercel OSS（后续）：** [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md)
 
@@ -130,7 +130,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 | Next.js / OpenNext | **不支持**（S30 实验）· 见 [support-S30-opennext-20260903.md](./evidence/support-S30-opennext-20260903.md) |
 | AI SDK (`vercel/ai`) | ⚠️ 打进 Worker 包 |
 | Workflow SDK | 🔜 对照 CF Workflows |
-| fx → fx-on-workers | **支持（部分）** · A04 · v5 |
+| fx → fx-on-workers | **支持** · A04 · v9 |
 | Eve · open-agents | 🔜 研究 |
 
 ---

@@ -313,6 +313,13 @@ func (m *Manager) RuntimeHealth(ctx context.Context, routes []registry.Route) []
 	return out
 }
 
+func celldDeployKilled(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "signal: killed")
+}
+
 // Deploy runs celld deploy for a bundle directory. When includeCrons is false, triggers.crons
 // are stripped from a temp copy of the bundle (artifact unchanged); see AD-11.
 func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir string, includeCrons bool) error {
@@ -330,6 +337,27 @@ func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir strin
 		return err
 	}
 	defer cleanup()
+
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(3 * time.Second):
+			}
+		}
+		lastErr = withCelldDeploySlot(ctx, func(runCtx context.Context) error {
+			return m.runCelldDeploy(runCtx, project, version, exampleDir, deployDir)
+		})
+		if lastErr == nil || !celldDeployKilled(lastErr) {
+			return lastErr
+		}
+	}
+	return lastErr
+}
+
+func (m *Manager) runCelldDeploy(ctx context.Context, project, version, exampleDir, deployDir string) error {
 	bucket := m.versionBucket(project, version)
 	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", "deploy", deployDir,
 		"--bucket", bucket, "--endpoint", m.endpoint, "--region", m.region)

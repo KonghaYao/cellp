@@ -200,7 +200,7 @@ flowchart LR
 
 1. **WebSocket 是 DO / 终端 agent 的一等 ingress 能力**，与 AD-12 Host 路由正交、不可省略。  
 2. **历史主因 H1**：Gateway 未 Hijack → 502 `bad gateway`；**WS-M1 已修**。  
-3. **fx A04 WS-M2 已验收 101**；PD-07 关闭；完整 fx 仍要 AI Gateway key。  
+3. **fx A04 WS-M2 已验收 101**；PD-20260903-07 **fixed**；**cellp dev 栈 WebSocket ingress 标为支持**（`e2e/scripts/v1-websocket-ingress.sh`、`dev/scripts/fx-websocket-smoke.sh`）。完整 fx 仍要 AI Gateway key。  
 4. **celld compat 仍为 Partial**；M3/P1 管 hibernation、多节点、TLS、指标与安全。  
 5. **验收分工**：自动化与四格矩阵由 **verification subagent** + e2e 脚本承担；规格与分期见 DESIGN，辩论见 DEBATE。
 
