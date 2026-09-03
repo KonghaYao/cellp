@@ -1,120 +1,168 @@
 # cellp
 
-**Private, versioned Workers — on your hardware.**
+**Self-hosted Workers control plane — version the app and the data on every deploy.**
 
-Every deploy versions **the app and its data**. Preview is a real fork of D1, KV, R2, and Queues. Production is an explicit promote. You keep Git, CI, and TLS; cellp is the control plane in the middle.
-
-**Docs:** **[https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)**
+Preview forks D1, KV, R2, and Queues. Production is an explicit **promote**. You keep Git, CI, and TLS; cellp receives artifacts, runs isolated **[celld](https://github.com/KonghaYao/celld)** processes, and routes traffic.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
-cellp doctor
-cellp dev
+cellp doctor && cellp dev
 ```
 
-[Install](https://konghayao.github.io/cellp/guides/install) · [cellp dev](https://konghayao.github.io/cellp/guides/dev) · [Write a Worker](https://konghayao.github.io/cellp/build/)
+**Docs:** [konghayao.github.io/cellp](https://konghayao.github.io/cellp/) · [Install](https://konghayao.github.io/cellp/guides/install) · [From Cloudflare](https://konghayao.github.io/cellp/migrate/cloudflare) · [Vercel on cellp](https://konghayao.github.io/cellp/research/vercel-on-cellp) · [Supported stacks](https://konghayao.github.io/cellp/migrate/stacks)
 
 ---
 
-cellp 是**私有化 Workers 平台控制面**：外部 CI 每次投递时同时 version 化 App + Data，经 Gateway 提供 preview / prod。100% 自建，不依赖 AWS / Cloudflare 账号。
+## What cellp is
 
-面向使用者的文档以 GitHub Pages 为准；本 README 下面是仓库入口。贡献者 / Agent 仍读 [DESIGN.md](./DESIGN.md) 与 [docs/](./docs/README.md)。
-
-## What it is / is not
+Private **control plane** on your hardware — **not** a Cloudflare account, **not** “self-hosted Cloudflare,” **not** Vercel or a Git host.
 
 | cellp does | cellp does not |
 |------------|----------------|
-| Version lifecycle + preview / prod URLs | User accounts, orgs, SSO |
-| Branch D1 · KV · R2 · Queue on child versions | Git hosting, webhooks, PR bots |
-| Promote saga + rollback-by-re-promote | DNS, CDN, TLS, WAF, global PoPs |
-| Dashboard + REST on the same API | Next.js / Node serverless hosting |
-| Docker / laptop self-host (RustFS + SQLite) | A hosted cellp cloud |
+| Version **App + Data** together; preview **branch**; **promote** / rollback | Global edge, built-in DNS/TLS/CDN/WAF |
+| Gateway **Host** ingress (preview + prod) | User accounts, SSO, RBAC |
+| Dashboard + REST (`:8790`) | Hosted cellp cloud |
 
-## Stack
+> **cellp versions Worker + D1/KV/R2/Queue on every deploy** — preview is a real data fork, production is an explicit promote.
 
-| Component | Role |
-|-----------|------|
-| **cellpd** | Go — API, orchestrator, gateway, SQLite registry |
-| **celld** | Rust ([submodule](./celld/)) — Workers + bindings runtime |
-| **offshoot** | SQLite copy-on-write (App + Data) |
-| **RustFS** | Private S3 — artifacts, offshoot, celld blobs |
-| **web/** | Vite SPA Dashboard (REST only) |
+**cellp + celld:** celld runs the isolate and bindings; cellp holds the SQLite registry, orchestrator, Gateway, and offshoot-backed forks (**one celld process per ready version**). Storage: **RustFS** (private S3). Full stack: [How it works](https://konghayao.github.io/cellp/how-it-works).
 
-## Quick start
+### Coding Agent on cellp (frontier)
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-cellp dev
-```
+cellp explores a **private control plane** for agent loops: build → `POST /versions` → **preview Host with forked D1/KV/R2** → promote. We track Cloudflare’s **Agent Cloud** surface — [agents.cloudflare.com](https://agents.cloudflare.com/) · [Agents docs](https://developers.cloudflare.com/agents/) — (Agents SDK, Durable Objects, Workflows, Workers AI / AI Gateway, MCP, Dynamic Workers) and map what can run on **celld + cellp** without a Cloudflare account.
 
-Binaries (macOS / Linux / Windows) ship on [GitHub Releases](https://github.com/KonghaYao/cellp/releases). Docker: `ghcr.io/konghayo/cellp`.
+**Legend:** **✅** validated · **⚠️** testing or blocked today · **🔜** planned on cellp (not supported yet)
 
-### From source (contributors)
+**P0 deploy validation (in order):** [agents-starter](https://github.com/cloudflare/agents-starter) → [pi-worker](https://github.com/qaml-ai/pi-worker) `hello-agent` → [opencode-do](https://github.com/southpolesteve/opencode-do). **P1:** [**fx on Workers**](https://github.com/codingstark-dev/fx-on-workers) — [fx.sh](https://fx.sh) coding agent (libfx wasm + DO session). See [AGENT-SUPPORT.md](./docs/AGENT-SUPPORT.md).
 
-```bash
-git clone https://github.com/KonghaYao/cellp.git && cd cellp
-git submodule update --init celld
-# build celld: cd celld && cargo build -p celld --profile lab
-cp dev/.env.example dev/.env
-./dev/scripts/up.sh
-./dev/scripts/seed-commerce-store.sh
-curl -sf http://127.0.0.1:8787/commerce-store/v1/stats
-```
+| Platform | What | | Notes |
+|----------|------|:-:|-------|
+| **[Cloudflare Agents](https://agents.cloudflare.com/)** | Official **Agent Cloud** platform (`Agent` class, MCP, Dynamic Workers) | 🔜 | [Agents SDK](https://github.com/cloudflare/agents); P0 via agents-starter |
+| **[Cloudflare OS](https://github.com/cloudflare/cloudflare-os)** | Company agent workspace (Gadgets, Gatekeepers, Pi + Code Mode) | 🔜 | ~8.6k★ · Dynamic Workers + multi Gatekeeper Workers · **North-star** |
+| **[Pi](https://github.com/earendil-works/pi)** | Terminal coding agent (`pi-agent-core`; used in Cloudflare OS) | 🔜 | Research harness |
+| **[Deep Agents](https://github.com/langchain-ai/deepagents)** (LangChain) | LangGraph agent harness | 🔜 | Research — Workers deploy TBD |
 
-Prereqs: Docker · Node 20+ · Go · `celld` · `offshoot` · `jq` · `esbuild`.  
-Walkthrough: **[docs site → Get started](https://konghayao.github.io/cellp/get-started/)** · local scripts: [dev/README.md](./dev/README.md).
+**High-star Workers apps** (Sink, Counterscale, CloudPaste, …): see [support-star-queue.md](./docs/support-star-queue.md). **Community matrix:** [support-matrix.md](./docs/support-matrix.md).
 
-### Docker
+Plan: **[CODING-AGENT-ON-CELLP.md](./docs/plans/CODING-AGENT-ON-CELLP.md)** · **[AGENT-SUPPORT.md](./docs/AGENT-SUPPORT.md)** · [Pages](https://konghayao.github.io/cellp/research/coding-agent-on-cellp)
 
-```bash
-git submodule update --init celld
-docker compose up -d --build
-curl -sf http://127.0.0.1:8790/v1/health
-```
+---
 
-Image: `ghcr.io/konghayo/cellp:latest` · [Self-hosting](https://konghayao.github.io/cellp/guides/self-hosting) · [docker/README.md](./docker/README.md).
+## Cloudflare Workers compatibility
 
-### Dashboard
+**You keep the Workers programming model.** Source shape, wrangler binding names, and most APIs come from **[celld](https://github.com/KonghaYao/celld)** (Rust runtime, git submodule). **cellp** adds version lifecycle, preview/prod Host routing, and **binding branch** on child versions — it does not replace the Workers engine.
 
-```bash
-./dev/scripts/up.sh
-cd web && npm install && npm run dev
-# http://127.0.0.1:5190
-```
+Judge your app against **[celld Cloudflare compat](./celld/docs/cloudflare-compat.md)** (authoritative). Summary:
 
-## Repository
+| Capability | In celld | Notes |
+|------------|----------|--------|
+| Workers (`fetch`, runtime APIs) | **Partial** | Gaps listed in compat doc; fail at deploy or first use |
+| **Static assets** (wrangler `assets`) | **Yes** | SPA / Workers Sites-style bundles |
+| **D1** | **Partial** | cellp: root **import**, child **branch** |
+| **KV · R2 · Queues** | **Partial** | cellp: child **branch** from parent |
+| **Workflows · Cron** | **Partial** | Not branched across versions (by design) |
+| **Durable Objects** | **Partial** | Read compat before load-bearing DO |
+| Workers AI · Vectorize · Hyperdrive · Browser · Email · Python Workers | **No** | |
 
-```
-cellp/     Go control plane
-celld/     Rust runtime (submodule)
-web/       Dashboard
-dev/       Local stack + examples
-e2e/       Integration gates
-stress/    Load tests
-docs/      Internal design · ADRs · test plans · evidence
-site/      Public documentation (this GitHub Pages site)
-```
+**Deploy path:** there is no `wrangler deploy` target for cellp. CI builds a wrangler bundle → upload to your RustFS → `POST /v1/projects/{project}/versions`. See [From Cloudflare](https://konghayao.github.io/cellp/migrate/cloudflare).
 
-Local ports: Gateway **8787** · API **8790** · celld **8792+** · Dashboard **5190** · RustFS **9000**.
+**cellp limits on top of celld:** one Worker entrypoint per version (no multi-Worker `[[services]]` orchestration); Next.js / Node SSR is out of scope — use pre-built Workers bundles ([framework tiers](https://konghayao.github.io/cellp/migrate/frameworks)).
 
-## Contributor docs
+### Notable projects (community validation)
 
-| Doc | For |
-|-----|-----|
-| [DESIGN.md](./DESIGN.md) | Architecture (source of truth for implementers) |
-| [docs/decisions.md](./docs/decisions.md) | AD-1…10 product boundary |
-| [docs/test-plan.md](./docs/test-plan.md) | Acceptance gates |
-| [AGENTS.md](./AGENTS.md) | How agents/contributors change the tree |
-| [docs/README.md](./docs/README.md) | Internal doc index |
+Real open-source Workers apps and framework stacks we exercise on cellp before calling them supported. **[support-matrix.md](./docs/support-matrix.md)** · **[support-star-queue.md](./docs/support-star-queue.md)** (high-star OSS + agent targets). **✅** = validated · **⚠️** = gap, out of scope, or **testing on cellp**.
 
-```bash
-cd cellp && go test ./...
-./e2e/scripts/run-all.sh
-cd web && npm run test:e2e
-```
+**Frameworks**
+
+| Framework | | Notes |
+|-----------|:-:|--------|
+| **Astro** (`@astrojs/cloudflare`) | ✅ | |
+| **SvelteKit** (`adapter-cloudflare`, single Worker) | ✅ | |
+| **React / Vue + Vite SPA** + wrangler `assets` | ✅ | Default pattern; see apps below |
+| **Hono** (+ optional SPA via Workers Assets) | ✅ | **S26** · `create-hono` cloudflare-workers · prod `GET /` → `Hello Hono!` |
+| **Remix** (`@remix-run/cloudflare`) | ✅ | |
+| **Nuxt** (Nitro `cloudflare`) | ✅ | **S25** · prod `support-nuxt.lvh.me`（celld `node:timers` / Nitro loopback） |
+| **SolidStart** | ⚠️ | [CF full-stack frameworks](https://blog.cloudflare.com/blazing-fast-development-with-full-stack-frameworks-and-cloudflare/) · testing on cellp |
+| **Qwik City** | ⚠️ | Same · testing on cellp |
+| **Waku** | ⚠️ | Same · testing on cellp |
+| **Next.js** (OpenNext / vinext) | ⚠️ | Pre-built Workers bundle only; testing on cellp |
+
+**Apps & stacks**
+
+| Project | Kind | |
+|---------|------|:-:|
+| **Memos** | Notes / lightweight backend | ✅ |
+| **Monolith** | Blog + API (separate wrangler) | ✅ |
+| **SonicJS** | Headless CMS (Vite admin) | ✅ |
+| **FlareMo** | React monorepo on Workers | ✅ |
+| **EdgeEver** | Bun-bundled Worker app | ✅ |
+| **Relay** | Short links + admin UI | ✅ |
+| **workflows-starter** | Cloudflare Workflows demo SPA | ✅ |
+| **R2-Explorer** | R2 file browser (Vue) | ✅ |
+| **r2filebox** | R2 upload UI (Vue) | ✅ |
+| **FileWorker** | Pages-style build + Worker | ✅ |
+| **webhookflare** | Webhook / utility UI | ✅ |
+| **NodeWarden** | Worker ops / API tool | ✅ |
+| **cloudflarebase** | SvelteKit + multi-Worker `[[services]]` | ⚠️ |
+| **pastebin-worker** | Hono SSR + Tailwind in Worker graph | ⚠️ |
+| **request-bin** | HTTP bin (no root UI) | ⚠️ |
+
+**Popular on Cloudflare — testing on cellp**
+
+High-visibility Workers OSS (GitHub stars / CF templates / [awesome-cloudflare](https://github.com/zhuima/awesome-cloudflare)). **⚠️** = not signed off on cellp yet. Email / disposable-mail Workers apps are out of scope for this list.
+
+| Project | Kind | | Notes |
+|---------|------|:-:|--------|
+| **Sink** | Short links + analytics UI | ✅ | ~7k★ · matrix S11 |
+| **CloudFlare-ImgBed** | Image & file hosting (R2/D1) | ⚠️ | ~6k★ |
+| **microfeed** | Blog / podcast CMS | ⚠️ | ~4k★ · D1, Queues, R2 |
+| **UptimeFlare** | Uptime checks + status page | ⚠️ | ~3.8k★ · Workers + Pages |
+| **Supermemory SaaS stack** | Full-stack SaaS starter | ⚠️ | ~3.7k★ · auth + D1 + R2 |
+| **CloudPaste** | File share / WebDAV UI | ⚠️ | ~2.6k★ · prefer unified SPA Worker |
+| **Counterscale** | Privacy-friendly analytics | ⚠️ | ~2k★ · single Worker |
+| **cf-workers-status-page** | Status page + alerts | ⚠️ | ~2.8k★ · KV + cron |
+| **Serverless DNS** | DNS resolver on Workers | ⚠️ | Edge DNS |
+| **OpenStatus** | Open-source status pages | ⚠️ | Hono-style Workers app |
+| **Triplit** | Edge sync / data layer | ⚠️ | Workers client |
+
+More: [Cloudflare templates](https://github.com/cloudflare/templates) · [Framework guides](https://developers.cloudflare.com/workers/framework-guides/) · [Full star queue](./docs/support-star-queue.md).
+
+**Summary:** ✅ on **14** apps in the core matrix (~67%). **⚠️ testing** rows tracked in [support-star-queue.md](./docs/support-star-queue.md). [Compare](https://konghayao.github.io/cellp/compare) · [Supported stacks](https://konghayao.github.io/cellp/migrate/stacks).
+
+---
+
+## Vercel framework on cellp
+
+cellp is **not** Vercel. This track maps **[Vercel open source](https://github.com/vercel)** when the deliverable can be a **wrangler bundle** on **celld** (or when we only study architecture for a later bridge). **Not** Vercel hosting, Sandbox, or managed Workflows.
+
+**Legend:** **✅** validated path · **⚠️** partial / testing · **🔜** research · **❌** out of scope
+
+| Vercel OSS | What | | On cellp |
+|------------|------|:-:|----------|
+| **[Next.js](https://github.com/vercel/next.js)** | React framework | ❌ | No Next hosting · **⚠️** pre-built [OpenNext](https://opennext.js.org/) → single Worker ([plan](./docs/plans/NEXT-OPENNEXT-CELLP.md)) |
+| **[AI SDK](https://github.com/vercel/ai)** | TypeScript AI toolkit (`ai`, `@ai-sdk/*`) | ⚠️ | Bundle in your Worker + **your** provider keys |
+| **[Workflow SDK](https://github.com/vercel/workflow)** | Durable steps (Workflow DevKit) | 🔜 | Compare to **CF Workflows** on celld — not Vercel’s managed executor |
+| **[fx](https://github.com/vercel-labs/fx)** | [fx.sh](https://fx.sh) coding agent (Zig + wasm embed) | ⚠️ | **P1** on Workers: [fx-on-workers](https://github.com/codingstark-dev/fx-on-workers) · `./dev/scripts/deploy-support-app.sh A04` |
+| **[Eve](https://github.com/vercel/eve)** | Filesystem-first production agents | 🔜 | Default deploy is Vercel — research only |
+| **[open-agents](https://github.com/vercel-labs/open-agents)** | Cloud agent template (workflow + sandbox) | 🔜 | Assumes Vercel sandbox / managed workflow |
+
+**Catalog:** [VERCEL-SUPPORT.md](./docs/VERCEL-SUPPORT.md) · **Plan:** [VERCEL-FRAMEWORK-ON-CELLP.md](./docs/plans/VERCEL-FRAMEWORK-ON-CELLP.md) · **Pages:** [research/vercel-on-cellp](https://konghayao.github.io/cellp/research/vercel-on-cellp)
+
+---
+
+## Contributors
+
+| | |
+|--|--|
+| Architecture | [DESIGN.md](./DESIGN.md) · [docs/decisions.md](./docs/decisions.md) |
+| Coding Agent (frontier) | [docs/plans/CODING-AGENT-ON-CELLP.md](./docs/plans/CODING-AGENT-ON-CELLP.md) · [AGENT-SUPPORT.md](./docs/AGENT-SUPPORT.md) |
+| Vercel framework | [docs/plans/VERCEL-FRAMEWORK-ON-CELLP.md](./docs/plans/VERCEL-FRAMEWORK-ON-CELLP.md) · [VERCEL-SUPPORT.md](./docs/VERCEL-SUPPORT.md) |
+| Agents | [AGENTS.md](./AGENTS.md) · [docs/README.md](./docs/README.md) |
+| Repo layout | [site → Repository map](https://konghayao.github.io/cellp/reference/repo) |
+
+---
 
 ## License
 
-See each subtree. `celld/` is based on [KonghaYao/celld](https://github.com/KonghaYao/celld).
+See each subtree. `celld/` tracks [KonghaYao/celld](https://github.com/KonghaYao/celld).

@@ -64,6 +64,16 @@
 | S24 | **Remix** | **支持** | http://support-remix.lvh.me:8787/ | `@remix-run/cloudflare` · `dev/examples/support-remix/`（wrangler bundle + `.cellp-assets`，剔除 `.assetsignore`） |
 | S25 | **Nuxt** | **支持** | http://support-nuxt.lvh.me:8787/ | Nitro `cloudflare_module` · `dev/examples/support-nuxt/`；prod 验收 2026-09-03（v1，含 `/_nuxt/builds/latest.json`）· celld `node:timers` |
 
+## README 框架扩展（S26–S30）
+
+| ID | 框架 | **支持？** | 验证 URL | 备注 |
+|----|------|:--------:|----------|------|
+| S26 | **Hono** | **支持** | http://support-hono.lvh.me:8787/ | `create-hono` cloudflare-workers · **v2** · `GET /` → `Hello Hono!` |
+| S27 | **SolidStart** | **验证中** | — | C3 `create-cloudflare` · `dev/examples/support-solidstart/` |
+| S28 | **Qwik City** | **验证中** | — | 同上 · `support-qwik` |
+| S29 | **Waku** | **验证中** | — | 同上 · `support-waku` |
+| S30 | **Next.js (OpenNext)** | **验证中** | — | 见 `docs/plans/NEXT-OPENNEXT-CELLP.md` |
+
 ---
 
 ## 高 Star 生态（验证队列）
