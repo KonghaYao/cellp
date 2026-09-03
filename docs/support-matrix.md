@@ -69,10 +69,10 @@
 | ID | 框架 | **支持？** | 验证 URL | 备注 |
 |----|------|:--------:|----------|------|
 | S26 | **Hono** | **支持** | http://support-hono.lvh.me:8787/ | C3 `create-hono` + Workers Assets · `dev/examples/support-hono/` · **v3** · `GET /message` → `Hello Hono!` · `/` → `public/index.html` |
-| S27 | **SolidStart** | **不支持** | — | `create-solid -s --v2 -t basic` + rsync C3 `templates/solid/` · slim artifact OK（~324 KiB）· deploy **celld `signal: killed`**（与当日其它 job 同）· `docs/evidence/support-S27-20260903-deploy.log` · prod `grep 'Hello world'` 未验 |
-| S28 | **Qwik City** | **不支持** | — | `create-qwik` + cloudflare-workers · slim artifact OK · **v4** deploy `celld health timeout` **8833** · load `process.stdin`（unenv）· prod `ingress_unknown` · 见 `docs/evidence/verify-full-20260903.log` |
+| S27 | **SolidStart** | **不支持** | — | 非交互 `create-solid` + C3 `templates/solid/` · **v3** ready · prod **500**（57 B）· `grep 'Hello world'` 未过 · PD-09 deploy 并发 |
+| S28 | **Qwik City** | **支持** | http://support-qwik.lvh.me:8787/ | `templates/qwik/workers` · 无 `nodejs_compat`（避免 unenv `process.stdin`）· **v7** · prod **200** ~19 KiB · `Welcome to Qwik` |
 | S29 | **Waku** | **支持** | http://support-waku.lvh.me:8787/ | `create-waku` + C3 overlay · **v9** ready + promote · prod/preview **200** · grep `Waku` / `An internet website!` · celld: sibling `.js`→`EsModule` + relative resolve · `docs/evidence/support-S29.log` |
-| S30 | **Next.js (OpenNext)** | **不支持** | — | `prepare-artifact` + `no_bundle` · **v10** ready + promote · prod `GET /` 仍 **308** `Location: ?`（celld `445569a` · 无 `global_fetch_strictly_public`）· `verify-full-20260903.log` · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| S30 | **Next.js (OpenNext)** | **不支持** | — | `prepare-artifact` 8 处 slash/`Location: ?` 补丁 · **v21** ready + promote · prod **500**（21 B，非 308）· v19 deploy 超时 `destroyed` · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 
