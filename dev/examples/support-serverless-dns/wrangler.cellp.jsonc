@@ -1,0 +1,12 @@
+{
+  "name": "support-serverless-dns",
+  "main": "dist/worker.js",
+  "compatibility_date": "2023-03-21",
+  "vars": {
+    "LOG_LEVEL": "debug",
+    "WORKER_ENV": "development",
+    "CLOUD_PLATFORM": "cloudflare",
+    "WORKER_TIMEOUT": "120000",
+    "CF_BLOCKLIST_DOWNLOAD_TIMEOUT": "90000"
+  }
+}

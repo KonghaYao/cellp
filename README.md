@@ -122,7 +122,7 @@ High-visibility Workers OSS (GitHub stars / CF templates / [awesome-cloudflare](
 | **CloudPaste** | File share / WebDAV UI | ✅ | ~2.6k★ · **S39** · unified SPA Worker · prod v1 · `support-cloudpaste.lvh.me` |
 | **Counterscale** | Privacy-friendly analytics | ⚠️ | ~2k★ · single Worker |
 | **cf-workers-status-page** | Status page + alerts | ✅ | ~2.8k★ · **S32** · flareact · ESM wrap · prod v2 |
-| **Serverless DNS** | DNS resolver on Workers | ⚠️ | Edge DNS |
+| **Serverless DNS** | DNS resolver on Workers | ❌ | **S37** · prod v3 · `/` `/configure` **408**（blocklist 冷启动超时）· 见 matrix |
 | **OpenStatus** | Open-source status pages | ✅ | **S35** · official Astro CF Workers template · prod v2 · `support-openstatus.lvh.me` |
 | **Triplit** | Edge sync / data layer | ⚠️ | Workers client |
 
