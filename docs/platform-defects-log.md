@@ -235,7 +235,7 @@ S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 
 
 ### 应有修复
 
-celld 收录 sibling wasm，或 artifact 改用 A04 式 `CompiledWasm` + celld esbuild（见 **[NEXT-OPENNEXT-S30-ROOT-CAUSE.md](./plans/NEXT-OPENNEXT-S30-ROOT-CAUSE.md)**）。
+celld 收录 sibling wasm，或 artifact 改用 A04 式 `CompiledWasm` + celld esbuild（见 [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · PD-08）。
 
 ---
 

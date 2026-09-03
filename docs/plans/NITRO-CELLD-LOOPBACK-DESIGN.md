@@ -3,8 +3,7 @@
 > **状态：** Draft v0.2（对抗审查已并入；实现前须完成 Phase 0）  
 > **作者：** opus 任务（主会话起草）；v0.2 合并安全 / parity 审查  
 > **依据：** [NITRO-CELLD-COMPAT.md](./NITRO-CELLD-COMPAT.md) · [PD-20260902-06](../platform-defects-log.md)  
-> **架构约束：** [DESIGN.md](../../DESIGN.md) AD-1 · [decisions.md](../decisions.md) AD-10 · AD-12  
-> **对抗审查：** [安全](./NITRO-CELLD-LOOPBACK-DESIGN-REVIEW-SECURITY.md) · [parity](./NITRO-CELLD-LOOPBACK-DESIGN-REVIEW-PARITY.md)
+> **架构约束：** [DESIGN.md](../../DESIGN.md) AD-1 · [decisions.md](../decisions.md) AD-10 · AD-12
 
 ---
 
@@ -238,7 +237,7 @@ Phase 2  若 S25 仍挂（或 E1=0 且 E7 命中 localFetch）
 | **E1≥1** 或无 loopback 时 E4 复现挂起 | H1 为 S25 **必要**条件；Phase 1 与 H2 调查并行 |
 | E5 挂、E3 不挂 | 问题在 h3/ALS/泵，与 loopback 无关 |
 
-完整实验表（E2–E8）见 [parity 审查 §4](./NITRO-CELLD-LOOPBACK-DESIGN-REVIEW-PARITY.md)。E2（仅 harness Option B）只作验证，不替代 Phase 1。
+完整实验表（E2–E8）见本文件 §7 Phase 0 流程图与判定表。E2（仅 harness Option B）只作验证，不替代 Phase 1。
 
 ---
 

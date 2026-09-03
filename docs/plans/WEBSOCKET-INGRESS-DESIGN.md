@@ -3,7 +3,6 @@
 > **状态：** v0.2 工程计划 · **不实现代码**（本文件仅规格；辩论已并入）  
 > **缺陷：** [platform-defects-log.md § PD-20260903-07](../platform-defects-log.md)  
 > **Ingress 权威：** [INGRESS-ROUTING.md](./INGRESS-ROUTING.md) §4.4（已写「透传 `Upgrade` / `Connection`」；实现未兑现）  
-> **辩论：** [WEBSOCKET-INGRESS-DEBATE.md](./WEBSOCKET-INGRESS-DEBATE.md)（v0.1 压力测试；结论见本文件 **§0**）  
 > **决策：** [decisions.md](../decisions.md) AD-1 · AD-10 · AD-12  
 > **Compat：** [celld/docs/cloudflare-compat.md](../../celld/docs/cloudflare-compat.md) WebSockets **Partial**  
 > **产品缓解：** A04 overlay `POST /api/prompt`（[support-fx-on-workers README](../../dev/examples/support-fx-on-workers/README.md)）— **不**替代本计划  
@@ -13,7 +12,7 @@
 
 ## 0. Debate resolution
 
-来源：[WEBSOCKET-INGRESS-DEBATE.md](./WEBSOCKET-INGRESS-DEBATE.md)。v0.2 **合并辩方胜出的分期与范围**，把检方已接受条目升为 **WS-M1 硬门禁**（不得再压到「Open Q / 实现时再说」）。
+v0.2 **合并对抗审查结论的分期与范围**，把已接受条目升为 **WS-M1 硬门禁**（不得再压到「Open Q / 实现时再说」）。
 
 ### 0.1 辩方胜出（规范不变）
 

@@ -59,7 +59,7 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
 6. POST /versions → Host ingress 验收
 ```
 
-**S30 本地结论（未 prod HTML）：** artifact 阶段通过（wrangler dry-run ~8.6 MiB）；`POST /versions` 后 **celld health timeout**。**根因分析：** [NEXT-OPENNEXT-S30-ROOT-CAUSE.md](./NEXT-OPENNEXT-S30-ROOT-CAUSE.md)（`no_bundle` + wasm · **PD-20260903-08**）。**矩阵：** **不支持**（实验路径，非 tier-1）。
+**S30 本地结论（未 prod HTML）：** artifact 阶段通过（wrangler dry-run ~8.6 MiB）；早期 **celld health timeout** 为 **`no_bundle` 未收录 sibling wasm**（**PD-20260903-08**，已 fix）。prod `GET /` 仍可能 **308 `Location: ?`**（OpenNext/URL 规范化，矩阵 **不支持**）。**矩阵：** **不支持**（实验路径，非 tier-1）。
 
 **禁止：** 把完整 monorepo `node_modules` 打进 artifact（用 slim stage，见 `deploy-support-app.sh`）。
 

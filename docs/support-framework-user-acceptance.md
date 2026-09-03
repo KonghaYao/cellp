@@ -164,7 +164,7 @@
 | prod 首页 | `/` | **308** | `Location: ?` · body `?` · `X-Opennext: 1` · **非** Next HTML | **FAIL** |
 | 读者模拟 | `/` | **308** | 无 `<!DOCTYPE html>` / Next 标题 | **FAIL** |
 
-**根因（当前）：** OpenNext/Next 重复斜杠或 URL 规范化链在 cellp ingress 下仍产出 **`Location: ?`**（见 `docs/plans/FRAMEWORK-README-EXT-ANALYSIS.md` §10、`NEXT-OPENNEXT-S30-ROOT-CAUSE.md`）。wasm（PD-08）已 fixed。
+**根因（当前）：** OpenNext/Next 重复斜杠或 URL 规范化链在 cellp ingress 下仍产出 **`Location: ?`**（见 [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · [support-validation-lessons.md](./support-validation-lessons.md)）。wasm（PD-08）已 fixed。
 
 **S30 总评：FAIL**（celld ready；prod 语义未达 tier-1）
 

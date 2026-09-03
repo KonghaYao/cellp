@@ -3,7 +3,7 @@
 > **类型：** 专题分析（架构 + 现状 + 缺口 + 验收），非实现规格。  
 > **日期：** 2026-09-03  
 > **读者：** 控制面 / 运行时 / Support 验证 / 产品  
-> **关联规格：** [WEBSOCKET-INGRESS-DESIGN.md](./WEBSOCKET-INGRESS-DESIGN.md) v0.2 · [WEBSOCKET-INGRESS-DEBATE.md](./WEBSOCKET-INGRESS-DEBATE.md) · [INGRESS-ROUTING.md](./INGRESS-ROUTING.md) §4.4  
+> **关联规格：** [WEBSOCKET-INGRESS-DESIGN.md](./WEBSOCKET-INGRESS-DESIGN.md) v0.2 · [INGRESS-ROUTING.md](./INGRESS-ROUTING.md) §4.4  
 > **缺陷：** [platform-defects-log.md](../platform-defects-log.md) **PD-20260903-07**（`fixed` @ WS-M2）  
 > **证据：** [websocket-ingress-h1h2.md](../evidence/websocket-ingress-h1h2.md) · [ws-ingress-verify-2026-09-03.log](../evidence/ws-ingress-verify-2026-09-03.log)
 
@@ -188,7 +188,7 @@ flowchart LR
 | 阶段 | 产出 |
 |------|------|
 | Opus 计划 | `WEBSOCKET-INGRESS-DESIGN.md` v0.1→v0.2 |
-| 对抗辩论 | `WEBSOCKET-INGRESS-DEBATE.md` |
+| 分期决议 | `WEBSOCKET-INGRESS-DESIGN.md` §0 |
 | Coder 评审 / 修复 | Gateway 代码、wsecho e2e |
 | Verification subagent | 四格 101、日志（**由 agent 执行，非用户手跑**） |
 
@@ -202,7 +202,7 @@ flowchart LR
 2. **历史主因 H1**：Gateway 未 Hijack → 502 `bad gateway`；**WS-M1 已修**。  
 3. **fx A04 WS-M2 已验收 101**；PD-20260903-07 **fixed**；**cellp dev 栈 WebSocket ingress 标为支持**（`e2e/scripts/v1-websocket-ingress.sh`、`dev/scripts/fx-websocket-smoke.sh`）。完整 fx 仍要 AI Gateway key。  
 4. **celld compat 仍为 Partial**；M3/P1 管 hibernation、多节点、TLS、指标与安全。  
-5. **验收分工**：自动化与四格矩阵由 **verification subagent** + e2e 脚本承担；规格与分期见 DESIGN，辩论见 DEBATE。
+5. **验收分工**：自动化与四格矩阵由 **verification subagent** + e2e 脚本承担；规格与分期见 DESIGN §0。
 
 ---
 
@@ -262,7 +262,7 @@ flowchart LR
 | 文档 | 内容 |
 |------|------|
 | [WEBSOCKET-INGRESS-DESIGN.md](./WEBSOCKET-INGRESS-DESIGN.md) | 工程计划、M1/M2/M3、§4 Gateway 方案 A/B |
-| [WEBSOCKET-INGRESS-DEBATE.md](./WEBSOCKET-INGRESS-DEBATE.md) | 对抗辩论与决议 |
+| [WEBSOCKET-INGRESS-DESIGN.md](./WEBSOCKET-INGRESS-DESIGN.md) | 工程规格与辩论决议（§0） |
 | [WEBSOCKET-INGRESS-TEST-PLAN.md](./WEBSOCKET-INGRESS-TEST-PLAN.md) | 测试计划（若已生成） |
 | [dev/examples/support-fx-on-workers/README.md](../../dev/examples/support-fx-on-workers/README.md) | HTTP overlay + WS 限制说明 |
 | [AGENT-SUPPORT.md](../AGENT-SUPPORT.md) | A01–A04 与 WS/HTTP 验收条 |

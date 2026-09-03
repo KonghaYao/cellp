@@ -127,7 +127,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 
 | 组件 | 状态 |
 |------|------|
-| Next.js / OpenNext | **不支持**（S30 实验）· 见 [support-S30-opennext-20260903.md](./evidence/support-S30-opennext-20260903.md) |
+| Next.js / OpenNext | **不支持**（S30 实验）· [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · `docs/evidence/support-S30.log` |
 | AI SDK (`vercel/ai`) | ⚠️ 打进 Worker 包 |
 | Workflow SDK | 🔜 对照 CF Workflows |
 | fx → fx-on-workers | **支持** · A04 · v9 |
@@ -147,7 +147,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 
 ## 其它文档
 
-- 部署过程、HTTP 码、日志：**[support-batch-results.md](./support-batch-results.md)**（历史记录，**以本表为准**）
+- **Support 文档索引：** **[support/README.md](./support/README.md)**
 - curl 明细：**[support-curl-user-acceptance.md](./support-curl-user-acceptance.md)**
 - 待办队列排序：**[support-todos.md](./support-todos.md)**
 - 高 Star 验证队列：**[support-star-queue.md](./support-star-queue.md)**
