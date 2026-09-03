@@ -216,6 +216,29 @@ S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 
 
 ---
 
+## PD-20260903-08 — `no_bundle` 预构建 Worker 丢失 sibling wasm（celld）
+
+| | |
+|--|--|
+| **层级** | celld（`deploy.rs` · `no_bundle`） |
+| **严重度** | major（OpenNext 等 wrangler 产物含 wasm 时 version 无法 `ready`） |
+| **状态** | `open` |
+
+### 现象
+
+- **S30** OpenNext：`celld health timeout`；`$TMPDIR/celld-support-opennext-*.log` → `stateless Worker failed to load` / `instantiate: <none>`。
+- Artifact 含 `.cellp-bundle/*-yoga.wasm`、`*-resvg.wasm`，`wrangler.jsonc` 设 `no_bundle: true`。
+
+### 根因
+
+`no_bundle` 路径只上传 `main` JS，`wasm: Vec::new()`。与 A04 注释「celld no_bundle drops wasm」一致。
+
+### 应有修复
+
+celld 收录 sibling wasm，或 artifact 改用 A04 式 `CompiledWasm` + celld esbuild（见 **[NEXT-OPENNEXT-S30-ROOT-CAUSE.md](./plans/NEXT-OPENNEXT-S30-ROOT-CAUSE.md)**）。
+
+---
+
 ## 变更 log
 
 | 日期 | 变更 |
