@@ -20,5 +20,8 @@
       "bucket_name": "support-imgbed-store"
     }
   ],
+  "images": {
+    "binding": "IMAGES"
+  },
   "vars": {}
 }

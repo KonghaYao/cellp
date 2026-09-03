@@ -11,7 +11,7 @@
 |----------|----------------------|-------------------|--------------|------|
 | **`wrangler [[services]]` 多 Worker 编排** | 主 Worker 绑定 `AUTH_AGENT` 等 **其它 Worker 名** | **不支持**。单 version = 单 celld = **一个** 主 Worker + manifest 内 D1/KV/R2/Queue/DO 等 | **S14** cloudflarebase；凡硬依赖多 service 的 BaaS 模板 | 产品 **Deferred** · [MULTI-WORKER-DEPLOY.md](./plans/MULTI-WORKER-DEPLOY.md) · AD-10 |
 | **Analytics Engine** | `analytics_engine_datasets` · 写入/查询计数 | **无 AE binding**；含 AE 的 wrangler 配置 **deploy 失败** 或去掉后核心不可用 | **S38** Counterscale（`/` 登录 200 · `/dashboard` 501） | 非 RustFS；需 celld + 控制面建模 |
-| **Cloudflare Images (`IMAGES`)** | 边缘图片变换 API | **无 `IMAGES` binding** | **S31** ImgBed（**整体仍支持** SPA；**变换能力不可用**） | 与「整 app 不支持」区分 |
+| **Cloudflare Images (`IMAGES`)** | 边缘图片变换 API | **Partial**：`input` + `transform` + `output` + `info` 本地变换（Rust `image`，非 CF 付费 API）。`draw`/部分选项 fail-closed | **S31** ImgBed（变换可走 binding；overlay 已加 `images.binding`） | 见 celld `docs/cloudflare-compat.md` |
 | **Workers AI** | `@cf/...` 模型推理 | **部分**；HTTP/WS 可通，**多轮 AI 回合**未验收 | **A01** agents-starter（矩阵 **部分支持**） | celld Workers AI 与 CF  parity 缺口 |
 | **Email / Email Workers 路由** | `send_email` 等 | **未作为 cellp 目标**（非 celld 单点缺失时仍标队列外） | 邮件类 OSS（**S02–S04、S12–S13** 等多为 **产品范围**） | 见 §2 |
 
@@ -71,13 +71,13 @@
 | `/` 非主界面 | S19 |
 | Workers AI 全链路 | A01 部分 |
 | SSE 长连接 | A03 部分 |
-| `IMAGES` 变换 | S31 功能降级（app 仍支持） |
+| `IMAGES` 变换 | S31：MVP 已接；`draw`/部分选项仍缺 |
 
 ---
 
 ## 7. 维护
 
 - 新增 **不支持** 时：在 [support-matrix.md](./support-matrix.md) 写 **原因**，并 **补一行** 到上表对应能力（或新增能力行）。
-- **支持** 但 **功能降级**（如 ImgBed 无 IMAGES）：写在矩阵备注，**不要** 误标整 app 不支持。
+- **支持** 但 **功能降级**（如 ImgBed 尚未用满 IMAGES `draw`）：写在矩阵备注，**不要** 误标整 app 不支持。
 
 **索引：** [support/README.md](./support/README.md) · [support-star-queue.md](./support-star-queue.md)
