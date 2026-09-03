@@ -32,13 +32,18 @@ exec /usr/bin/python3 -u -c '
 import http.server, socketserver, sys
 host, port = sys.argv[1], int(sys.argv[2])
 class H(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-    def log_message(self, *args):
-        pass
+	def do_GET(self):
+		self.send_response(200)
+		if self.path == "/.well-known/celld/health":
+			self.send_header("Content-Type", "application/json")
+			self.end_headers()
+			self.wfile.write(b"{\"ok\":true}")
+		else:
+			self.end_headers()
+	def log_message(self, *args):
+		pass
 with socketserver.TCPServer((host, port), H) as httpd:
-    httpd.serve_forever()
+	httpd.serve_forever()
 ' "$host" "$port"
 `
 	if err := os.WriteFile(filepath.Join(bin, "celld"), []byte(script), 0o755); err != nil {

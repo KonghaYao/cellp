@@ -40,7 +40,7 @@ func (g *Gateway) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 		if host == "" {
 			host = "127.0.0.1"
 		}
-		upstream := health.ProbeHTTP(ctx, fmt.Sprintf("http://%s:%d/.well-known/celld/health", host, route.UpstreamPort))
+		upstream := health.ProbeCelldHTTP(ctx, fmt.Sprintf("http://%s:%d/.well-known/celld/health", host, route.UpstreamPort))
 		upstream.Name = "sample_upstream"
 		checks["sample_upstream"] = upstream
 		if upstream.Status == "down" {

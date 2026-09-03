@@ -43,7 +43,9 @@ func TestReconcileFleetSkipsHealthyRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	srv.Listener = ln
 	srv.Start()

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cellp/cellp/internal/health"
 	"github.com/cellp/cellp/internal/registry"
 )
 
@@ -664,8 +665,8 @@ func (m *Manager) Health(ctx context.Context, host string, port int) bool {
 		return false
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode == http.StatusOK
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	return health.CelldHealthResponseOK(resp.StatusCode, body)
 }
 
 // allocateWatchDir returns a working directory for celld SQLite/LTX.

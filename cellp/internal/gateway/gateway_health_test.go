@@ -16,6 +16,11 @@ import (
 
 func TestGatewayHealthDeep(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/celld/health" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true}`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer upstream.Close()

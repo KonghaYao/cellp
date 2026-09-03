@@ -128,7 +128,66 @@ if (s.includes(repeatedSlashFrom) && !s.includes(repeatedSlashTo)) {
   patched++;
 }
 
-if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")')) {
+const ifSlashFrom =
+  'if (__cellpSlashPath?.match(/(\\\\|\\/\\/)/)) {';
+const ifSlashTo =
+  'if (__cellpSlashPath && __cellpSlashPath !== "/" && /(?:\\\\|\\/\\/)/.test(__cellpSlashPath)) {';
+if (s.includes(ifSlashFrom) && !s.includes('__cellpSlashPath !== "/"')) {
+  s = s.replace(ifSlashFrom, ifSlashTo);
+  patched++;
+}
+
+const cleanUrlFrom = `let cleanUrl = (0, _utils.normalizeRepeatedSlashes)(req.url);
+              res.redirect(cleanUrl, 308).body(cleanUrl).send();`;
+const cleanUrlTo = `let cleanUrl = (__cellpSlashPath || "/").replace(/\\\\/g, "/").replace(/\\/\\/+/g, "/") || "/";
+              if (!cleanUrl.startsWith("/")) cleanUrl = "/" + cleanUrl.replace(/^\\/+/, "");
+              res.redirect(cleanUrl, 308).body(cleanUrl).send();`;
+if (s.includes(cleanUrlFrom) && !s.includes('__cellpSlashPath || "/"')) {
+  s = s.replace(cleanUrlFrom, cleanUrlTo);
+  patched++;
+}
+
+const nrs2From = `      function normalizeRepeatedSlashes2(url) {
+        let urlParts = url.split("?");
+        return urlParts[0].replace(/\\\\/g, "/").replace(/\\/\\/+/g, "/") + (urlParts[1] ? \`?\${urlParts.slice(1).join("?")}\` : "");
+      }`;
+const nrs2To = `      function normalizeRepeatedSlashes2(url) {
+        let urlParts = url.split("?");
+        let pathPart = urlParts[0];
+        if (/^https?:\\/\\//i.test(pathPart)) {
+          try {
+            const u = new URL(pathPart);
+            u.pathname = (u.pathname || "/").replace(/\\\\/g, "/").replace(/\\/\\/+/g, "/") || "/";
+            pathPart = u.origin + u.pathname;
+          } catch {}
+        } else {
+          pathPart = pathPart.replace(/\\\\/g, "/").replace(/\\/\\/+/g, "/");
+        }
+        return pathPart + (urlParts[1] ? \`?\${urlParts.slice(1).join("?")}\` : "");
+      }`;
+if (s.includes(nrs2From) && !s.includes('u.origin + u.pathname')) {
+  s = s.replace(nrs2From, nrs2To);
+  patched++;
+}
+
+const reqUrlFrom =
+  'req.url = initialURL.pathname + convertToQueryString2(routingResult.internalEvent.query), await requestHandler(requestMetadata)(req, res);';
+const reqUrlTo =
+  'req.url = (initialURL.pathname || "/") + convertToQueryString2(routingResult.internalEvent.query), await requestHandler(requestMetadata)(req, res);';
+if (s.includes(reqUrlFrom) && !s.includes('initialURL.pathname || "/"')) {
+  s = s.replace(reqUrlFrom, reqUrlTo);
+  patched++;
+}
+
+const hrsIfFrom = 'if (event.rawPath.match(/(\\\\|\\/\\/)/)) {';
+const hrsIfTo =
+  'if (event.rawPath && event.rawPath !== "/" && /(?:\\\\|\\/\\/)/.test(String(event.rawPath).replace(/\\\\/g, "/"))) {';
+if (s.includes(hrsIfFrom) && !s.includes('event.rawPath !== "/"')) {
+  s = s.replace(hrsIfFrom, hrsIfTo);
+  patched++;
+}
+
+if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname')) {
   console.log('prepare-artifact: bundle already patched');
 } else if (patched === 0) {
   console.error('prepare-artifact: no patches applied');
