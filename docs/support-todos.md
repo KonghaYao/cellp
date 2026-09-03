@@ -59,7 +59,7 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 ## 执行状态
 
-**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；P2 **S34 microfeed ✅**；P1 **S31–S32、S35 ✅**；**S36 Triplit · S37 Serverless DNS** prod ready · **不支持**（S37 HTTP **408**）；**S30/S33 ⏸️ 后排**。框架 **S26–S29 ✅**。
+**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；**S38 Counterscale** prod **v2** · **不支持**（Analytics Engine）；P2 **S34 microfeed ✅**；P1 **S31–S32、S35 ✅**；**S36 Triplit · S37 Serverless DNS** prod ready · **不支持**（S37 HTTP **408**）；**S30/S33 ⏸️ 后排**。框架 **S26–S29 ✅**。
 
 **框架一等公民（S22–S25）** 见下表。
 
@@ -120,6 +120,7 @@ A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面 ·
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-03 | **S38 Counterscale**：`support-counterscale` · `deploy-support-app.sh S38` · [jeffysl/counterscale](https://github.com/jeffysl/counterscale) · overlay `dev/examples/support-counterscale/` · v1 deploy 失败（`analytics_engine_datasets`）· prod **v2** Host `/` **200** · `/dashboard` **501** · **不支持** |
 | 2026-09-03 | **S39 CloudPaste**：`support-cloudpaste` · `deploy-support-app.sh S39` · overlay `dev/examples/support-cloudpaste/`（`wrangler.spa` 路径）· prod **v1** Host **200** · **支持** |
 | 2026-09-03 | **S34 microfeed**：`support-microfeed` · `deploy-support-app.sh S34` · overlay `dev/examples/support-microfeed/` · prod **v4** Host **200** · **支持** |
 | 2026-09-03 | **S37 Serverless DNS**：`support-serverless-dns` · `deploy-support-app.sh S37` · overlay `dev/examples/support-serverless-dns/` · prod **v3** Host **408** · **不支持**（blocklist 冷启动超时；设计为 302→rethinkdns configure + DoH） |

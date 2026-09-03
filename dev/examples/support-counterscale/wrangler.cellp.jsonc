@@ -1,0 +1,20 @@
+{
+  "name": "support-counterscale",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2024-12-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./build/client",
+    "not_found_handling": "single-page-application"
+  },
+  "r2_buckets": [
+    {
+      "binding": "DAILY_ROLLUPS",
+      "bucket_name": "counterscale-daily-rollups"
+    }
+  ],
+  "vars": {
+    "CF_STORAGE_ENABLED": "false"
+  }
+}

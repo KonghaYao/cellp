@@ -83,7 +83,7 @@
 | 项目 | 队列状态 | 备注 |
 |------|----------|------|
 | Sink | **已纳入 S11** | **支持** · `dev/examples/support-sink/` · prod **v2**（2026-09-03） |
-| Counterscale | **不支持** | turbo **pnpm** monorepo，无单 wrangler 入口 |
+| Counterscale | **已纳入 S38 · 不支持** | **S38** · [jeffysl/counterscale](https://github.com/jeffysl/counterscale) · `packages/server` · overlay `dev/examples/support-counterscale/`（pnpm turbo · React Router 7 · wrangler dry-run slim · **去掉** `analytics_engine_datasets`（celld 不支持）· R2 `DAILY_ROLLUPS`）· prod **v2**（v1 deploy 因 AE 失败）Host `support-counterscale.lvh.me` · `GET /` **200** 登录 SPA · `GET /dashboard` **501** · 核心 Analytics Engine 采集/查询不可用 · `docs/evidence/support-S38.log` |
 | CloudPaste | **已纳入 S39 · 支持** | **S39** · [ling-drag0n/CloudPaste](https://github.com/ling-drag0n/CloudPaste) · 官方 **unified SPA**（`backend/wrangler.spa.toml`）· overlay `dev/examples/support-cloudpaste/`（Vite 前端 + wrangler dry-run → `.cellp-bundle` · D1 + Workflows）· prod **v1** Host `support-cloudpaste.lvh.me` **200** SPA · `GET /api/health` **200** · `docs/evidence/support-S39.log` |
 | cf-workers-status-page | **已纳入 S32 · 支持** | **S32** · `dev/examples/support-status-page/`（flareact 双 webpack + ESM `cellp-entry.mjs` wrap `addEventListener` → `export default { fetch }`）· prod **v2** Host `support-status-page.lvh.me` **200** HTML · `docs/evidence/support-S32.log` |
 | CloudFlare-ImgBed | **已纳入 S31** | **支持** · `dev/examples/support-imgbed/` · Workers `deploy/worker` · prod **v1**（2026-09-03） |
