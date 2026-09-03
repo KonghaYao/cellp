@@ -220,6 +220,7 @@ S22 v8：`.cellp-assets` 含 `blog/index.html`、`_routes.json`（`exclude` 含 
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-03 | PD-08 **open**：S30 OpenNext `no_bundle` 丢 wasm → health timeout；见 NEXT-OPENNEXT-S30-ROOT-CAUSE.md |
 | 2026-09-03 | PD-06 **fixed**：`node:timers` `setImmediate`；S25 `GET /` 200 HTML（~11ms）；证据见 user-acceptance 复验 |
 | 2026-09-01 | PD-06：根因分析见 [NITRO-CELLD-COMPAT.md](./plans/NITRO-CELLD-COMPAT.md)（修正 localFetch 机制描述） |
 | 2026-09-02 | PD-05 fixed：`_routes.json` + 尾斜杠；S22 全路径 200（见 integration-verify-astro-s22-routes.md） |
