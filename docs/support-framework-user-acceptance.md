@@ -74,6 +74,64 @@
 
 ---
 
+## S26 — support-hono.lvh.me（C3 Hono · Workers Assets）
+
+> **复验：** 2026-09-03 · `GITHUB_CLONE_DIRECT=1 SUPPORT_SKIP_GIT_FETCH=1 SUPPORT_POLL_SECS=300 ./dev/scripts/deploy-support-app.sh S26`（promote **v3**）
+
+| 步骤 | URL | HTTP | 用户可见结果 | Pass |
+|------|-----|------|--------------|------|
+| API | `/message` | 200 | body `Hello Hono!` | **PASS** |
+| 静态首页 | `/` | 200 | `<!doctype html>` · `Hello, World!` · 内联脚本 fetch `/message` | **PASS** |
+| 读者模拟 | `/` + `/message` | 200 | API 与静态资源同源可访问 | **PASS** |
+
+**S26 总评：PASS**
+
+---
+
+## S27 — support-solidstart.lvh.me（SolidStart · C3）
+
+> **复验：** 2026-09-03 · `dev/examples/support-solidstart/prepare-artifact.sh` → `CELP_C3_FRAMEWORK=solid`
+
+| 步骤 | 结果 | Pass |
+|------|------|------|
+| 非交互 scaffold | `create-cloudflare --framework=solid` → `create-solid` **ENOENT** / 仅 hello-world stub | **FAIL** |
+| prod Host | 未部署 | **FAIL** |
+| 读者模拟 | 未 `grep 'Hello world'` | **FAIL** |
+
+**根因：** C3 SolidStart 依赖 `create-solid` 交互选模板；CI/`deploy-support-app` 无法完成。
+
+**S27 总评：FAIL**
+
+---
+
+## S28 — support-qwik.lvh.me（Qwik City · C3）
+
+> **复验：** 2026-09-03 · `prepare-artifact`（`create-qwik` + `cloudflare-workers`）· `deploy-support-app.sh S28` **v3**
+
+| 步骤 | URL | HTTP | 用户可见结果 | Pass |
+|------|-----|------|--------------|------|
+| slim artifact | — | — | wrangler dry-run + `.cellp-assets`（无 `.assetsignore`） | **PASS** |
+| prod | `support-qwik.lvh.me` | — | `celld health timeout`（platform） | **FAIL** |
+| 读者模拟 | `/` | — | 未验收 `Welcome to Qwik` | **FAIL** |
+
+**S28 总评：FAIL**（构建链 OK，prod 未 ready）
+
+---
+
+## S29 — support-waku.lvh.me（Waku · C3）
+
+> **复验：** 2026-09-03 · `create-waku` + workers-sdk `templates/waku` overlay · `deploy-support-app.sh S29` **v5**
+
+| 步骤 | URL | HTTP | 用户可见结果 | Pass |
+|------|-----|------|--------------|------|
+| slim artifact | — | — | `dist/server/wrangler.json` dry-run · `nodejs_als` · 无 `rules`/`.assetsignore` | **PASS** |
+| prod | `support-waku.lvh.me` | — | `celld health timeout` | **FAIL** |
+| 读者模拟 | `/` | — | 未验收（模板含 `generator=Waku` / `An internet website!`） | **FAIL** |
+
+**S29 总评：FAIL**（构建链 OK，prod 未 ready）
+
+---
+
 ## A02 — support-pi-worker (Pi / Zen + R2 工具)
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
@@ -125,10 +183,10 @@
 | 无 key | `GET /` | 401 | `unauthorized — append ?key=<ACCESS_KEY>` | **PASS** |
 | TUI 首页 | `GET /?key=cellp-dev-fx-on-workers` | 200 | HTML `fx on Cloudflare` + xterm 容器 | **PASS** |
 | Session（非 WS） | `GET /session?key=...` | 426 | `expected websocket` | **PASS** |
-| 终端 WebSocket | `GET /session` + Upgrade | **502** | `bad gateway` | **FAIL** |
+| 终端 WebSocket | `GET /session` + Upgrade | **101** | 握手成功（2026-09-03 WS-M2 复验） | **PASS** |
 | ingress | 各 Host 正文 | — | 无 `ingress_unknown` | **PASS** |
 
-**A04 总评：FAIL**（落地页达标；TUI 依赖的 `/session` WebSocket 502，用户无法连终端）
+**A04 总评：PARTIAL**（HTTP TUI + **WS 101**；完整 agent 回合仍需 `AI_GATEWAY_API_KEY`）
 
 ---
 

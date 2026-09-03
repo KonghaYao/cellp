@@ -68,7 +68,9 @@
 | **SvelteKit** | ✅ adapter-cloudflare | **一等 · S23 支持** | C3 `templates/svelte` + `dev/examples/support-sveltekit/` |
 | **Nuxt** | ✅ Nitro cloudflare | **一等 · S25 支持** | C3 `templates/nuxt` + `dev/examples/support-nuxt/`（PD-20260902-06 已修：`node:timers` `setImmediate`） |
 | **Remix** | ✅ | **一等 · 待 S24** | `remix-starter-template` |
-| **Solid / Waku** | ✅ guide 有 | 非一等 · 待测 | `create-cloudflare` scaffold |
+| **SolidStart** | ✅ C3 | **不支持（S27）** | `create-solid` 非交互 scaffold 失败 |
+| **Qwik City** | ✅ C3 workers | **不支持（S28）** | `prepare-artifact` OK · prod celld health timeout |
+| **Waku** | ✅ C3（`create-waku`） | **不支持（S29）** | 同上 · `nodejs_als` + slim wrangler |
 | **Next.js** | ✅ OpenNext / vinext | **非一等 · 实验** | [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 | **Worker 内 SSR + CSS 管线** | ✅（wrangler 构建） | **易挂**（S16） | 预构建 + `no_bundle` |
 

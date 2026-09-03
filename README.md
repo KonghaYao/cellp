@@ -83,9 +83,9 @@ Real open-source Workers apps and framework stacks we exercise on cellp before c
 | **Hono** (+ optional SPA via Workers Assets) | ✅ | **S26** · C3 `create-hono` + Assets · prod `GET /message` → `Hello Hono!` |
 | **Remix** (`@remix-run/cloudflare`) | ✅ | |
 | **Nuxt** (Nitro `cloudflare`) | ✅ | **S25** · prod `support-nuxt.lvh.me`（celld `node:timers` / Nitro loopback） |
-| **SolidStart** | ⚠️ | [CF full-stack frameworks](https://blog.cloudflare.com/blazing-fast-development-with-full-stack-frameworks-and-cloudflare/) · testing on cellp |
-| **Qwik City** | ⚠️ | Same · testing on cellp |
-| **Waku** | ⚠️ | Same · testing on cellp |
+| **SolidStart** | ❌ | C3 `create-solid` 非交互 scaffold 失败（S27）· `dev/examples/support-solidstart/` |
+| **Qwik City** | ❌ | `prepare-artifact` OK · prod celld health timeout（S28）· 预期 `Welcome to Qwik` |
+| **Waku** | ❌ | `create-waku` + C3 overlay · prod celld health timeout（S29） |
 | **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · pre-built only (`dev/examples/support-opennext/`) · artifact OK · **no** prod HTML on `:8787` yet ([evidence](./docs/evidence/support-S30.log)) |
 
 **Apps & stacks**
