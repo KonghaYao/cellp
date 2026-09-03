@@ -247,7 +247,10 @@ if (process.env.CELP_C3_FRAMEWORK === 'qwik') {
 } else {
   j.compatibility_flags = overlay.compatibility_flags || j.compatibility_flags || ['nodejs_compat'];
 }
-if (process.env.CELP_C3_FRAMEWORK === 'waku' && !j.compatibility_flags.includes('nodejs_als')) {
+if (
+  (process.env.CELP_C3_FRAMEWORK === 'waku' || process.env.CELP_C3_FRAMEWORK === 'solid') &&
+  !j.compatibility_flags.includes('nodejs_als')
+) {
   j.compatibility_flags.push('nodejs_als');
 }
 j.main = '.cellp-bundle/index.js';

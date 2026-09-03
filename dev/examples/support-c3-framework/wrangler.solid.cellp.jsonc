@@ -1,7 +1,7 @@
 {
   "name": "support-solidstart",
   "compatibility_date": "2026-09-03",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "nodejs_als"],
   "assets": {
     "binding": "ASSETS",
     "directory": ".cellp-assets"

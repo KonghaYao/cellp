@@ -83,7 +83,7 @@ Real open-source Workers apps and framework stacks we exercise on cellp before c
 | **Hono** (+ optional SPA via Workers Assets) | ✅ | **S26** · C3 `create-hono` + Assets · prod `GET /message` → `Hello Hono!` |
 | **Remix** (`@remix-run/cloudflare`) | ✅ | |
 | **Nuxt** (Nitro `cloudflare`) | ✅ | **S25** · prod `support-nuxt.lvh.me`（celld `node:timers` / Nitro loopback） |
-| **SolidStart** | ❌ | 非交互 scaffold 已通（`create-solid` + C3 overlay）· deploy 受 celld `signal: killed` 阻塞（S27）· `dev/examples/support-solidstart/` |
+| **SolidStart** | ✅ | S27 · `dev/examples/support-solidstart/` · prod **200** · `Hello world!` · celld 动态 `import()` + `nodejs_als` |
 | **Qwik City** | ❌ | `prepare-artifact` OK · prod celld health timeout（S28）· 预期 `Welcome to Qwik` |
 | **Waku** | ✅ | `create-waku` + C3 overlay · **S29 v9** · `docs/evidence/support-S29.log` |
 | **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · pre-built only (`dev/examples/support-opennext/`) · **v5** celld **ready**（wasm PD-08）· prod **308**（非 200 HTML）· [evidence](./docs/evidence/support-S30.log) |

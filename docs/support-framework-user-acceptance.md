@@ -108,17 +108,17 @@
 
 ## S27 — support-solidstart.lvh.me（SolidStart · C3）
 
-> **复验：** 2026-09-03 · `dev/examples/support-solidstart/prepare-artifact.sh` → `CELP_C3_FRAMEWORK=solid`
+> **复验：** 2026-09-03 · `deploy-support-app.sh S27` **v3** · celld 动态 `import()` 兄弟 chunk · wrangler `nodejs_als`
 
-| 步骤 | 结果 | Pass |
-|------|------|------|
-| 非交互 scaffold | `create-cloudflare --framework=solid` → `create-solid` **ENOENT** / 仅 hello-world stub | **FAIL** |
-| prod Host | 未部署 | **FAIL** |
-| 读者模拟 | 未 `grep 'Hello world'` | **FAIL** |
+| 步骤 | URL | HTTP | 用户可见结果 | Pass |
+|------|-----|------|--------------|------|
+| slim artifact | — | — | `create-solid` + C3 overlay · wrangler dry-run → `.cellp-bundle` | **PASS** |
+| prod | `support-solidstart.lvh.me` | **200** | `Hello world!` · ~1.9 KiB HTML | **PASS** |
+| 读者模拟 | `/` | 200 | `grep 'Hello world!'` | **PASS** |
 
-**根因：** C3 SolidStart 依赖 `create-solid` 交互选模板；CI/`deploy-support-app` 无法完成。
+**根因（已修）：** Nitro lazy route 使用 `import("./_chunks/ssr-renderer.mjs")`；旧 celld 仅支持 builtin 动态 import，返回 500 JSON（57 B `unhandled`）。`modules.rs` 增加对已注册 sibling 模块的 `load_sibling_dynamic`。
 
-**S27 总评：FAIL**
+**S27 总评：PASS**
 
 ---
 
