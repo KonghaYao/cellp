@@ -24,6 +24,29 @@ if [[ ! -f .open-next/worker.js ]]; then
 fi
 [[ -f .open-next/worker.js ]] || { echo "missing .open-next/worker.js" >&2; exit 1; }
 
+# Force SSR without edge image optimizer (cellp ASSETS + localPatterns mismatch on GET /).
+if [[ -f next.config.ts ]] && ! grep -q 'unoptimized: true' next.config.ts; then
+  log "patch next.config.ts images.unoptimized"
+  node <<'NODE'
+const fs = require('fs');
+const p = 'next.config.ts';
+let s = fs.readFileSync(p, 'utf8');
+if (s.includes('unoptimized: true')) process.exit(0);
+s = s.replace(
+  /const nextConfig: NextConfig = \{\s*\n\s*\/\* config options here \*\/\s*\n\s*\};/,
+  `const nextConfig: NextConfig = {
+\timages: { unoptimized: true },
+};`
+);
+fs.writeFileSync(p, s);
+NODE
+  rm -rf .open-next .next
+  log "next build (after unoptimized patch)"
+  npm run build
+  log "opennextjs-cloudflare build"
+  npx opennextjs-cloudflare build
+fi
+
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
 # wrangler.jsonc may already point at .cellp-bundle from a prior run; dry-run needs .open-next/worker.js.
@@ -199,6 +222,40 @@ if (s.includes(imageUrlFrom) && !s.includes('__cellpImageUrl')) {
   patched++;
 }
 
+const protoRelNorm =
+  'if (url.startsWith("//")) { try { url = new URL(url, process.env.PUBLIC_BASE_URL || process.env.DEPLOY_URL || "http://celld.local/").href; } catch { url = "http:" + url; } } /* __cellpProtoRel */';
+const protoRelRe =
+  /if \(url\.startsWith\("\/\/"\)\) return \{ errorMessage: '"url" parameter cannot be a protocol-relative URL \(\/\/\)'\ };/g;
+if (!s.includes('__cellpProtoRel')) {
+  const before = s;
+  s = s.replace(protoRelRe, protoRelNorm);
+  if (s !== before) patched++;
+}
+
+const protoBlockFrom = `  if (url.startsWith("//")) {
+    const result = {
+      ok: false,
+      message: '"url" parameter cannot be a protocol-relative URL (//)'
+    };
+    return result;
+  }`;
+const protoBlockTo = `  if (url.startsWith("//")) {
+    try { url = new URL(url, process.env.PUBLIC_BASE_URL || process.env.DEPLOY_URL || "http://celld.local/").href; } catch { url = "http:" + url; }
+  } /* __cellpProtoBlock */`;
+if (s.includes(protoBlockFrom) && !s.includes('__cellpProtoBlock')) {
+  s = s.replace(protoBlockFrom, protoBlockTo);
+  patched++;
+}
+
+const localDenyFrom =
+  'if (!(0, _matchlocalpattern.hasLocalMatch)(localPatterns, url)) return { errorMessage: \'\\"url\\" parameter is not allowed\' };';
+const localDenyTo =
+  'if (!url.startsWith("/") && !(0, _matchlocalpattern.hasLocalMatch)(localPatterns, url)) return { errorMessage: \'\\"url\\" parameter is not allowed\' }; /* __cellpLocalAllow */';
+if (s.includes('_matchlocalpattern.hasLocalMatch') && !s.includes('__cellpLocalAllow')) {
+  s = s.replaceAll(localDenyFrom, localDenyTo);
+  patched++;
+}
+
 const cookieParserRe =
   /function getCookieParser\(headers\) \{\s*return function\(\) \{\s*let \{ cookie \} = headers;\s*if \(!cookie\) return \{\};\s*let \{ parse: parseCookieFn \} = require_cookie\(\);\s*return parseCookieFn\(Array\.isArray\(cookie\) \? cookie\.join\("; "\) : cookie\);\s*\};\s*\}/;
 const cookieParserRepl = `function getCookieParser(headers) {
@@ -218,7 +275,7 @@ if (cookieParserRe.test(s) && !s.includes('typeof cookie !== "string"')) {
   patched++;
 }
 
-if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname') && s.includes('typeof cookie !== "string"') && s.includes('__cellpImageUrl')) {
+if (patched === 0 && s.includes('__cellpSlashPath') && s.includes('rel.startsWith("//")') && s.includes('u.origin + u.pathname') && s.includes('typeof cookie !== "string"') && s.includes('__cellpImageUrl') && s.includes('__cellpProtoRel')) {
   console.log('prepare-artifact: bundle already patched');
 } else if (patched === 0) {
   console.error('prepare-artifact: no patches applied');
