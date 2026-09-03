@@ -173,3 +173,5 @@ Caused by:
 | `curl -H 'Host: support-opennext.lvh.me' http://127.0.0.1:8787/` | **308**，`Location: ?`，`X-Opennext: 1`（重定向环；**非** PD-08） |
 
 **结论：** wasm 侧车缺口已闭合；S30 仍 **不支持** tier-1，下一阻塞为 OpenNext 在 cellp Host 下的 **308 / URL 解析**（与 `global_fetch_strictly_public` 或 request URL 相关，待单独矩阵项）。
+
+**2026-09-01 追加：** overlay 已去掉 `global_fetch_strictly_public`；cellp 起 celld 时注入 `CELLD_TRUST_FORWARDED_HEADERS=1`（[FRAMEWORK-README-EXT-ANALYSIS.md](./FRAMEWORK-README-EXT-ANALYSIS.md) §修复后复验）。**待** 新 version ready 后复验 prod HTML。
