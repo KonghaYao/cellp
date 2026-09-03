@@ -85,7 +85,7 @@
 | Sink | **已纳入 S11** | **支持** · `dev/examples/support-sink/` · prod **v2**（2026-09-03） |
 | Counterscale | **不支持** | turbo **pnpm** monorepo，无单 wrangler 入口 |
 | CloudPaste | **不支持** | 多组件 Pages + Worker 拆分，未纳入单 Worker 槽位 |
-| cf-workers-status-page | **不支持** | 旧 **flareact/webpack** `[site]` 栈，未适配 cellp slim artifact |
+| cf-workers-status-page | **已纳入 S32 · 不支持** | **S32** · `dev/examples/support-status-page/`（flareact 双 webpack + wrangler dry-run slim）· deploy **v1 failed** · celld `stateless Worker failed to load: default not object` · `docs/evidence/support-S32.log` |
 | CloudFlare-ImgBed | **已纳入 S31** | **支持** · `dev/examples/support-imgbed/` · Workers `deploy/worker` · prod **v1**（2026-09-03） |
 | UptimeFlare · microfeed · … | **排队** | 见 star-queue |
 | VibeSDK | **难** | WFP + 多 DO（仅 star-queue 备注，非 Agent 主线） |

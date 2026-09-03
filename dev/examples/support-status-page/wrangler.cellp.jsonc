@@ -1,0 +1,18 @@
+{
+  "name": "support-status-page",
+  "main": "dist/main.js",
+  "compatibility_date": "2021-07-23",
+  "assets": {
+    "directory": "./out",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KV_STATUS_PAGE",
+      "id": "00000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  }
+}
