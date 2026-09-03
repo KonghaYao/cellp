@@ -68,7 +68,7 @@
 
 | ID | 框架 | **支持？** | 验证 URL | 备注 |
 |----|------|:--------:|----------|------|
-| S26 | **Hono** | **支持** | http://support-hono.lvh.me:8787/ | `create-hono` cloudflare-workers · **v2** · `GET /` → `Hello Hono!` |
+| S26 | **Hono** | **支持** | http://support-hono.lvh.me:8787/ | C3 `create-hono` + Workers Assets · `dev/examples/support-hono/` · **v3** · `GET /message` → `Hello Hono!` · `/` → `public/index.html` |
 | S27 | **SolidStart** | **验证中** | — | C3 `create-cloudflare` · `dev/examples/support-solidstart/` |
 | S28 | **Qwik City** | **验证中** | — | 同上 · `support-qwik` |
 | S29 | **Waku** | **验证中** | — | 同上 · `support-waku` |
