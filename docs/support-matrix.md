@@ -72,7 +72,7 @@
 | S27 | **SolidStart** | **支持** | http://support-solidstart.lvh.me:8787/ | 非交互 `create-solid` + C3 overlay · **v3** · `nodejs_compat` + `nodejs_als` · celld 动态 `import()` 加载 `no_bundle` 兄弟 chunk · prod **200** ~1.9 KiB · `Hello world!` |
 | S28 | **Qwik City** | **支持** | http://support-qwik.lvh.me:8787/ | `templates/qwik/workers` · 无 `nodejs_compat`（避免 unenv `process.stdin`）· **v7** · prod **200** ~19 KiB · `Welcome to Qwik` |
 | S29 | **Waku** | **支持** | http://support-waku.lvh.me:8787/ | `create-waku` + C3 overlay · **v9** ready + promote · prod/preview **200** · grep `Waku` / `An internet website!` · celld: sibling `.js`→`EsModule` + relative resolve · `docs/evidence/support-S29.log` |
-| S30 | **Next.js (OpenNext)** | **不支持** | — | `prepare-artifact` 8 处 slash/`Location: ?` 补丁 · **v21** ready + promote · prod **500**（21 B，非 308）· v19 deploy 超时 `destroyed` · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| S30 | **Next.js (OpenNext)** | **不支持** | — | prepare **10** patch + celld `node:http` · **v22** ready + promote · prod/preview **400**（`protocol-relative URL (//)`）· 308/500 已消除 · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · `docs/evidence/support-S30.log` |
 
 ---
 

@@ -12,9 +12,10 @@
 | 范围 | 总评 |
 |------|------|
 | S22–S26 prod | **PASS**（fleet 冷启动时需先 reconcile / 拉起 upstream celld） |
-| S27 | **FAIL**（未改） |
-| S28 / S29 | **FAIL**（deploy health timeout + worker load 错误；prod `ingress_unknown`） |
-| S30 OpenNext **v10** | **FAIL**（promote ready 后 prod 仍 **308** `Location: ?`） |
+| S27 | **PASS**（v3 · `Hello world!` · celld sibling 动态 `import()`） |
+| S28 | **PASS**（v7 · `Welcome to Qwik` · 无 `nodejs_compat`） |
+| S29 | **PASS**（v9 · grep `Waku` · celld EsModule sibling） |
+| S30 OpenNext **v22** | **FAIL**（ready + promote · prod **400** · `"url" parameter cannot be a protocol-relative URL (//)"` · 非 200 HTML） |
 | A01 / A03 / A04 prod HTTP | **PASS**（与既有 PARTIAL 口径一致） |
 | `go test ./...` | **PASS** |
 | `e2e/run-all.sh` | **FAIL**（本机缺 offshoot CLI） |
@@ -124,49 +125,53 @@
 
 ## S28 — support-qwik.lvh.me（Qwik City · C3）
 
-> **复验：** 2026-09-03 同步 verify · `deploy-support-app.sh S28` **v4** · celld `445569a`
+> **复验：** 2026-09-03 末批 · `deploy-support-app.sh S28` **v7** · `templates/qwik/workers` · 无 `nodejs_compat`
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
-| slim artifact | — | — | wrangler dry-run + `.cellp-assets`（无 `.assetsignore`） | **PASS** |
-| deploy | platform | — | `start celld: celld health timeout` **8833** | **FAIL** |
-| worker load | 手动 celld | — | `Cannot set property stdin of #<Process>`（unenv / `nodejs_compat`） | **FAIL** |
-| prod | `support-qwik.lvh.me` | **404** | `ingress_unknown` | **FAIL** |
-| 读者模拟 | `/` | — | 未 `grep 'Welcome to Qwik'` | **FAIL** |
+| slim artifact | — | — | wrangler dry-run + `.cellp-assets` | **PASS** |
+| deploy | platform | — | **v7** **ready** + promote | **PASS** |
+| prod | `support-qwik.lvh.me` | **200** | ~19 KiB · `Welcome to Qwik` | **PASS** |
+| 读者模拟 | `/` | 200 | `grep 'Welcome to Qwik'` | **PASS** |
 
-**S28 总评：FAIL**（构建链 OK；runtime load + prod route 未通）
+**根因（已修）：** overlay 误加 `nodejs_compat` → unenv `process.stdin` 与 celld 冲突；改为 `global_fetch_strictly_public` + 正确 C3 模板路径。
+
+**S28 总评：PASS**
 
 ---
 
 ## S29 — support-waku.lvh.me（Waku · C3）
 
-> **复验：** 2026-09-03 同步 verify · `deploy-support-app.sh S29` **v6** · celld `445569a`
+> **复验：** 2026-09-03 末批 · `deploy-support-app.sh S29` **v9** · celld `d293f6f`+ EsModule sibling
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
-| slim artifact | — | — | `dist/server/wrangler.json` dry-run · `nodejs_als` · 无 `rules`/`.assetsignore` | **PASS** |
-| deploy | platform | — | `start celld: celld health timeout` **8834** | **FAIL** |
-| worker load | 手动 celld | — | `does not provide an export named 'r'` | **FAIL** |
-| prod | `support-waku.lvh.me` | **404** | `ingress_unknown` | **FAIL** |
-| 读者模拟 | `/` | — | 未验收 `Waku` / `An internet website!` | **FAIL** |
+| slim artifact | — | — | `dist/server/wrangler.json` dry-run · `nodejs_als` | **PASS** |
+| deploy | platform | — | **v9** **ready** + promote | **PASS** |
+| prod | `support-waku.lvh.me` | **200** | ~6.5 KiB · `Waku` / `An internet website!` | **PASS** |
+| 读者模拟 | `/` | 200 | grep 命中 | **PASS** |
 
-**S29 总评：FAIL**（构建链 OK；runtime load + prod route 未通）
+**根因（已修）：** `no_bundle` sibling `.js` 被当作 Text 模块；runtime 相对 import 解析缺失。另：假健康探针（非 `{"ok":true}`）可掩盖 upstream 端口被 stub 占用。
+
+**S29 总评：PASS**
 
 ---
 
 ## S30 — support-opennext.lvh.me（Next.js · OpenNext / C3 template）
 
-> **复验：** 2026-09-03 同步 verify · `SUPPORT_VERSION=v10` · `deploy-support-app.sh S30` promote **v10** · celld `445569a` · 无 `global_fetch_strictly_public` · `CELLD_TRUST_FORWARDED_HEADERS=1`
+> **复验：** 2026-09-03 末批 · `SUPPORT_VERSION=v22` · celld `8a7bfaa`（`node:http`）+ prepare **10** patch(es)
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
-| deploy | platform | — | version **v10** **ready** + promote ok | **PASS** |
-| prod 首页 | `/` | **308** | `Location: ?` · body `?` · `X-Opennext: 1` · **非** Next HTML | **FAIL** |
-| 读者模拟 | `/` | **308** | 无 `<!DOCTYPE html>` / Next 标题 | **FAIL** |
+| deploy | platform | — | **v22** **ready** + promote ok | **PASS** |
+| prod 首页 | `/` | **400** | body `"url" parameter cannot be a protocol-relative URL (//)"` · **非** Next HTML | **FAIL** |
+| 读者模拟 | `/` | **400** | 无 `<!DOCTYPE html>` / Next 标题 | **FAIL** |
 
-**根因（当前）：** OpenNext/Next 重复斜杠或 URL 规范化链在 cellp ingress 下仍产出 **`Location: ?`**（见 [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · [support-validation-lessons.md](./support-validation-lessons.md)）。wasm（PD-08）已 fixed。
+**已消除（历史）：** **308** `Location: ?`（slash 补丁 + ingress `request.url`）；**500**（`node:http` stub → cookie `TypeError`）。
 
-**S30 总评：FAIL**（celld ready；prod 语义未达 tier-1）
+**当前阻塞：** OpenNext/Next **`_next/image` 或同类**仍收到 **protocol-relative `//…` URL**；prepare 内部分补丁未使 **GET /** 达 200（smoke 与 prod 均为 400）。
+
+**S30 总评：FAIL**（deploy ready；prod 语义未达 tier-1 · 见 [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)）
 
 ---
 

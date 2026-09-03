@@ -84,9 +84,9 @@ Real open-source Workers apps and framework stacks we exercise on cellp before c
 | **Remix** (`@remix-run/cloudflare`) | ✅ | |
 | **Nuxt** (Nitro `cloudflare`) | ✅ | **S25** · prod `support-nuxt.lvh.me`（celld `node:timers` / Nitro loopback） |
 | **SolidStart** | ✅ | S27 · `dev/examples/support-solidstart/` · prod **200** · `Hello world!` · celld 动态 `import()` + `nodejs_als` |
-| **Qwik City** | ❌ | `prepare-artifact` OK · prod celld health timeout（S28）· 预期 `Welcome to Qwik` |
+| **Qwik City** | ✅ | **S28 v7** · `templates/qwik/workers` · prod `Welcome to Qwik` · 无 `nodejs_compat` |
 | **Waku** | ✅ | `create-waku` + C3 overlay · **S29 v9** · `docs/evidence/support-S29.log` |
-| **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · pre-built only (`dev/examples/support-opennext/`) · **v5** celld **ready**（wasm PD-08）· prod **308**（非 200 HTML）· [evidence](./docs/evidence/support-S30.log) |
+| **Next.js** (OpenNext / vinext) | ⚠️ | **S30** · `dev/examples/support-opennext/` · **v22** ready + promote · prod **400**（`//` URL · 非 200 HTML）· [evidence](./docs/evidence/support-S30.log) · [plan](./docs/plans/NEXT-OPENNEXT-CELLP.md) |
 
 **Apps & stacks**
 
