@@ -18,6 +18,51 @@
 
 ---
 
+## PD-20260903-01 — Mastra wrangler bundle：`util.promisify(undefined)` 导致 Worker 无法 instantiate（celld）
+
+| | |
+|--|--|
+| **ID** | PD-20260903-01 |
+| **层级** | celld / nodejs_compat |
+| **严重度** | blocker（`stateless Worker failed to load` → health timeout） |
+| **状态** | `open` |
+| **项目** | A05 `support-mastra`（`mastra build` + wrangler dry-run，~19 MiB bundle，gzip ~3.5 MiB） |
+
+### 现象
+
+- deploy / artifact staging **成功**；version 卡在 `start celld: celld health timeout`
+- `$TMPDIR/celld-support-mastra-v2.log`：
+
+```text
+Error: stateless Worker failed to load
+Caused by:
+    top-level rejected: TypeError [ERR_INVALID_ARG_TYPE]: The "original" argument must be of type function. Received undefined
+    … at promisify … at mastra.mjs (worker.js:279855:17)
+```
+
+### 与 A05 打包策略
+
+- 已改为保留 deployer `alias` + **wrangler `--dry-run`** → `.cellp-bundle/index.js`（非裸 `.mastra/output` 多文件）。
+- 根因仍在 **bundled `mastra.mjs` 内 Node 垫片 / promisify**，非 wrangler 缺 D1/R2。
+
+### 根因（2026-09-03 细化）
+
+- **`node:util.promisify` 存在**；失败因 **`import { gzip } from "node:zlib"` → `undefined`**（celld 仅 `gzipSync`，无 callback `gzip`）。
+- 触发链：`@mastra/core` → `posthog-node` 模块顶层 `promisify(gzip)`。
+
+### 应用侧缓解（A05）
+
+见 [`cf-worker-js-compat.md`](./cf-worker-js-compat.md) §1：`MASTRA_TELEMETRY_DISABLED=1` + wrangler **`alias`** stub `posthog-node`。
+
+### 修复方向（celld / 上游）
+
+- celld **`node:zlib`** 补 callback `gzip` / `gunzip`（与 wrangler unenv 对齐）
+- 或 Mastra upstream 可选不静态依赖 `posthog-node`
+
+**证据：** `docs/evidence/support-A05.log` · `/tmp/celld-support-mastra-v2.log`
+
+---
+
 ## PD-20260902-01 — `cloudflare:workers` 多模块 ESM 未注册 stub（celld）
 
 | | |
@@ -264,10 +309,39 @@ AD-1 为每个 ready route 常驻 **celld**（dev 可达 ~28 进程）。Orchest
 
 ---
 
+## PD-20260904-10 — OpenNext SSR：`process.setImmediate` 缺失导致 `GET /` 0-byte hang（celld）
+
+| | |
+|--|--|
+| **层级** | celld（harness / unenv `process`） |
+| **严重度** | major（OpenNext preview `GET /` 无响应直至客户端超时；`/_next/static` 可 200） |
+| **状态** | `fixed`（lab 二进制；需 kill/wake 或重 deploy 换进程） |
+
+### 现象
+
+- **项目：** S30 `support-opennext`（`@opennextjs/cloudflare` 单 Worker bundle）。
+- **路径：** preview v38–v42 `GET /` → **0 byte**、curl 28；探针 `hasProcessSetImmediate: undefined`，卡在 Next `requestHandler` / `waitTillReady` 之后。
+- **对照：** prod v22 **400** proto-rel `//`（快失败，**另一 bug**）。
+
+### 根因
+
+全局 `setImmediate` 已由 `set_immediate.js` 提供；OpenNext/unenv 用 **独立 `process` 对象**（`import process` / `globalThis.process = process`），**不含** `process.setImmediate`。Next 16 调度走 `process.setImmediate`，回调不跑，HTTP 响应永不 settle。
+
+### 修复（celld）
+
+1. `harness.js`：`__celldPatchProcessTimers` + `globalThis.process` setter。
+2. `patch_process_timers`：worker 模块 evaluate 后、每次 `start_fetch` 前再 patch。
+3. 单测：`harness_patches_process_set_immediate`。
+
+实录：[S30-OPENNEXT-HARD-PROBLEM.md](./plans/S30-OPENNEXT-HARD-PROBLEM.md) §4.2。
+
+---
+
 ## 变更 log
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-04 | **PD-20260904-10 fixed**：`process.setImmediate` on unenv `process`；S30 hang **可 settle**（prod v22 仍 400 proto-rel） |
 | 2026-09-03 | PD-10 **垫片落地、S30 未过**：loopback 重入 + `CelldHttpBodyStream` BYOB；v42 `GET /` 仍 0-byte hang。实录 [S30-OPENNEXT-HARD-PROBLEM.md](./plans/S30-OPENNEXT-HARD-PROBLEM.md) |
 | 2026-09-03 | PD-09 **fixed**：`CELLP_CELLD_DEPLOY_CONCURRENCY` + deploy slot/retry；见 `cellp/internal/runtime/deploy_limit.go` |
 | 2026-09-03 | PD-06 **fixed**：`node:timers` `setImmediate`；S25 `GET /` 200 HTML（~11ms）；证据见 user-acceptance 复验 |

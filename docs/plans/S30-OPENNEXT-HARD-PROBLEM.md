@@ -1,6 +1,6 @@
 # Real Hard Problem — S30 OpenNext `GET /` 不 settle
 
-> **状态：** 未关闭 · **2026-09-03 暂停**  
+> **状态：** 未关闭 · **2026-09-04 进展**：preview **0-byte hang** 在 lab celld + `process.setImmediate` 补丁下 **可 settle**（instrumented v42 bundle、prod v22 均在 &lt;1s 返回）；**prod `GET /` 仍 400** proto-rel `//`（与 hang 分离）  
 > **产品口径：** Next / OpenNext **非一等公民**（AD-13）；矩阵 **不支持**  
 > **对照：** [NEXT-OPENNEXT-CELLP.md](./NEXT-OPENNEXT-CELLP.md) · [NITRO-CELLD-COMPAT.md](./NITRO-CELLD-COMPAT.md)（PD-06，**机制不同**）
 
@@ -59,8 +59,8 @@ curl -sS -m 2 -o /dev/null -w '%{http_code} %{time_total}\n' \
 | v22 favicon | **200 / ~2ms** |
 | v42 health `:8839` | **200 / <1ms** |
 | v42 favicon | **200 / <1ms** |
-| v42 `GET /` | **8s / 0 byte**（curl 28） |
-| v42 `/_next/static/...` miss | 同 hang（进 Worker） |
+| v42 `GET /` | **8s / 0 byte**（curl 28）· **2026-09-04**：lab celld + patch 后 instrumented bundle **~45ms 返回**（404/Next 头，非 hang） |
+| v42 `/_next/static/...` miss | 曾同 hang；**2026-09-04** 直打 celld **200**（~24KB CSS） |
 | v38 Gateway | 曾 **503 `route draining`**（route inactive，勿与 hang 混） |
 
 **专用日志（不是 `dev/data/logs/celld.log`）：**
@@ -81,7 +81,7 @@ $TMPDIR/celld-support-opennext-v42.log
 |------|------|
 | Gateway 反代超时 / path 预览 308 | **排除**；直打 celld 同样 hang |
 | celld ingress `pathname === "//"` 308 环 | **已修**；不解释 400 文案，也不解释 0-byte |
-| PD-06 Nitro `setImmediate` stub | **不够**。Nitro 走 h3/`node:timers`；OpenNext 走 Next `node:http` SSR |
+| PD-06 Nitro `setImmediate` stub | Nitro 走 h3/`node:timers`；OpenNext 另需 **`process.setImmediate`**（unenv `process` 无此字段）→ **见 §4.2 `__celldPatchProcessTimers`** |
 | `PUBLIC_BASE_URL` :8787 vs 直连 :8839 → Egress 打自己 | **弱**。canonical 命中先 **Loopback**；preview Host 对不上时应 **Reject**（快失败），解释不了 hang |
 | ImageOptimizer 400 | **仅 v22**；去掉校验后进入更深路径 |
 | `_next/image` BYOB | 对 **`GET /` 间接**。`handleImageRequest` 才 `getReader({mode:"byob"}).readAtLeast(32)` |
@@ -107,9 +107,10 @@ $TMPDIR/celld-support-opennext-v42.log
 | loopback 重入：`finish_turn` 持 `CurrentGuard`；`wake` 在 `event_depth>1` 时 Poll；`__invokeSelfFetch` 继承 ctx | `js.rs` · `runtime.rs` · `harness.js` | **rebuild 后 v42 仍 hang** |
 | `CelldHttpBodyStream` BYOB / `readAtLeast` | `harness.js` | 未单独打通 `/_next/image`；**不治 `GET /`** |
 | 同 path loopback 拒绝 + `inboundPathname` + `fetch_plan` info | `harness.js` · `js.rs` | **无 fetch_plan 日志** |
-| `IncomingMessage`/`ServerResponse` 继承 `node:stream` | `node_http.js` | **仍 hang** |
+| `IncomingMessage`/`ServerResponse` 继承 `node:stream` | `node_http.js` | **仍 hang**（补丁前） |
+| **`process.setImmediate` on unenv `process`** | `harness.js` · `bootstrap.rs` `patch_process_timers` | **2026-09-04**：`requestHandler` 可 settle；需 **rebuild celld + kill/wake** 换二进制 |
 
-**不要把 PD-10 写成「S30 已好」。** 那是平台垫片；S30 用户验收 **未过**。
+**不要把 PD-10 写成「S30 已好」。** hang 形态可消除；S30 用户验收 **仍不过**（prod **400** proto-rel、矩阵 **不支持**）。
 
 ### 4.3 运维踩坑
 
@@ -137,7 +138,7 @@ bundle 入口：`dev/data/artifacts/support-opennext/v42/.cellp-bundle/index.js`
 **卡在进 `globalThis.fetch` 之前**（无 `fetch_plan`）。候选：
 
 1. Next / OpenNext 等 **`res.end` / 流式 `finish`**，而 celld `node:http` 或 stream 泵未把 handler Promise 推到 settle。  
-2. **`process.nextTick` / 微任务** 与 isolate `finish_turn` 顺序不配（类似 PD-06，但不是 `setImmediate` 那条 import）。  
+2. ~~**`process.setImmediate` 缺失**~~ → **2026-09-04 已修**；仍可能有 **`process.nextTick` / 微任务** 与 `finish_turn` 顺序问题。  
 3. OpenNext **`DetachedPromiseRunner` / `awaitAllDetachedPromise`** 等内部队列永不 resolve。  
 4. `ServerResponse` 与 OpenNext **自写的 response 类** 双轨，我们改的 `node:http` **没被这条路径用到**。
 
