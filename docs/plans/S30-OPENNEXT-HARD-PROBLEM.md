@@ -1,6 +1,6 @@
 # Real Hard Problem — S30 OpenNext `GET /` 不 settle
 
-> **状态：** 未关闭 · **2026-09-04 进展**：preview **0-byte hang** 在 lab celld + `process.setImmediate` 补丁下 **可 settle**（instrumented v42 bundle、prod v22 均在 &lt;1s 返回）；**prod `GET /` 仍 400** proto-rel `//`（与 hang 分离）  
+> **状态：** 未关闭 · **2026-09-04 进展**：preview **0-byte hang** 在 lab celld + `process.setImmediate` 补丁下 **可 settle**（instrumented v42 bundle、prod v22 均在 &lt;1s 返回）；**prod `GET /` 仍 400** proto-rel `//`（与 hang 分离）→ 接手见 **[ISSUE-05](./issues/ISSUE-05-opennext-proto-relative-get-root.md)**  
 > **产品口径：** Next / OpenNext **非一等公民**（AD-13）；矩阵 **不支持**  
 > **对照：** [NEXT-OPENNEXT-CELLP.md](./NEXT-OPENNEXT-CELLP.md) · [NITRO-CELLD-COMPAT.md](./NITRO-CELLD-COMPAT.md)（PD-06，**机制不同**）
 
