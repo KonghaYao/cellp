@@ -109,6 +109,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 | **[Cloudflare OS](https://github.com/cloudflare/cloudflare-os)** | **🔜 计划支持** |
 | **P0 验证** | **A01–A03** → [AGENT-SUPPORT.md §P0](./AGENT-SUPPORT.md#p0--cellp-deploy-support-validation-ordered) |
 | **P1 fx** | **[fx-on-workers](https://github.com/codingstark-dev/fx-on-workers)** ([fx.sh](https://fx.sh)) · **A04** · **支持** · v9 |
+| **A05 Mastra** | **`dev/examples/support-mastra/`** · **支持** · prod **v14** |
 | **[Cloudflare Agents](https://agents.cloudflare.com/)** | **🔜 对齐 Agent Cloud**（SDK + DO + Workflows；见 P0） |
 | **[Eve](https://github.com/vercel/eve)** (Vercel) | **🔜 研究** |
 | **[Pi](https://github.com/earendil-works/pi)** · **[Deep Agents](https://github.com/langchain-ai/deepagents)** | **🔜 研究** |
@@ -122,6 +123,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 | A02 | **pi-worker** (`hello-agent`) | **支持** | http://support-pi-worker.lvh.me:8787/ | OpenAI 兼容 **OpenCode Zen**（`OPENAI_*`）+ R2 工具多轮；overlay `hello-agent.src` |
 | A03 | **opencode-do** | **支持（部分）** | http://support-opencode-do.lvh.me:8787/ | **v1** · prod `GET /` **200** · `POST /session` + `POST/GET .../message` **JSON 多轮持久化** · `GET /event` SSE **PASS**（首包 `server.connected`）· assistant 文案为 Workers AI 不可用占位 |
 | A04 | **fx-on-workers** | **支持** | http://support-fx-on-workers.lvh.me:8787/?key=cellp-dev-fx-on-workers | **v9** · **WebSocket `/session` 101** + TUI（`fx-websocket-smoke.sh`）· **`AI_GATEWAY_API_KEY`** + `FX_MODEL`（Vercel Gateway，非 OpenCode） |
+| A05 | **Mastra** (`support-mastra`) | **支持** | http://support-mastra.lvh.me:8787/ | **v14** · Agent + Tool + Workflow + **D1** Memory + **R2** cache · `./dev/examples/support-mastra/acceptance.sh` · 无 Studio |
 
 **计划：** [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · **Vercel OSS（后续）：** [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md)
 

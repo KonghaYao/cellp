@@ -1,0 +1,7 @@
+node_modules/
+.mastra/
+.cellp-bundle/
+wrangler.jsonc
+.env
+.env.local
+*.log

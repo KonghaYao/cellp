@@ -39,6 +39,40 @@ Runs **[fx.sh](https://fx.sh)** upstream **[vercel-labs/fx](https://github.com/v
 | **cellp bar** | ready + `GET /?key=` **200**；**WebSocket** `/session` → **101**（`dev/scripts/fx-websocket-smoke.sh`）；**HTTP** `POST /api/prompt?key=` 自动化备用；完整 fx 回合需 **`AI_GATEWAY_API_KEY`**（见 [FX-LLM-CREDENTIALS.md](./plans/FX-LLM-CREDENTIALS.md)） |
 | **Size** | ~2.2 MiB gzip bundle — watch Workers bundle limits |
 
+### Mastra + Cloudflare Workers (✅ · A05 supported 2026-09-04)
+
+[Mastra](https://mastra.ai/) (~**27k★** [mastra-ai/mastra](https://github.com/mastra-ai/mastra)) is a **TypeScript agent/workflow framework**, not Cloudflare Agents SDK. Official CF path: [`@mastra/deployer-cloudflare`](https://mastra.ai/integrations/deploy/cloudflare) → `mastra build` → `.mastra/output` + generated **`wrangler.jsonc`** → Worker serves Mastra HTTP API under **`/api/*`** (e.g. `/api/agents`). Storage on Workers must be **remote** ([D1Store](https://mastra.ai/integrations/databases/cloudflare-d1), KV, etc.); local LibSQL file URLs break on CF.
+
+**Landscape — there is no “agents-starter scale” Mastra-on-CF demo repo today.** Most `@mastra-ai/template-*` repos target **Node + Mastra Studio** (`npm run dev` on `:4111`), not wrangler bundles. CF deploy is documented + exercised mainly via issues and blog posts; upstream labels many CF deploy bugs (`Cloudflare Deployment`).
+
+| Repo | Stars~ | CF Workers deploy? | cellp demo fit |
+|------|--------|-------------------|----------------|
+| [mastra-ai/mastra](https://github.com/mastra-ai/mastra) (`deployers/cloudflare`) | 27k | **Authoritative** deployer + docs | Spike source, not a single clone target |
+| [mastra-ai/weather-agent](https://github.com/mastra-ai/weather-agent) | ~5 | **No by default** — add `CloudflareDeployer` manually; canonical repro in [issue #5087](https://github.com/mastra-ai/mastra/issues/5087) (`weatherWorkflow` on `/api/workflows/...`) | **Best minimal app story** after overlay |
+| [mastra-ai/template-browsing-agent](https://github.com/mastra-ai/template-browsing-agent) | ~43 | Node / Browserbase | Low — not CF-shaped |
+| [mastra-ai/ui-dojo](https://github.com/mastra-ai/ui-dojo) | ~174 | UI samples | Low — not wrangler deploy |
+| [mastra-ai/mastra-agent-course](https://github.com/mastra-ai/mastra-agent-course) | ~30 | Course / Studio | Low |
+| [chrislema/mastra-builder](https://github.com/chrislema/mastra-builder) | ~3 | **Opinionated CF Worker SaaS harness** (Wrangler, D1/KV/R2/DO/Queues, eval gates); **local Studio + delivery workflows**, not a one-shot Worker bundle | **Research only** — meta “agent builds Workers”; assumes **Workers AI** in eval fixtures; too heavy for first smoke |
+| Community one-offs (e.g. `khito-agent-mastra-cloudflare-deployer`) | &lt;10 | Experiments | Unverified |
+
+**Recommended cellp spike (`A05`, wired in `deploy-support-app.sh`):**
+
+**Implemented:** in-repo demo **`dev/examples/support-mastra/`** · `./dev/scripts/deploy-support-app.sh A05` · custom static UI (not Studio) · Agent + Tool + Workflow + **D1** (`D1Store`/Memory) + **R2** forecast cache · external OpenAI-compatible model.
+
+**A05 `v14` evidence (2026-09-04, supported):** prod **`v14`** · `./dev/examples/support-mastra/acceptance.sh v14` **exit 0** — custom UI; Agent registry + **real Agent generate**; weather Tool; R2 forecast miss → hit; Workflow with **`planningSource=agent`**; Mastra Memory create/save/read; same marker via cellp version **D1 query API**. LLM via **OpenAI-compatible** worker env (`OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY`); local re-verify used **`composer-2.5`** (not Mastra Studio). Deploy: `./dev/scripts/deploy-support-app.sh A05` · log: `docs/evidence/support-A05.log`. Runtime instantiate blocker [PD-20260903-01](./platform-defects-log.md#pd-20260903-01--mastra-wrangler-bundleutilpromisifyundefined-导致-worker-无法-instantiatecelld) **fixed** in celld `4b3a3bf` (`node:zlib` callback API).
+
+Legacy spike notes:
+
+1. Scaffold: `npm create mastra@latest` (or clone **weather-agent**) + `@mastra/deployer-cloudflare` per [deploy guide](https://mastra.ai/integrations/deploy/cloudflare).
+2. Optional **`D1Store`** inline inside `new Mastra({…})` with `env.DB` — maps to cellp **D1 import/branch**.
+3. Build: `mastra build` → upload **`.mastra/output`** + generated wrangler config (same narrative as [From Cloudflare](https://konghayao.github.io/cellp/migrate/cloudflare)).
+4. Accept: `GET /api/agents` **200** JSON; run **`weatherWorkflow`** (or one agent turn) with **external LLM** (OpenAI-compatible), not `cloudflare-workers-ai` (**celld gap**, same as A01/A03).
+5. Watch upstream blockers: bundle size ([#11449](https://github.com/mastra-ai/mastra/issues/11449)), binding init ([#8782](https://github.com/mastra-ai/mastra/issues/8782)), `@mastra/pg` on Workers ([#3239](https://github.com/mastra-ai/mastra/issues/3239)), single-file dynamic imports ([#5087](https://github.com/mastra-ai/mastra/issues/5087)).
+
+**cellp fit:** **Medium** — single Worker + wrangler bundle aligns with control plane; **not** a coding-agent P0 peer (no repo-edit / version loop like pi-worker). **High** as “third-party agent framework on Workers” validation alongside LangGraph/Deep Agents.
+
+README tracker: root [README.md](../README.md) · deploy docs: [mastra.ai/integrations/deploy/cloudflare](https://mastra.ai/integrations/deploy/cloudflare).
+
 **Overlays (P0):** `dev/examples/support-agents-starter|support-pi-worker|support-opencode-do/wrangler.cellp.jsonc` — **Workers AI** bindings omitted (celld gap). **Agent 验收：** 多轮 + 工具调用。Pi（A02）在 cellp 用 **OpenAI 兼容** 接 Zen：`OPENAI_BASE_URL=https://opencode.ai/zen/v1`、`OPENAI_API_KEY=public`、`OPENAI_MODEL=big-pickle`，overlay `hello-agent.src/index.ts` 走 **pi-worker `Agent` + `getModel`**（非手写 fetch 循环）。
 
 **Later (not P0):** Cloudflare OS 🔜 · [Agent Cloud](https://agents.cloudflare.com/) full stack · Eve / Pi / Deep Agents research in [CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md).

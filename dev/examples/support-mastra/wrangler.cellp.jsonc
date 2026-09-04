@@ -1,0 +1,30 @@
+{
+  "name": "support-mastra",
+  "main": ".cellp-bundle/index.js",
+  "compatibility_date": "2026-01-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "support-mastra-db",
+      "database_id": "00000000-0000-0000-0000-00000000000c"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "CACHE",
+      "bucket_name": "support-mastra-cache"
+    }
+  ],
+  "vars": {
+    "OPENAI_API_KEY": "public",
+    "OPENAI_BASE_URL": "https://opencode.ai/zen/v1",
+    "OPENAI_MODEL": "big-pickle",
+    "MASTRA_TELEMETRY_DISABLED": "1"
+  }
+}

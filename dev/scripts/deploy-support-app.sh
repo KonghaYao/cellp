@@ -70,6 +70,7 @@ lookup() {
     A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
     A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
     A04) PROJECT=support-fx-on-workers; REPO_URL=https://github.com/codingstark-dev/fx-on-workers.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    A05) PROJECT=support-mastra; REPO_URL=local; WORKDIR_SUB=.; BUILD_STEPS="" ;;
     *) echo "Unknown ${SID}"; exit 1 ;;
   esac
 }
@@ -119,19 +120,26 @@ CLONE_DIR="${CORPUS}/${PROJECT}"
 require_platform
 require_celld
 
-log "clone/update ${REPO_URL}"
-CLONE_URL="$(clone_git_url "$REPO_URL")"
-[[ "$CLONE_URL" != "$REPO_URL" ]] && log "mirror clone: ${CLONE_URL}"
-if [[ -d "${CLONE_DIR}/.git" ]]; then
-  if [[ "${SUPPORT_SKIP_GIT_FETCH:-}" == "1" ]]; then
-    log "skip git fetch (SUPPORT_SKIP_GIT_FETCH=1, use existing corpus)"
-  else
-    git -C "$CLONE_DIR" fetch --depth 1 origin 2>/dev/null || true
-    git -C "$CLONE_DIR" pull --ff-only 2>/dev/null || true
-  fi
-else
+if [[ "${REPO_URL:-}" == "local" ]]; then
+  log "stage in-repo app → ${CLONE_DIR}"
   rm -rf "$CLONE_DIR"
-  GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$CLONE_URL" "$CLONE_DIR"
+  mkdir -p "$CLONE_DIR"
+  rsync -a --delete "${ROOT}/dev/examples/${PROJECT}/app/" "$CLONE_DIR/"
+else
+  log "clone/update ${REPO_URL}"
+  CLONE_URL="$(clone_git_url "$REPO_URL")"
+  [[ "$CLONE_URL" != "$REPO_URL" ]] && log "mirror clone: ${CLONE_URL}"
+  if [[ -d "${CLONE_DIR}/.git" ]]; then
+    if [[ "${SUPPORT_SKIP_GIT_FETCH:-}" == "1" ]]; then
+      log "skip git fetch (SUPPORT_SKIP_GIT_FETCH=1, use existing corpus)"
+    else
+      git -C "$CLONE_DIR" fetch --depth 1 origin 2>/dev/null || true
+      git -C "$CLONE_DIR" pull --ff-only 2>/dev/null || true
+    fi
+  else
+    rm -rf "$CLONE_DIR"
+    GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$CLONE_URL" "$CLONE_DIR"
+  fi
 fi
 
 APP_DIR="${CLONE_DIR}"
@@ -211,7 +219,7 @@ NODE
 }
 
 OVERLAY="${ROOT}/dev/examples/${PROJECT}/wrangler.cellp.jsonc"
-if [[ -f "$OVERLAY" ]]; then
+if [[ -f "$OVERLAY" && "$SID" != "A05" ]]; then
   log "apply cellp wrangler overlay ${OVERLAY}"
   cp "$OVERLAY" "$APP_DIR/wrangler.jsonc"
   rm -f "$APP_DIR/wrangler.toml"
@@ -240,7 +248,7 @@ raw = raw.replace(/:\\/\\//g, ':\\\\u002f\\\\u002f');
 fs.writeFileSync(p, raw);
 " "$APP_DIR/wrangler.jsonc" "$deploy_url"
   fi
-else
+elif [[ "$SID" != "A05" ]]; then
   strip_wrangler_for_celld "$APP_DIR"
   if [[ -f "$APP_DIR/wrangler.toml" && ! -f "$APP_DIR/wrangler.jsonc" ]]; then
     echo "FAIL: ${SID} has wrangler.toml only; add dev/examples/${PROJECT}/wrangler.cellp.jsonc or wrangler.json(c)"
@@ -298,6 +306,9 @@ if [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.cellp-bundle/index.js && -f .
   if [[ -d ./.cellp-assets ]]; then
     rsync -a ./.cellp-assets/ "$DEST/.cellp-assets/"
   fi
+  if [[ -d ./public ]]; then
+    rsync -a ./public/ "$DEST/public/"
+  fi
   if [[ -d ./.output/server ]]; then
     mkdir -p "$DEST/.output/server"
     rsync -a ./.output/server/ "$DEST/.output/server/"
@@ -308,6 +319,19 @@ if [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./.cellp-bundle/index.js && -f .
   fi
   if [[ -d ./migrations ]]; then
     rsync -a ./migrations/ "$DEST/migrations/"
+  fi
+  STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
+  if [[ -f "$STAGE_HOOK" ]]; then
+    log "stage extra: ${STAGE_HOOK}"
+    bash "$STAGE_HOOK" "$APP_DIR" "$DEST"
+  fi
+elif [[ "${SUPPORT_RSYNC_NO_NODE:-}" == "1" && -f ./wrangler.jsonc && -f ./.mastra/output/index.mjs && ! -f ./.cellp-bundle/index.js ]]; then
+  log "stage slim artifact (mastra .mastra/output + public; no node_modules)"
+  cp ./wrangler.jsonc "$DEST/"
+  mkdir -p "$DEST/.mastra"
+  rsync -a ./.mastra/output/ "$DEST/.mastra/output/"
+  if [[ -d ./public ]]; then
+    rsync -a ./public/ "$DEST/public/"
   fi
   STAGE_HOOK="${ROOT}/dev/examples/${PROJECT}/stage-artifact-extra.sh"
   if [[ -f "$STAGE_HOOK" ]]; then
@@ -417,6 +441,24 @@ if [[ "$SID" == "A04" && -n "${AI_GATEWAY_API_KEY:-}" ]]; then
     "{\"vars\":{\"AI_GATEWAY_API_KEY\":\"${AI_GATEWAY_API_KEY}\",\"FX_MODEL\":\"${FX_MODEL}\"}}" \
     "$ADMIN_TOKEN" >/dev/null; then
     echo "WARN: PUT version env failed (set AI_GATEWAY_API_KEY in dev/.env)"
+  fi
+  sleep 2
+fi
+
+if [[ "$SID" == "A05" ]]; then
+  OPENAI_API_KEY="${OPENAI_API_KEY:-public}"
+  OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://opencode.ai/zen/v1}"
+  OPENAI_MODEL="${OPENAI_MODEL:-big-pickle}"
+  log "A05: worker env OpenCode-compatible endpoint, model=${OPENAI_MODEL}"
+  A05_ENV_BODY="$(jq -nc \
+    --arg key "$OPENAI_API_KEY" \
+    --arg base "$OPENAI_BASE_URL" \
+    --arg model "$OPENAI_MODEL" \
+    '{vars:{OPENAI_API_KEY:$key,OPENAI_BASE_URL:$base,OPENAI_MODEL:$model}}')"
+  if ! api_put "/v1/projects/${PROJECT}/versions/${VERSION}/env" \
+    "$A05_ENV_BODY" \
+    "$ADMIN_TOKEN" >/dev/null; then
+    echo "WARN: PUT version env failed (defaults also in wrangler.cellp.jsonc)"
   fi
   sleep 2
 fi

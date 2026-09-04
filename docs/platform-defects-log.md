@@ -25,7 +25,7 @@
 | **ID** | PD-20260903-01 |
 | **层级** | celld / nodejs_compat |
 | **严重度** | blocker（`stateless Worker failed to load` → health timeout） |
-| **状态** | `open` |
+| **状态** | `fixed`（celld `4b3a3bf`：callback `gzip` / `gunzip` / `deflate` / `inflate`） |
 | **项目** | A05 `support-mastra`（`mastra build` + wrangler dry-run，~19 MiB bundle，gzip ~3.5 MiB） |
 
 ### 现象
@@ -42,24 +42,27 @@ Caused by:
 
 ### 与 A05 打包策略
 
-- 已改为保留 deployer `alias` + **wrangler `--dry-run`** → `.cellp-bundle/index.js`（非裸 `.mastra/output` 多文件）。
+- 已改为保留 deployer 自带 `alias` + **wrangler `--dry-run`** → `.cellp-bundle/index.js`（非裸 `.mastra/output` 多文件）。
 - 根因仍在 **bundled `mastra.mjs` 内 Node 垫片 / promisify**，非 wrangler 缺 D1/R2。
 
 ### 根因（2026-09-03 细化）
 
-- **`node:util.promisify` 存在**；失败因 **`import { gzip } from "node:zlib"` → `undefined`**（celld 仅 `gzipSync`，无 callback `gzip`）。
+- **`node:util.promisify` 存在**；失败因 **`import { gzip } from "node:zlib"` → `undefined`**（当时 celld 仅有 `gzipSync`，没有 callback `gzip`）。
 - 触发链：`@mastra/core` → `posthog-node` 模块顶层 `promisify(gzip)`。
 
-### 应用侧缓解（A05）
+### 修复（celld）
 
-见 [`cf-worker-js-compat.md`](./cf-worker-js-compat.md) §1：`MASTRA_TELEMETRY_DISABLED=1` + wrangler **`alias`** stub `posthog-node`。
+celld `4b3a3bf` 在 `__zlibModule` 上补齐 Node 风格 callback `gzip` / `gunzip` / `deflate` / `inflate`。压缩工作同步完成后通过 `process.nextTick`（无 `process` 时使用 microtask）调用 error-first callback，因此兼容 `util.promisify`。
 
-### 修复方向（celld / 上游）
+### A05 修复证据
 
-- celld **`node:zlib`** 补 callback `gzip` / `gunzip`（与 wrangler unenv 对齐）
-- 或 Mastra upstream 可选不静态依赖 `posthog-node`
+- 最终 `.cellp-bundle/index.js` **仍含** `posthog-node` 的 `promisify(gzip)`，说明 Mastra 第一阶段 bundle 已内联该依赖，后续 Wrangler alias/stub 没有参与修复。
+- 使用已修复 celld 的 A05 **v14** 通过 strict `acceptance.sh`（Agent · Tool · Workflow · D1 · R2）。
+- `MASTRA_TELEMETRY_DISABLED=1` 只负责关闭 demo 的运行时 telemetry；无效 alias/stub 已删除。
 
-**证据：** `docs/evidence/support-A05.log` · `/tmp/celld-support-mastra-v2.log`
+Mastra upstream 若将 `posthog-node` 改为完全可选依赖，可缩小 bundle，但不再是 celld 兼容性 blocker。
+
+**证据：** celld `4b3a3bf` · `docs/evidence/support-A05.log` · `/tmp/celld-support-mastra-v2.log`
 
 ---
 
@@ -341,6 +344,7 @@ AD-1 为每个 ready route 常驻 **celld**（dev 可达 ~28 进程）。Orchest
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-04 | **PD-20260903-01 fixed**：celld `4b3a3bf` 补 callback zlib API；A05 `v13` 在最终 bundle 仍含 `promisify(gzip)` 时可正常 instantiate；删除无效 alias/stub |
 | 2026-09-04 | **PD-20260904-10 fixed**：`process.setImmediate` on unenv `process`；S30 hang **可 settle**（prod v22 仍 400 proto-rel） |
 | 2026-09-03 | PD-10 **垫片落地、S30 未过**：loopback 重入 + `CelldHttpBodyStream` BYOB；v42 `GET /` 仍 0-byte hang。实录 [S30-OPENNEXT-HARD-PROBLEM.md](./plans/S30-OPENNEXT-HARD-PROBLEM.md) |
 | 2026-09-03 | PD-09 **fixed**：`CELLP_CELLD_DEPLOY_CONCURRENCY` + deploy slot/retry；见 `cellp/internal/runtime/deploy_limit.go` |

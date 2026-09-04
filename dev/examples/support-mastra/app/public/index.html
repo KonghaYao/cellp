@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mastra on cellp</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        background: #0b1020;
+        color: #e5e7eb;
+      }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top left, #1d4ed844, transparent 32rem),
+          #0b1020;
+      }
+      main {
+        width: min(1050px, calc(100% - 2rem));
+        margin: 0 auto;
+        padding: 3rem 0 5rem;
+      }
+      header { margin-bottom: 2rem; }
+      h1 { margin: 0 0 0.5rem; font-size: clamp(2rem, 6vw, 4rem); }
+      h2 { margin-top: 0; font-size: 1.1rem; }
+      p { color: #aab3c5; line-height: 1.6; }
+      code { color: #93c5fd; }
+      .badge {
+        display: inline-block;
+        border: 1px solid #334155;
+        border-radius: 999px;
+        padding: 0.3rem 0.65rem;
+        color: #bfdbfe;
+        background: #17255488;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        gap: 1rem;
+      }
+      section {
+        border: 1px solid #26334a;
+        border-radius: 1rem;
+        padding: 1.2rem;
+        background: #111827cc;
+        box-shadow: 0 12px 35px #0005;
+      }
+      label { display: block; margin: 0.8rem 0 0.35rem; color: #cbd5e1; }
+      input, textarea, button {
+        box-sizing: border-box;
+        width: 100%;
+        border-radius: 0.6rem;
+        border: 1px solid #3b4961;
+        padding: 0.7rem 0.8rem;
+        font: inherit;
+      }
+      input, textarea { background: #080d19; color: #f8fafc; }
+      textarea { min-height: 5rem; resize: vertical; }
+      button {
+        margin-top: 0.8rem;
+        border-color: #2563eb;
+        background: #2563eb;
+        color: white;
+        cursor: pointer;
+        font-weight: 650;
+      }
+      button:disabled { cursor: wait; opacity: 0.6; }
+      output {
+        display: block;
+        min-height: 4rem;
+        margin-top: 1rem;
+        padding: 0.8rem;
+        border-radius: 0.6rem;
+        background: #070b14;
+        color: #cbd5e1;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .ok { color: #86efac; }
+      .error { color: #fca5a5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="badge">A05 · runtime demo · no Studio</span>
+        <h1>Mastra on cellp</h1>
+        <p>
+          One deployed Worker demonstrates a Mastra Agent, Tool, Workflow,
+          R2 cache, and D1-backed Memory through Mastra's own <code>/api/*</code> routes.
+        </p>
+      </header>
+
+      <div class="grid">
+        <section>
+          <h2>Agent + weather Tool</h2>
+          <p>The Agent can call <code>get-weather</code>. Public model quota may return 429.</p>
+          <form id="agent-form">
+            <label for="agent-prompt">Prompt</label>
+            <textarea id="agent-prompt">What is the current weather in Tokyo? Use the weather tool.</textarea>
+            <button>Run Agent</button>
+          </form>
+          <output id="agent-output">Ready.</output>
+        </section>
+
+        <section>
+          <h2>Tool</h2>
+          <p>Execute the registered Mastra Tool directly, without an LLM.</p>
+          <form id="tool-form">
+            <label for="tool-city">City</label>
+            <input id="tool-city" value="Tokyo" />
+            <button>Run Tool</button>
+          </form>
+          <output id="tool-output">Ready.</output>
+        </section>
+
+        <section>
+          <h2>Workflow</h2>
+          <p>Forecast → R2 cache → Agent plan, with an explicit quota fallback.</p>
+          <form id="workflow-form">
+            <label for="workflow-city">City</label>
+            <input id="workflow-city" value="Tokyo" />
+            <button>Run Workflow</button>
+          </form>
+          <output id="workflow-output">Ready.</output>
+        </section>
+
+        <section>
+          <h2>R2 cache</h2>
+          <p>Run the Workflow's shared forecast path twice with one unique key.</p>
+          <form id="cache-form">
+            <label for="cache-city">City</label>
+            <input id="cache-city" value="Tokyo" />
+            <button>Prove miss → hit</button>
+          </form>
+          <output id="cache-output">Ready.</output>
+        </section>
+
+        <section>
+          <h2>D1 Memory</h2>
+          <p>Create a Mastra thread, save a message, then read it back from D1.</p>
+          <form id="memory-form">
+            <label for="memory-text">Message</label>
+            <input id="memory-text" value="Hello from cellp D1 Memory" />
+            <button>Write + read Memory</button>
+          </form>
+          <output id="memory-output">Ready.</output>
+        </section>
+      </div>
+    </main>
+
+    <script type="module">
+      const pretty = value => JSON.stringify(value, null, 2);
+
+      async function api(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+        });
+        const text = await response.text();
+        let payload;
+        try { payload = JSON.parse(text); } catch { payload = text; }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${typeof payload === 'string' ? payload : pretty(payload)}`);
+        }
+        return payload;
+      }
+
+      function bind(formId, outputId, run) {
+        const form = document.getElementById(formId);
+        const output = document.getElementById(outputId);
+        form.addEventListener('submit', async event => {
+          event.preventDefault();
+          const button = form.querySelector('button');
+          button.disabled = true;
+          output.className = '';
+          output.textContent = 'Running…';
+          try {
+            output.textContent = pretty(await run());
+            output.className = 'ok';
+          } catch (error) {
+            output.textContent = error instanceof Error ? error.message : String(error);
+            output.className = 'error';
+          } finally {
+            button.disabled = false;
+          }
+        });
+      }
+
+      bind('agent-form', 'agent-output', () => api('/api/agents/weather-agent/generate', {
+        method: 'POST',
+        body: pretty({ messages: document.getElementById('agent-prompt').value }),
+      }));
+
+      bind('tool-form', 'tool-output', () => api('/api/tools/get-weather/execute', {
+        method: 'POST',
+        body: pretty({ data: { location: document.getElementById('tool-city').value } }),
+      }));
+
+      bind('workflow-form', 'workflow-output', () => api('/api/workflows/weather-workflow/start-async', {
+        method: 'POST',
+        body: pretty({
+          inputData: {
+            city: document.getElementById('workflow-city').value,
+            cacheNamespace: `ui-workflow-${crypto.randomUUID()}`,
+          },
+        }),
+      }));
+
+      bind('cache-form', 'cache-output', async () => {
+        const data = {
+          city: document.getElementById('cache-city').value,
+          cacheNamespace: `ui-cache-${crypto.randomUUID()}`,
+        };
+        const options = { method: 'POST', body: pretty({ data }) };
+        const first = await api('/api/tools/get-forecast-cache/execute', options);
+        const second = await api('/api/tools/get-forecast-cache/execute', options);
+        return { first, second, proved: first.cacheHit === false && second.cacheHit === true };
+      });
+
+      bind('memory-form', 'memory-output', async () => {
+        const suffix = crypto.randomUUID();
+        const threadId = `ui-thread-${suffix}`;
+        const resourceId = `ui-resource-${suffix}`;
+        const marker = document.getElementById('memory-text').value;
+        const agent = 'agentId=weather-agent';
+        const thread = await api(`/api/memory/threads?${agent}`, {
+          method: 'POST',
+          body: pretty({ threadId, resourceId, title: 'cellp UI demo' }),
+        });
+        await api(`/api/memory/save-messages?${agent}`, {
+          method: 'POST',
+          body: pretty({
+            messages: [{
+              id: `ui-message-${suffix}`,
+              role: 'user',
+              threadId,
+              resourceId,
+              type: 'text',
+              content: { format: 2, parts: [{ type: 'text', text: marker }] },
+            }],
+          }),
+        });
+        const messages = await api(`/api/memory/threads/${threadId}/messages?${agent}&resourceId=${encodeURIComponent(resourceId)}`);
+        return { thread, messages };
+      });
+    </script>
+  </body>
+</html>

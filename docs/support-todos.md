@@ -120,6 +120,8 @@ A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面 ·
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-04 | **A05 Mastra**：prod **v14** · `acceptance.sh` 全绿（Agent · Tool · Workflow · R2 · Memory/D1）· **支持** · 证据 `docs/evidence/support-A05.log` |
+| 2026-09-04 | **A05 Mastra**：in-repo demo · prod **v13** · Tool、Workflow、R2 miss→hit、Mastra Memory/D1 写读及独立 D1 查询通过；严格 Agent 请求被公共模型 **429** 阻塞，`acceptance.sh` 非零，状态仍 **待兼容** |
 | 2026-09-03 | **S38 Counterscale**：`support-counterscale` · `deploy-support-app.sh S38` · [jeffysl/counterscale](https://github.com/jeffysl/counterscale) · overlay `dev/examples/support-counterscale/` · v1 deploy 失败（`analytics_engine_datasets`）· prod **v2** Host `/` **200** · `/dashboard` **501** · **不支持** |
 | 2026-09-03 | **S39 CloudPaste**：`support-cloudpaste` · `deploy-support-app.sh S39` · overlay `dev/examples/support-cloudpaste/`（`wrangler.spa` 路径）· prod **v1** Host **200** · **支持** |
 | 2026-09-03 | **S34 microfeed**：`support-microfeed` · `deploy-support-app.sh S34` · overlay `dev/examples/support-microfeed/` · prod **v4** Host **200** · **支持** |

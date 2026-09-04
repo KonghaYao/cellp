@@ -42,7 +42,7 @@ cellp explores a **private control plane** for agent loops: build → `POST /ver
 | **[Cloudflare OS](https://github.com/cloudflare/cloudflare-os)** | Company agent workspace (Gadgets, Gatekeepers, Pi + Code Mode) | 🔜 | ~8.6k★ · Dynamic Workers + multi Gatekeeper Workers · **North-star** |
 | **[Pi](https://github.com/earendil-works/pi)** | Terminal coding agent (`pi-agent-core`; used in Cloudflare OS) | 🔜 | Research harness |
 | **[Deep Agents](https://github.com/langchain-ai/deepagents)** (LangChain) | LangGraph agent harness | 🔜 | Research — Workers deploy TBD |
-| **[Mastra](https://mastra.ai/)** | TS agent framework (Agent · Memory · Workflows) + [`@mastra/deployer-cloudflare`](https://mastra.ai/integrations/deploy/cloudflare) | 🔜 | `mastra build` → wrangler bundle · `/api/*` server · D1/KV bindings · **Workers AI** = celld gap (同 A01 overlay) · 未验收 |
+| **[Mastra](https://mastra.ai/)** | TS agent framework (Agent · Memory · Workflows) + [`@mastra/deployer-cloudflare`](https://mastra.ai/integrations/deploy/cloudflare) | **✅ A05** | `v14` · Agent · Tool · Workflow · D1 · R2 · strict `acceptance.sh` pass（OpenAI-compatible LLM） |
 
 **High-star Workers apps** (Sink, Counterscale, CloudPaste, …): see [support-star-queue.md](./docs/support-star-queue.md). **Community matrix:** [support-matrix.md](./docs/support-matrix.md).
 
