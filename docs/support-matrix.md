@@ -73,7 +73,7 @@
 | S27 | **SolidStart** | **支持** | http://support-solidstart.lvh.me:8787/ | 非交互 `create-solid` + C3 overlay · **v3** · `nodejs_compat` + `nodejs_als` · celld 动态 `import()` 加载 `no_bundle` 兄弟 chunk · prod **200** ~1.9 KiB · `Hello world!` |
 | S28 | **Qwik City** | **支持** | http://support-qwik.lvh.me:8787/ | `templates/qwik/workers` · 无 `nodejs_compat`（避免 unenv `process.stdin`）· **v7** · prod **200** ~19 KiB · `Welcome to Qwik` |
 | S29 | **Waku** | **支持** | http://support-waku.lvh.me:8787/ | `create-waku` + C3 overlay · **v9** ready + promote · prod/preview **200** · grep `Waku` / `An internet website!` · celld: sibling `.js`→`EsModule` + relative resolve · `docs/evidence/support-S29.log` |
-| S30 | **Next.js (OpenNext)** | **不支持** | — | prepare proto-rel + localPatterns 补丁 · **prod 回滚 v22** · **400**（`protocol-relative URL (//)`）· v24 **400** not allowed · v25 promote 后 **upstream 超时** · celld `node:http` `8a7bfaa` · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| S30 | **Next.js (OpenNext)** | **不支持** | — | **实验 v55 prod `GET /` 200**（`Create Next App`）· celld `url` / `node:url` lazy builtin 已修复根页误判 · 仅此单 Worker artifact 验收通过，**不升级 AD-13 tier-1** · [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md) · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 
@@ -135,7 +135,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 
 | 组件 | 状态 |
 |------|------|
-| Next.js / OpenNext | **不支持**（S30 实验）· [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · `docs/evidence/support-S30.log` |
+| Next.js / OpenNext | **不支持**（S30 实验；v55 单 Worker artifact 的 prod 根页已 200，仍非 tier-1）· [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md) · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 | AI SDK (`vercel/ai`) | ⚠️ 打进 Worker 包 |
 | Workflow SDK | 🔜 对照 CF Workflows |
 | fx → fx-on-workers | **支持** · A04 · v9 |

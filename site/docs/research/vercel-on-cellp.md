@@ -8,7 +8,7 @@ cellp is **not** Vercel. This page tracks **Vercel open source** when it can run
 
 | | On cellp today |
 |---|----------------|
-| **Next.js** | Not hosted · experimental **OpenNext → one Worker** |
+| **Next.js** | Not hosted · experimental **OpenNext → one Worker**; one S30 artifact passed preview/prod `GET /`, but remains outside tier 1 |
 | **[AI SDK](https://github.com/vercel/ai)** | In your Worker bundle + your provider keys |
 | **[Workflow SDK](https://github.com/vercel/workflow)** | Research vs **CF Workflows** on celld |
 | **[fx](https://github.com/vercel-labs/fx)** | **P1** via [fx-on-workers](https://github.com/codingstark-dev/fx-on-workers) on Workers |

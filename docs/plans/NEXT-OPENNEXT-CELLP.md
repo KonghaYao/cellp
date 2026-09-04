@@ -1,9 +1,9 @@
 # Next.js / OpenNext on cellp（实验路径）
 
-> **状态：** 非一等公民 · **不**纳入 [support-matrix.md](../support-matrix.md) 门禁 · **⏸️ 2026-09-03 后排**（S30 · UptimeFlare/S33 同栈暂缓，优先单 Worker / flareact 类）  
+> **状态：** 非一等公民 · **不**纳入 [support-matrix.md](../support-matrix.md) tier-1 门禁 · **2026-09-04 S30 单 Worker artifact 已通过 preview/prod 根页验收**
 > **决策：** [decisions.md §18 AD-13](../decisions.md#18-ad-13--前端框架一等公民与-nextjs-边界)  
 > **对照：** [framework-coverage-cellp.md](../framework-coverage-cellp.md)  
-> **Hard problem（暂停实录）：** [S30-OPENNEXT-HARD-PROBLEM.md](./S30-OPENNEXT-HARD-PROBLEM.md)
+> **Hard problem（闭环实录）：** [S30-OPENNEXT-HARD-PROBLEM.md](./S30-OPENNEXT-HARD-PROBLEM.md)
 
 ---
 
@@ -60,20 +60,20 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
 6. POST /versions → Host ingress 验收
 ```
 
-**S30 本地结论（2026-09-03 Phase0/1 冲刺）：** prod 仍 **v22** · **400**（`protocol-relative URL (//)`）· 根因 **OpenNext bundle 内 Next ImageOptimizer** · `prepare-artifact.sh` 已改为 pathname 级 proto-rel 补丁（bundle 无该错误串）· 新 artifact preview **GET / 超时**（SSR/运行时，待查）· 详见 [support-S30-phase0-phase1-2026-09-03.md](../evidence/support-S30-phase0-phase1-2026-09-03.md)
+**历史（2026-09-03）：** v22 prod 曾为 400（`protocol-relative URL (//)`）；后续 artifact 补丁消除了该错误串，`setImmediate` 修复又独立消除了 preview hang。
 
-**S30 本地结论（2026-09-03 末批）：** deploy **v22** ready + promote · prod **400**（`protocol-relative URL (//)`）· **308** / **500** 已消除 · 矩阵 **不支持**（实验，非 tier-1）。
+**S30 本地结论（2026-09-04）：** celld 的 bare `url` 原先回落到 callable stub，使 Next 将 `/` 误判为 `/_next/image` 请求并渲染 404。新增真实 `url` / `node:url` lazy builtin 后，全新 v55 `ready`，preview/prod `GET /` 都为 **200**，标题为 `Create Next App`，静态 CSS 也为 **200**。详见 [ISSUE-05](./issues/ISSUE-05-opennext-proto-relative-get-root.md)。
 
-### S30 tier-1 验收不通过项（当前）
+### S30 实验验收（当前）
 
 | # | 项 | 状态 | 说明 |
 |---|-----|:----:|------|
-| 1 | deploy → `ready` | ✅ | v22 · prepare 10 patch · `docs/evidence/support-S30.log` |
-| 2 | prod `GET /` → **200** | ❌ | Actual **400** · 54 B JSON |
-| 3 | body 含 `<!DOCTYPE` / Next 首页 | ❌ | 无 HTML |
-| 4 | 非 308 `Location: ?` | ✅ | slash + `request.url` 补丁 |
-| 5 | 非 500 cookie/`node:http` | ✅ | celld `8a7bfaa` `node_http.js` |
-| 6 | **`//` protocol-relative URL** | 🟡 | bundle 补丁可去除 400 串；prod v22 未换 artifact · 新 deploy 上 **GET / 挂起** 为下一阻塞 |
+| 1 | deploy → `ready` | ✅ | v55 · 复用已构建 artifact，经 RustFS 同步 |
+| 2 | preview `GET /` → **200** | ✅ | 0.082s · 12,301 B |
+| 3 | prod `GET /` → **200** | ✅ | 0.201s · `<title>Create Next App</title>` |
+| 4 | `/_next/static/...` | ✅ | CSS 200 · 24,703 B |
+| 5 | 非 308 / 400 / 404 / hang | ✅ | slash、artifact proto-rel、`setImmediate`、`node:url` 四个独立问题均已闭环 |
+| 6 | AD-13 tier-1 | ❌ | 产品决策未改；单一 PoC 通过不等于通用支持承诺 |
 
 **celld（2026-09-03）：** 同源 `fetch` loopback 在**外层 fetch 未 settle** 时须同 isolate 完成（`finish_turn` 持 `CurrentGuard` + `wake` 见嵌套 event depth）；`op_fetch` egress 对 canonical origin fail-closed。OpenNext `_next/image` 需 **`CelldHttpBodyStream` BYOB/`readAtLeast`**（`harness.js` + `byte_streams.js` 协议）。复验前需 **rebuild celld** 并 redeploy S30（本任务不 deploy）。
 

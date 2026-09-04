@@ -1,6 +1,6 @@
 # Support 框架用户行为验收（AD-13）
 
-> **日期：** 2026-09-02（末批复验 **2026-09-03**）  
+> **日期：** 2026-09-02（末批复验 **2026-09-04**）
 > **Gateway：** `http://127.0.0.1:8787`（prod Host：`*.lvh.me`）  
 > **验收方：** verification subagent（端口 + HTML 内容，非仅 HTTP 码）  
 > **健康检查：** `./dev/scripts/health.sh` — 全部 OK（deep health 503 允许）
@@ -15,7 +15,7 @@
 | S27 | **PASS**（v3 · `Hello world!` · celld sibling 动态 `import()`） |
 | S28 | **PASS**（v7 · `Welcome to Qwik` · 无 `nodejs_compat`） |
 | S29 | **PASS**（v9 · grep `Waku` · celld EsModule sibling） |
-| S30 OpenNext **v22** | **FAIL**（ready + promote · prod **400** · `"url" parameter cannot be a protocol-relative URL (//)"` · 非 200 HTML） |
+| S30 OpenNext **v55** | **PASS（实验）**（ready + preview 200 后 promote · prod **200** · `<title>Create Next App</title>`；AD-13 仍为非 tier-1） |
 | A01 / A03 / A04 prod HTTP | **PASS**（与既有 PARTIAL 口径一致） |
 | `go test ./...` | **PASS** |
 | `e2e/run-all.sh` | **FAIL**（本机缺 offshoot CLI） |
@@ -159,19 +159,18 @@
 
 ## S30 — support-opennext.lvh.me（Next.js · OpenNext / C3 template）
 
-> **复验：** 2026-09-03 末批 · `SUPPORT_VERSION=v22` · celld `8a7bfaa`（`node:http`）+ prepare **10** patch(es)
+> **复验：** 2026-09-04 · 全新 **v55**（复用已构建 v50 artifact）· celld `url` / `node:url` lazy builtin
 
 | 步骤 | URL | HTTP | 用户可见结果 | Pass |
 |------|-----|------|--------------|------|
-| deploy | platform | — | **v22** **ready** + promote ok | **PASS** |
-| prod 首页 | `/` | **400** | body `"url" parameter cannot be a protocol-relative URL (//)"` · **非** Next HTML | **FAIL** |
-| 读者模拟 | `/` | **400** | 无 `<!DOCTYPE html>` / Next 标题 | **FAIL** |
+| deploy | platform | — | **v55** **ready**；preview 验收后 promote，prod 指针为 v55 | **PASS** |
+| preview 首页 | `/` | **200** | 0.082s · 12,301 B · `<title>Create Next App</title>` | **PASS** |
+| prod 首页 | `/` | **200** | 0.201s · 12,301 B · HTML · `X-Opennext: 1` · `<title>Create Next App</title>` | **PASS** |
+| prod 静态资源 | `/_next/static/chunks/8152fee336e967d5.css` | **200** | 24,703 B CSS | **PASS** |
 
-**已消除（历史）：** **308** `Location: ?`（slash 补丁 + ingress `request.url`）；**500**（`node:http` stub → cookie `TypeError`）。
+**历史故障：** v22 的 proto-relative 400 已由 artifact 补丁消除；v51–v54 随后暴露独立 celld 兼容缺口。bare `url` 原先回落到 callable `__nodeStub`，使 `_url.parse("/").pathname.startsWith("/_next/image")` 返回 truthy Proxy，Next 将首页误判为图片请求并渲染 404。celld 现为 `url` / `node:url` 提供真实 `parse`、`format`、`pathToFileURL`、`fileURLToPath`。
 
-**当前阻塞：** OpenNext/Next **`_next/image` 或同类**仍收到 **protocol-relative `//…` URL**；prepare 内部分补丁未使 **GET /** 达 200（smoke 与 prod 均为 400）。
-
-**S30 总评：FAIL**（deploy ready；prod 语义未达 tier-1 · 见 [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)）
+**S30 总评：PASS（实验路径）**。仅说明本次单 Worker OpenNext artifact 验收通过；AD-13 未变，support matrix 仍为「不支持 / 非 tier-1」。详见 [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md)。
 
 ---
 

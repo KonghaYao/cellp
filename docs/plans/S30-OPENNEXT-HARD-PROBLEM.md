@@ -1,6 +1,6 @@
 # Real Hard Problem — S30 OpenNext `GET /` 不 settle
 
-> **状态：** 未关闭 · **2026-09-04 进展**：preview **0-byte hang** 在 lab celld + `process.setImmediate` 补丁下 **可 settle**（instrumented v42 bundle、prod v22 均在 &lt;1s 返回）；**prod `GET /` 仍 400** proto-rel `//`（与 hang 分离）→ 接手见 **[ISSUE-05](./issues/ISSUE-05-opennext-proto-relative-get-root.md)**  
+> **状态：** ✅ 2026-09-04 已闭环：`setImmediate` hang 与 ISSUE-05 分别修复；celld 增加真实 `url` / `node:url` 后，OpenNext **v55** preview/prod `GET /` 均为 **200**（`Create Next App`）
 > **产品口径：** Next / OpenNext **非一等公民**（AD-13）；矩阵 **不支持**  
 > **对照：** [NEXT-OPENNEXT-CELLP.md](./NEXT-OPENNEXT-CELLP.md) · [NITRO-CELLD-COMPAT.md](./NITRO-CELLD-COMPAT.md)（PD-06，**机制不同**）
 
@@ -120,7 +120,15 @@ $TMPDIR/celld-support-opennext-v42.log
 
 ---
 
-## 5. 当前最可能热路径（未证）
+## 5. 闭环根因（2026-09-04）
+
+hang 修复后，v51–v54 的每版单请求诊断把剩余 404 收敛到 Next 的 `normalizeAndAttachMetadata`：OpenNext 外层已命中静态 `/`，但正常 catchall matcher 未进入，`handleNextImageRequest` 却对 `/` 返回 `true`。
+
+生成 bundle 默认导入 bare `url`。celld 当时未注册 `url` / `node:url`，因此 `_url.parse("/")` 得到通用 callable `__nodeStub` Proxy；其 `pathname.startsWith("/_next/image")` 仍返回 truthy Proxy，导致首页被误判为图片请求并渲染 `/_not-found/page`。这与 §4.2 的 `setImmediate` hang 是两个独立故障。
+
+celld 现以 lazy module 提供 bundle 实际使用的 `parse`、`format`、`pathToFileURL`、`fileURLToPath`，并以真实 V8 module evaluation 覆盖 bare/default 与 `node:url` named import。全新 v55 先通过 preview 根页与静态资源，再 promote；prod 根页为 **200 / 0.201s / 12,301 B / `<title>Create Next App</title>`**。完整证据见 [ISSUE-05](./issues/ISSUE-05-opennext-proto-relative-get-root.md)。
+
+## 6. 历史热路径（已证伪/闭环）
 
 ```
 ingress GET /
@@ -144,7 +152,7 @@ bundle 入口：`dev/data/artifacts/support-opennext/v42/.cellp-bundle/index.js`
 
 ---
 
-## 6. 续作纪律
+## 7. 原续作纪律（历史）
 
 1. **`-m ≤ 8`**；禁止循环探测；禁止本问题再 `prepare-artifact` / promote，除非刻意换 artifact。  
 2. 日志用 **`$TMPDIR/celld-support-opennext-v42.log`**。  
@@ -154,13 +162,13 @@ bundle 入口：`dev/data/artifacts/support-opennext/v42/.cellp-bundle/index.js`
 
 ---
 
-## 7. 关键路径
+## 8. 关键路径
 
 | 用途 | 路径 |
 |------|------|
 | 本记录 | `docs/plans/S30-OPENNEXT-HARD-PROBLEM.md` |
 | 实验计划 | `docs/plans/NEXT-OPENNEXT-CELLP.md` |
 | overlay | `dev/examples/support-opennext/prepare-artifact.sh` |
-| celld | `celld/crates/celld/js.rs` · `runtime.rs` · `js/harness.js` · `js/node_http.js` · `fetch_loopback.rs` |
-| artifact | `dev/data/artifacts/support-opennext/v42/` |
-| 验收 Host | `v42.support-opennext.lvh.me` · prod `support-opennext.lvh.me` |
+| celld | `celld/crates/celld/js.rs` · `runtime.rs` · `js/harness.js` · `js/node_http.js` · `js/node_url.js` · `js/modules.rs` · `fetch_loopback.rs` |
+| artifact | 历史诊断 `dev/data/artifacts/support-opennext/v42/`–`v54/`；验收 v55（复用 v50 构建产物） |
+| 验收 Host | preview `v55.support-opennext.lvh.me` · prod `support-opennext.lvh.me` |
