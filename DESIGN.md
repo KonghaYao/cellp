@@ -3,7 +3,7 @@
 > **给开发者用的产品文档（非本文）：** [https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)  
 > **cellp** — 版本化的 Serverless 应用运行时（cell + platform）  
 > **唯一设计入口（实现 / Agent）** · 管理维度：**Project + Version**（**无用户体系 · AD-10**）  
-> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-10** 产品边界 · **AD-14** 可观测） · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
+> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-10** 产品边界 · **AD-14** 可观测 · **AD-15** 弹性 Serving） · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
 
 ---
 
@@ -31,6 +31,7 @@
 | 9 | **Registry** | SQLite：project · version · route · prod 指针 · jobs |
 | 10 | **Dashboard** | 运维 UI；**仅**消费 cellpd `:8790` REST API |
 | 11 | **可观测（AD-14）** | OTLP 发射 + 查询门面；后端可换（`memory`…`lgtm-prod`）；**不做**自研 Analytics |
+| 12 | **弹性 Serving（AD-15）** | `0..N` replica · 安全 scale-to-zero；`CELLP_ELASTIC_RUNTIME` 默认关；分阶段 E1–E5 |
 
 完整否定清单与边界论证见 **[docs/decisions.md §15 AD-10](./docs/decisions.md#15-ad-10--产品边界权威否定与核心范畴)**。
 
@@ -54,7 +55,7 @@
 |------|------|------|
 | **一期** | 核心 Serverless 平台 | **CD 全流程**（外部 CI → artifact → `POST /versions` → preview URL）· **Branch + Version**（App+Data）· **线上稳定**（promote · quiesce · saga · health gate） |
 | **Bindings（本期）** | celld 0.4.0 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld；R2 **清单可见**；D1/KV/R2/Queue **branch**（AD-8） |
-| **二期** | 弹性 | scale-to-zero 唤醒 · **多节点 cellpd**（分布式，非全球边缘）· Gateway 路由缓存（未实现） |
+| **二期** | 弹性（**AD-15**） | 0→1 / 1→N serving fleet · Node Agent · 安全 scale-to-zero；见 [decisions §20](./docs/decisions.md#20-ad-15--elastic-serving-fleet-与安全-scale-to-zero) 与 [SURGE-DESIGN-INDEX](./docs/plans/SURGE-DESIGN-INDEX.md) |
 | **三期** | 可观测 | **AD-14：** OTLP 发射 + 查询门面 + 可换后端（测试 `memory` / 生产 LGTM）；**不做**自研搜索引擎 · 用量计费（**架构已冻结**，实现按 [OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md) 分期） |
 
 | 阶段 | 能力 | 底层 |
@@ -137,6 +138,8 @@ flowchart TB
 ```
 
 权威可观测设计：**[docs/plans/OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)**（AD-14）。cellpd **不**内嵌检索引擎。
+
+权威弹性 Serving：**[docs/decisions.md §20 AD-15](./docs/decisions.md#20-ad-15--elastic-serving-fleet-与安全-scale-to-zero)**（决策摘要）· 设计包索引 **[docs/plans/SURGE-DESIGN-INDEX.md](./docs/plans/SURGE-DESIGN-INDEX.md)**（WP/DAG · E0–E5 门禁）。默认 `CELLP_ELASTIC_RUNTIME=0`；**不**替代 AD-1 每 version 独立 bucket / AD-5 promote saga。
 
 ### 2.2 确认技术栈（私有化 · 官方依据）
 
@@ -754,15 +757,18 @@ web/                            # Dashboard（Vite SPA · web/src/）
 
 **验证：** [VALIDATION.md](./VALIDATION.md) V9–V11（celld 原生 KV / Queue / Workflow）
 
-### 二期 — 弹性（仍延期）
+### 二期 — 弹性 Serving（AD-15 · 分阶段）
 
-| 模块 | 交付物 |
-|------|--------|
-| 弹性 | Gateway wake · 多节点 cellpd |
-| 路由缓存 | 实现待定（非 Worker KV） |
-| 数据 inherit | **等 celld 提供** KV/R2/Queue/Workflow branch 再立项 |
+> **决策摘要：** [docs/decisions.md §20](./docs/decisions.md#20-ad-15--elastic-serving-fleet-与安全-scale-to-zero)。**设计包与实现编排：** [docs/plans/SURGE-DESIGN-INDEX.md](./docs/plans/SURGE-DESIGN-INDEX.md)（00–14 组件文 · WP/DAG · SP-E1..E6 · E0–E5 adoption）。本文不展开规格全文。
 
-**验证：** VALIDATION.md V8 · V12
+| 方向 | 要点 |
+|------|------|
+| 生命周期 | 保留 `ready`；additive `deploy_ready`；cold 与 `archived` 互斥 |
+| 控制面 | ServingPolicy / Desire / RuntimeReplica / RouteSnapshot；E1/E2 单 active writer |
+| 运行时 | Node Agent（HTTP+mTLS）；Gateway 原子 route snapshot |
+| 开关 | `CELLP_ELASTIC_RUNTIME` 默认 **关闭**；未过 gate 不得宣称多 replica 生产就绪 |
+
+**验证：** SURGE 包 [12-test-concurrency-and-evidence](./docs/plans/12-test-concurrency-and-evidence.md) · [14-adoption-gates-and-rollback](./docs/plans/14-adoption-gates-and-rollback.md)；现行 M1/M2 仍优先。
 
 ### 三期 — 可观测（AD-14 · 架构冻结）
 
