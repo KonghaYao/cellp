@@ -28,7 +28,7 @@ count_ticks() {
     echo 0
     return
   fi
-  grep -c 'e2e-cron-tick' "$f" 2>/dev/null || echo 0
+  grep -c 'e2e-cron-tick' "$f" 2>/dev/null || true
 }
 
 write_json() {
@@ -72,6 +72,9 @@ stage_cron() {
 stage_cron "$DEST_PROD"
 create_version "$PROJECT" "$V_PROD" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$V_PROD" ready 180 >/dev/null
+
+api_status POST "/v1/projects/${PROJECT}/versions/${V_PROD}/promote" '{}'
+[[ "$API_STATUS" == "200" ]] || fail "promote ${V_PROD} → HTTP ${API_STATUS}: ${API_BODY}"
 
 PROD_PTR=$(api_get "/v1/projects/${PROJECT}" "$ADMIN_TOKEN" | jq -r .prod_version_id)
 if [[ "$PROD_PTR" != "$V_PROD" ]]; then

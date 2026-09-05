@@ -324,6 +324,17 @@ if (patched === 0 && (protoOnly || (s.includes('__cellpSlashPath') && s.includes
   console.log('prepare-artifact: applied', patched, 'patch(es)');
 }
 
+if (s.includes('protocol-relative URL (//)')) {
+  console.error('prepare-artifact: bundle still contains protocol-relative hard error string');
+  process.exit(1);
+}
+for (const m of ['__cellpProtoRel', '__cellpImageUrl', '__cellpProtoBlock']) {
+  if (!s.includes(m)) {
+    console.error('prepare-artifact: missing bundle marker', m);
+    process.exit(1);
+  }
+}
+
 fs.writeFileSync(p, s);
 NODE
 fi

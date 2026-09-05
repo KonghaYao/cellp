@@ -1,6 +1,7 @@
 package orch
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,8 +30,10 @@ func TestRunDeployChildD1AndKVBranchWithGateway(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	cfg := config.Config{GatewayURL: gw.URL, ArtifactsDir: dir, ArtifactsBucket: "cellp-artifacts"}
+	rm := runtime.New(freeRuntimeBasePort(t), "", "us-east-1", "s3://cellp-celld", "k", "s")
+	t.Cleanup(func() { _ = rm.StopAll(context.Background()) })
 	o := New(store, job.NewSQLiteQueue(store), branch.New(dir+"/off", store),
-		runtime.New(8792, "", "us-east-1", "s3://cellp-celld", "k", "s"),
+		rm,
 		&artifact.Store{Bucket: "cellp-artifacts", LocalDir: dir}, cfg)
 	ctx := t.Context()
 

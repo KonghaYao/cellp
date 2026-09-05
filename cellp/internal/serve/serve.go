@@ -124,6 +124,9 @@ func Run(ctx context.Context) error {
 		if gwTLSServer != nil {
 			_ = gwTLSServer.Shutdown(context.Background())
 		}
+		if err := rm.StopAll(context.Background()); err != nil {
+			log.Printf("runtime shutdown: %v", err)
+		}
 	}
 
 	select {

@@ -1,10 +1,27 @@
 package orch
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func freeRuntimeBasePort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if port <= 11 {
+		t.Fatalf("unexpected ephemeral port %d", port)
+	}
+	return port - 11
+}
 
 // installFakeCelld puts a celld shim on PATH: CLI subcommands exit 0; daemon mode
 // (--listen) serves /.well-known/celld/health so runDeploy Start/Health can pass.

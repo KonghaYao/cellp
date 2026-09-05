@@ -53,7 +53,7 @@ func ReconcileFleet(ctx context.Context, store registry.Store, m *Manager) (star
 		if host == "" {
 			host = "127.0.0.1"
 		}
-		if m.routeManaged(route.ProjectID, route.VersionID, route.UpstreamPort) || m.Health(ctx, host, route.UpstreamPort) {
+		if m.Health(ctx, host, route.UpstreamPort) {
 			if err := m.SeedPort(route.ProjectID, route.VersionID, route.UpstreamPort); err != nil {
 				log.Printf("fleet: seed port %s/%s:%d: %v", route.ProjectID, route.VersionID, route.UpstreamPort, err)
 			}
@@ -65,7 +65,7 @@ func ReconcileFleet(ctx context.Context, store registry.Store, m *Manager) (star
 			unhealthy++
 			continue
 		}
-		if _, _, err := m.StartOnPort(ctx, route.ProjectID, route.VersionID, host, route.UpstreamPort); err != nil {
+		if err := m.Restart(ctx, route.ProjectID, route.VersionID); err != nil {
 			log.Printf("fleet: restart %s/%s on %s:%d: %v", route.ProjectID, route.VersionID, host, route.UpstreamPort, err)
 			unhealthy++
 			continue

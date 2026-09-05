@@ -2,6 +2,7 @@
   "name": "demo-counter",
   "main": "index.js",
   "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "PROJECT_ID": "demo-app",
     "VERSION_ID": "v-dev"

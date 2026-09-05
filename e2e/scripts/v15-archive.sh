@@ -69,7 +69,9 @@ api_status POST "/v1/projects/${PROJECT}/versions/${TARGET}/archive" ""
 
 TGT_HOST="$(preview_host "$PROJECT" "$TARGET")"
 ARCHIVE_CODE=$(http_code_gateway_host "$TGT_HOST" "/")
-ARCHIVE_BODY=$(curl_gateway_host "$TGT_HOST" "/" 2>/dev/null || true)
+# curl_gateway_host uses --fail and intentionally suppresses HTTP error bodies.
+# shellcheck disable=SC2046
+ARCHIVE_BODY=$(curl -sS --max-time 5 $(gateway_curl_tls_flags) -H "Host: ${TGT_HOST}" "${GATEWAY_URL}/" 2>/dev/null || true)
 [[ "$ARCHIVE_CODE" == "503" ]] || fail "archived preview → HTTP ${ARCHIVE_CODE}"
 echo "$ARCHIVE_BODY" | grep -q version_archived || fail "503 body missing version_archived: ${ARCHIVE_BODY}"
 

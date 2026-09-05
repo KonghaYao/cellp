@@ -77,6 +77,10 @@ func TestArchiveReadyVersionClosesDedicatedListener(t *testing.T) {
 	if pa, _ := store.GetActivePortAllocationByOwner(ctx, registry.PortOwnerIngressBinding, bid); pa != nil {
 		t.Fatalf("ephemeral ledger should be released: %+v", pa)
 	}
+	b, _ = store.GetIngressBinding(ctx, bid)
+	if b == nil || !b.Active || b.ListenPort != nil {
+		t.Fatalf("archived preview binding should stay active without a listener: %+v", b)
+	}
 
 	short := &http.Client{Timeout: 400 * time.Millisecond}
 	if _, err := short.Get(fmt.Sprintf("http://127.0.0.1:%d/", port)); err == nil {

@@ -76,7 +76,7 @@ if [[ -z "$CHECKOUT" || ! -f "$CHECKOUT" ]]; then
 fi
 seed_entries_schema | sqlite3 "$CHECKOUT"
 write_fixture_rows "$CHECKOUT"
-offshoot -store "$OFFSHOOT_STORE" checkpoint "${PROJECT}@main" "v1-seed" \
+offshoot -store "$OFFSHOOT_STORE" checkpoint "${PROJECT}@main" "v1-seed-${VERSION}" \
   >>"${EVIDENCE_DIR}/v1-offshoot-export.log" 2>&1 || fail "offshoot checkpoint ${PROJECT}@main"
 
 if ! offshoot -store "$OFFSHOOT_STORE" export "${PROJECT}@main" "$EXPORT" --force \

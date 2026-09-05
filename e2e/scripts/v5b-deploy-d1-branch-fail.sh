@@ -40,13 +40,22 @@ restart_cellpd() {
   [[ -x "$cellpd_bin" ]] || fail "V5B requires cellpd at ${cellpd_bin}"
   local pid_file="${E2E_ROOT}/dev/data/pids/platform.pid"
   if [[ -f "$pid_file" ]]; then
-    kill "$(cat "$pid_file")" 2>/dev/null || true
-    sleep 1
+    local pid
+    pid="$(cat "$pid_file")"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      for _ in $(seq 1 350); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
   fi
-  # shellcheck disable=SC2068
   env "$@" "$cellpd_bin" >>"${E2E_ROOT}/dev/data/logs/cellpd.log" 2>&1 &
   echo $! >"$pid_file"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 120); do
     curl -sf "${PLATFORM_URL}/v1/health" >/dev/null 2>&1 && return 0
     sleep 1
   done
@@ -85,7 +94,7 @@ poll_version "$PROJECT" "$PARENT" ready 180 >/dev/null
 log "parent ready"
 
 "${E2E_ROOT}/dev/scripts/build-cellpd.sh" >/dev/null 2>&1 || true
-restart_cellpd CELLP_E2E_INJECT_D1_BRANCH_FAIL=1
+restart_cellpd CELLP_LENIENT_DEPLOY=0 CELLP_E2E_INJECT_D1_BRANCH_FAIL=1
 
 mkdir -p "$CHILD_DIR"
 copy_d1_seed_bundle "$CHILD_DIR"

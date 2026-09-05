@@ -3,6 +3,8 @@
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib.sh"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib-ingress.sh"
 
 require_stack_or_skip
 
@@ -121,9 +123,8 @@ fi
 log "GET …/instances HTTP 200 (n=$(echo "$API_BODY" | jq '.instances | length'))"
 
 # Optional: Gateway create (outbound fetch; do not block)
-VW_HOST="$(preview_host "$PROJECT" "$VW")"
 CREATE_PATH="/create?url=https://example.com"
-CREATE_CODE=$(http_code "$CREATE_URL")
+CREATE_CODE=$(http_code_version "$PROJECT" "$VW" "$CREATE_PATH")
 if [[ "$CREATE_CODE" == "200" ]]; then
   log "optional Gateway /create HTTP 200"
   api_status GET "${BASE_W}/workflows/${WF_NAME}/instances"

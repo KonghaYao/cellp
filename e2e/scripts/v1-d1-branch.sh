@@ -22,6 +22,24 @@ D1_EXAMPLE="${E2E_ROOT}/dev/examples/d1-seed"
 PARENT_DIR="${ARTIFACTS_DIR}/${PROJECT}/${PARENT}"
 CHILD_DIR="${ARTIFACTS_DIR}/${PROJECT}/${CHILD}"
 EXPORT="${PARENT_DIR}/seed.db"
+B5_PID=""
+WATCH=""
+
+cleanup_b5_runtime() {
+  if [[ -n "$B5_PID" ]] && kill -0 "$B5_PID" 2>/dev/null; then
+    kill "$B5_PID" 2>/dev/null || true
+    for _ in $(seq 1 25); do
+      kill -0 "$B5_PID" 2>/dev/null || break
+      sleep 0.2
+    done
+    if kill -0 "$B5_PID" 2>/dev/null; then
+      kill -9 "$B5_PID" 2>/dev/null || true
+    fi
+    wait "$B5_PID" 2>/dev/null || true
+  fi
+  [[ -z "$WATCH" ]] || rm -rf "$WATCH"
+}
+trap cleanup_b5_runtime EXIT
 
 seed_entries_schema() {
   cat <<'SQL'
@@ -190,7 +208,6 @@ celld --bucket "$CHILD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" 
   --listen "127.0.0.1:${CHILD_PORT}" \
   >>"${EVIDENCE_DIR}/d1-branch-b5-celld.log" 2>&1 &
 B5_PID=$!
-disown "$B5_PID" 2>/dev/null || true
 healthy=0
 for _ in $(seq 1 60); do
   if curl -sf "http://127.0.0.1:${CHILD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then

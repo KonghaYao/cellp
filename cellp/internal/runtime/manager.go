@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ type Manager struct {
 	mu        sync.Mutex
 	processes map[string]*celldProc
 	ports     map[string]int
+	lifecycle map[string]*lifecycleLock
 	nextN     int
 	envLoader WorkerEnvLoader
 }
@@ -43,6 +45,11 @@ type celldProc struct {
 	watchDir string
 }
 
+type lifecycleLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
 // New creates a runtime manager.
 func New(basePort int, endpoint, region, bucket, accessKey, secretKey string) *Manager {
 	return &Manager{
@@ -54,6 +61,7 @@ func New(basePort int, endpoint, region, bucket, accessKey, secretKey string) *M
 		secretKey: secretKey,
 		processes: make(map[string]*celldProc),
 		ports:     make(map[string]int),
+		lifecycle: make(map[string]*lifecycleLock),
 	}
 }
 
@@ -64,6 +72,28 @@ func (m *Manager) SetWorkerEnvLoader(fn WorkerEnvLoader) {
 
 func (m *Manager) key(project, version string) string {
 	return project + "/" + version
+}
+
+func (m *Manager) lockLifecycle(project, version string) func() {
+	k := m.key(project, version)
+	m.mu.Lock()
+	lock := m.lifecycle[k]
+	if lock == nil {
+		lock = &lifecycleLock{}
+		m.lifecycle[k] = lock
+	}
+	lock.refs++
+	m.mu.Unlock()
+	lock.mu.Lock()
+	return func() {
+		lock.mu.Unlock()
+		m.mu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(m.lifecycle, k)
+		}
+		m.mu.Unlock()
+	}
 }
 
 func processAlive(cmd *exec.Cmd) bool {
@@ -132,14 +162,6 @@ func (m *Manager) SeedPort(project, version string, port int) error {
 	return nil
 }
 
-// routeManaged reports whether a live celld subprocess is tracked for this route.
-func (m *Manager) routeManaged(project, version string, port int) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	p, ok := m.processes[m.key(project, version)]
-	return ok && p != nil && p.port == port && p.cmd != nil && p.cmd.Process != nil
-}
-
 // Start launches celld on 127.0.0.1:port for the version.
 func (m *Manager) Start(ctx context.Context, project, version string) (string, int, error) {
 	port := m.AllocatePort(project, version)
@@ -148,17 +170,31 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 
 // Restart stops then starts celld so CELLD_VARS_FILE is re-read.
 func (m *Manager) Restart(ctx context.Context, project, version string) error {
+	unlock := m.lockLifecycle(project, version)
+	defer unlock()
+
 	port := m.AllocatePort(project, version)
-	if err := m.Stop(ctx, project, version); err != nil {
+	celldInstalled := CelldInstalled()
+	if err := m.stopLocked(ctx, project, version); err != nil {
 		return err
 	}
-	waitForTCPPortFree("127.0.0.1", port, 15*time.Second)
-	_, _, err := m.StartOnPort(ctx, project, version, "127.0.0.1", port)
+	if celldInstalled {
+		if err := waitForTCPPortFree("127.0.0.1", port, 15*time.Second); err != nil {
+			return err
+		}
+	}
+	_, _, err := m.startOnPortLocked(ctx, project, version, "127.0.0.1", port)
 	return err
 }
 
 // StartOnPort launches celld on host:port for the version.
 func (m *Manager) StartOnPort(ctx context.Context, project, version, host string, port int) (string, int, error) {
+	unlock := m.lockLifecycle(project, version)
+	defer unlock()
+	return m.startOnPortLocked(ctx, project, version, host, port)
+}
+
+func (m *Manager) startOnPortLocked(ctx context.Context, project, version, host string, port int) (string, int, error) {
 	k := m.key(project, version)
 
 	m.mu.Lock()
@@ -185,6 +221,9 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 		m.processes[k] = &celldProc{port: port}
 		m.mu.Unlock()
 		return host, port, nil
+	}
+	if err := waitForTCPPortFree(host, port, 0); err != nil {
+		return "", 0, err
 	}
 
 	bucket := m.versionBucket(project, version)
@@ -718,6 +757,46 @@ func removeEphemeralWatch(watchDir string) {
 
 // Stop tears down a celld instance for a version.
 func (m *Manager) Stop(ctx context.Context, project, version string) error {
+	unlock := m.lockLifecycle(project, version)
+	defer unlock()
+	return m.stopLocked(ctx, project, version)
+}
+
+// StopAll tears down every celld subprocess owned by this manager.
+func (m *Manager) StopAll(ctx context.Context) error {
+	m.mu.Lock()
+	keys := make([]string, 0, len(m.processes))
+	for k := range m.processes {
+		keys = append(keys, k)
+	}
+	m.mu.Unlock()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, len(keys))
+	for _, k := range keys {
+		project, version, ok := strings.Cut(k, "/")
+		if !ok {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := m.Stop(ctx, project, version); err != nil {
+				errs <- fmt.Errorf("stop %s: %w", k, err)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	var all []error
+	for err := range errs {
+		all = append(all, err)
+	}
+	return errors.Join(all...)
+}
+
+func (m *Manager) stopLocked(ctx context.Context, project, version string) error {
 	_ = ctx
 	m.mu.Lock()
 	k := m.key(project, version)
@@ -740,23 +819,37 @@ func (m *Manager) Stop(ctx context.Context, project, version string) error {
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
+		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("kill celld: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-done:
+		case <-time.After(5 * time.Second):
+			return fmt.Errorf("wait for killed celld process")
+		}
 	case <-done:
 	}
 	removeEphemeralWatch(watchDir)
 	return nil
 }
 
-func waitForTCPPortFree(host string, port int, maxWait time.Duration) {
+func waitForTCPPortFree(host string, port int, maxWait time.Duration) error {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	deadline := time.Now().Add(maxWait)
-	for time.Now().Before(deadline) {
+	for {
 		c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
 		if err != nil {
-			return
+			return nil
 		}
 		_ = c.Close()
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("port %s still in use after %v", addr, maxWait)
+		}
 		time.Sleep(200 * time.Millisecond)
 	}
 }

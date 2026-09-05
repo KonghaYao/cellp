@@ -38,7 +38,7 @@ Dev defaults: `CELLP_DEPLOY_TOKEN` and `CELLP_ADMIN_TOKEN` are `dev-local-token`
 |--------|----------------|
 | `up.sh` / `down.sh` | Start / stop the stack |
 | `health.sh` | Probe every component (use this as your green light) |
-| `ingress-host-init.sh` | **Unified** Host mode: `local` or `magic` — [INGRESS-HOST.md](./INGRESS-HOST.md) |
+| `ingress-host-init.sh` | **Unified** Host mode: `local` or `magic` — [dev/INGRESS-HOST.md](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md) |
 | `reset.sh` | Wipe `dev/data/` |
 | `simulate-cd.sh <project> <version>` | Fake a CI deploy |
 | `seed-commerce-store.sh` | Commerce example + D1 seed |

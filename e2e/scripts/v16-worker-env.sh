@@ -38,6 +38,10 @@ wait_http_200_version "$PROJECT" "$VID" "/" 60
 BODY=$(curl_version "$PROJECT" "$VID" "/")
 GOT=$(echo "$BODY" | jq -r '.greeting // empty')
 [[ "$GOT" == "from-e2e" ]] || fail "worker greeting want=from-e2e got=${GOT} body=${BODY}"
+TOP_LEVEL=$(echo "$BODY" | jq -r '.topLevelGreeting // empty')
+[[ "$TOP_LEVEL" == "from-e2e" ]] || fail "top-level process.env greeting want=from-e2e got=${TOP_LEVEL} body=${BODY}"
+TOP_LEVEL_BINDING=$(echo "$BODY" | jq -r '.topLevelCounter // empty')
+[[ -z "$TOP_LEVEL_BINDING" ]] || fail "resource binding leaked into process.env.COUNTER: ${TOP_LEVEL_BINDING}"
 
 api_status PUT "/v1/projects/${PROJECT}/versions/${VID}/env" '{"vars":{"GREETING":"after-put"}}'
 [[ "$API_STATUS" == "200" ]] || fail "PUT env → HTTP ${API_STATUS} ${API_BODY}"
