@@ -25,7 +25,7 @@
 | `celld/` | Rust Workers 运行时（**git submodule**） | `cargo build -p celld --profile lab`（在 `celld/`） |
 | `web/` | Dashboard（Vite + React SPA） | `pnpm install`（仓库根）后 `pnpm --filter cellp-dashboard test:e2e` |
 | `dev/` | 本地 dev 栈（RustFS · cellpd · celld · offshoot） | `./dev/scripts/health.sh` |
-| `e2e/` | 端口级集成测试（M1/M2 门禁） | `./e2e/scripts/run-all.sh` |
+| `e2e/` | 端口级集成测试（M1/M2 门禁） | 日常：`run-all.sh --only …`；全量仅合并前 |
 | `stress/` | 压测（phase5 生产 · phase6 扩展/D1 scale） | 见 `stress/README.md` |
 | `docs/` | 计划 · 契约 · 证据（内部） | 索引 [docs/README.md](./docs/README.md) |
 | `site/` | 公开产品文档（GitHub Pages） | `pnpm --filter cellp-docs docs:build` |
@@ -46,21 +46,36 @@
 
 ## 改代码后的验证顺序
 
+**Agent 默认：** 不要跑完整 `run-all.sh`（MANIFEST 串行，常需 **10–20+ 分钟**，会占满会话）。除非用户明确要求 M2/发布门禁，或任务写明「全量 e2e」，否则只用 **目标 `--only`** 或对应单脚本。完整套件留给 CI / 人工合并前。
+
 ```bash
-# 1. 本地栈健康
+# 1. 本地栈健康（秒级）
 ./dev/scripts/up.sh && ./dev/scripts/health.sh
 
-# 2. Go 单元测试
+# 2. Go 单元测试（改 cellp/ 时）
 cd cellp && go test ./...
 
-# 3. 集成门禁
-./e2e/scripts/run-all.sh
+# 3. 集成 — 日常：按改动选子集（见下表）；全量仅用户/CI 要求时：
+# ./e2e/scripts/run-all.sh
+./e2e/scripts/run-all.sh --only <脚本名>   # 可省略 .sh，逗号分隔；--list 列全集
 
-# 4. D1 专项（改 celld D1/LTX 或 orchestrator 后）
-bash e2e/scripts/v1-d1-seed.sh
-bash e2e/scripts/v1-d1-branch.sh
-D1_IMPORT_SIZE_MB=8 bash stress/phase6/d1-branch-scale.sh
+# 4. D1 专项（改 celld D1/LTX 或 orchestrator D1 路径后）
+./e2e/scripts/run-all.sh --only v1-d1-seed,v1-d1-branch
+# 可选压测档：D1_IMPORT_SIZE_MB=8 bash stress/phase6/d1-branch-scale.sh
 ```
+
+| 改动区域 | 建议 `--only`（可再加 `health-all`） |
+|----------|--------------------------------------|
+| 通用 orchestrator / deploy | `ve-cd-loop` 或 `ve-cd-loop,ve-promote` |
+| Gateway / Host 路由 | `v3-dual-route,v4-promote-cutover` |
+| Promote 失败 / saga | `v4b-promote-offshoot-fail,v5-saga-compensate,v5b-deploy-d1-branch-fail` |
+| D1 import / branch | `v1-d1-seed,v1-d1-branch` |
+| KV / Queue / Workflow·Cron | `v9-kv` / `v10-queue` / `v11-workflow-cron` |
+| KV·R2·Queue branch | `v12-kv-branch,v13-r2-branch,v14-queue-branch` |
+| archive / worker env | `v15-archive,v16-worker-env` |
+| 存储 / celld / offshoot | `RUN_GATES=1 ./e2e/scripts/run-all.sh --only v0a-celld-diagnose` 或全量 `RUN_GATES=1` |
+
+`--only` **不能**宣称 TP-VE-ALL/M2 全绿。存储变更后需 `RUN_GATES=1` 路径（含 `celld diagnose`）。细节：[dev/AGENTS.md](./dev/AGENTS.md) · [e2e/README.md](./e2e/README.md)。
 
 100 MB 多分支手动测试（**不在** `run-all.sh`）：
 
