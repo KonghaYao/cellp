@@ -328,10 +328,21 @@ WHERE project_id = ? AND version_id = ?`, projectID, versionID)
 
 func (s *SQLiteStore) TryAcquireControllerGuard(ctx context.Context, holderID string, pid int) error {
 	return withRetryErr(func() error {
+		cur, err := s.GetControllerGuard(ctx)
+		if err != nil {
+			return err
+		}
+		if cur != nil && cur.HolderID != "" && cur.HolderID != holderID {
+			if pidAlive(cur.HolderPID) {
+				return ErrControllerGuardHeld
+			}
+			_, _ = s.db.ExecContext(ctx, `
+UPDATE controller_guard SET holder_id = NULL, acquired_at = NULL, holder_pid = 0 WHERE id = 1`)
+		}
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		res, err := s.db.ExecContext(ctx, `
-UPDATE controller_guard SET holder_id = ?, acquired_at = ?, holder_pid = ?
-WHERE id = 1 AND (holder_id IS NULL OR holder_id = '')`, holderID, now, pid)
+	UPDATE controller_guard SET holder_id = ?, acquired_at = ?, holder_pid = ?
+	WHERE id = 1 AND (holder_id IS NULL OR holder_id = '' OR holder_id = ?)`, holderID, now, pid, holderID)
 		if err != nil {
 			return err
 		}

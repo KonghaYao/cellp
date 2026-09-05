@@ -69,7 +69,7 @@ PROD_ID_BEFORE=$(api_get "/v1/projects/${PROJECT}" | jq -r .prod_version_id)
 [[ "$PROD_ID_BEFORE" == "$V_OLD" ]] || fail "expected prod ${V_OLD}, got ${PROD_ID_BEFORE}"
 [[ "$PROD_VERSION_BEFORE" == "$V_OLD" ]] || fail "expected prod body version ${V_OLD}, got ${PROD_VERSION_BEFORE:-?}"
 
-restart_cellpd CELLP_E2E_INJECT_OFFSHOOT_PROMOTE_FAIL=1
+restart_cellpd CELLP_SKIP_CONTROLLER_GUARD=1 CELLP_E2E_INJECT_OFFSHOOT_PROMOTE_FAIL=1
 
 api_status POST "/v1/projects/${PROJECT}/versions/${V_NEW}/promote" '{}'
 if [[ "$API_STATUS" == "200" || "$API_STATUS" == "202" || "$API_STATUS" == "204" ]]; then

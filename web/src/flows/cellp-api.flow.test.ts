@@ -45,22 +45,37 @@ describe("心流：cellp-api 请求契约", () => {
   });
 
   it("promoteVersion POST …/promote", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () =>
-        JSON.stringify({
-          prod_version_id: "v2",
-          prod_url: "http://gateway/demo-app/",
-        }),
-    });
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            status: "promoted",
+            prod_version_id: "v2",
+            prod_url: "http://gateway/demo-app/",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            id: "demo-app",
+            prod_version_id: "v2",
+            created_at: "2026-01-01T00:00:00.000Z",
+          }),
+      });
 
     await promoteVersion("demo-app", "v2");
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
+    const promoteCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("/promote"),
+    );
+    expect(promoteCall).toBeDefined();
+    expect(promoteCall![0]).toBe(
       "http://cellpd.test/v1/projects/demo-app/versions/v2/promote",
     );
-    expect(init.method).toBe("POST");
+    expect((promoteCall![1] as RequestInit).method).toBe("POST");
   });
 });

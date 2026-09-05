@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -63,17 +64,34 @@ func TestControllerGuard(t *testing.T) {
 	}
 	defer store.Close()
 
-	if err := store.TryAcquireControllerGuard(ctx, "cellpd-a", 100); err != nil {
+	if err := store.TryAcquireControllerGuard(ctx, "cellpd-a", os.Getpid()); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TryAcquireControllerGuard(ctx, "cellpd-b", 101); err != ErrControllerGuardHeld {
+	if err := store.TryAcquireControllerGuard(ctx, "cellpd-b", os.Getpid()+1); err != ErrControllerGuardHeld {
 		t.Fatalf("want held, got %v", err)
 	}
 	if err := store.ReleaseControllerGuard(ctx, "cellpd-a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TryAcquireControllerGuard(ctx, "cellpd-b", 101); err != nil {
+	if err := store.TryAcquireControllerGuard(ctx, "cellpd-b", os.Getpid()+1); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestControllerGuardStalePIDTakeover(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(t.TempDir() + "/guard-stale.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	const deadPID = 4000000000
+	if err := store.TryAcquireControllerGuard(ctx, "dead-holder", deadPID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.TryAcquireControllerGuard(ctx, "new-holder", os.Getpid()); err != nil {
+		t.Fatalf("stale takeover: %v", err)
 	}
 }
 
