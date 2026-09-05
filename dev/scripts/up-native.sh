@@ -5,6 +5,23 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
+if [[ "${1:-}" == "--fast" ]]; then
+  shift
+  exec "$ROOT/dev/scripts/up.sh" --fast "$@"
+fi
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: ./dev/scripts/up-native.sh [--fast]
+
+  --fast  Reuse running native dependencies and only update cellpd when needed.
+EOF
+  exit 0
+fi
+if [[ $# -gt 0 ]]; then
+  echo "unknown argument: $1" >&2
+  exit 2
+fi
+
 if [[ ! -f dev/.env ]]; then
   cp dev/.env.example dev/.env
   echo "Created dev/.env from example"
@@ -112,13 +129,25 @@ ensure_rustfs() {
 ensure_rustfs
 
 CELLPD_BIN=""
+CELLPD_BUILT=0
+CELLPD_BUILD_FAILED=0
 CELLPD_SRC="${ROOT}/cellp/cmd/cellpd"
 if [[ -d "$CELLPD_SRC" ]]; then
-  echo "==> build cellpd"
-  if "$ROOT/dev/scripts/build-cellpd.sh"; then
+  CELLPD_SOURCE_NEWER=""
+  if [[ -x "${ROOT}/dev/data/cellpd" ]]; then
+    CELLPD_SOURCE_NEWER="$(find "${ROOT}/cellp" -name '*.go' -newer "${ROOT}/dev/data/cellpd" -print -quit 2>/dev/null || true)"
+  fi
+  if [[ ! -x "${ROOT}/dev/data/cellpd" ]] || [[ -n "$CELLPD_SOURCE_NEWER" ]]; then
+    echo "==> build cellpd"
+    if "$ROOT/dev/scripts/build-cellpd.sh"; then
+      CELLPD_BUILT=1
+    else
+      CELLPD_BUILD_FAILED=1
+      echo "WARN: cellpd build failed — keep the current process or fall back to mock" >&2
+    fi
+  fi
+  if [[ "$CELLPD_BUILD_FAILED" -eq 0 && -x "${ROOT}/dev/data/cellpd" ]]; then
     CELLPD_BIN="${ROOT}/dev/data/cellpd"
-  else
-    echo "WARN: cellpd build failed — falling back to mock platform" >&2
   fi
 else
   cat >&2 <<'EOF'
@@ -129,18 +158,28 @@ EOF
 fi
 
 if [[ -n "$CELLPD_BIN" ]]; then
-  if [[ -f dev/data/pids/platform.pid ]]; then
+  PLATFORM_RUNNING=0
+  if [[ -f dev/data/pids/platform.pid ]] && kill -0 "$(cat dev/data/pids/platform.pid)" 2>/dev/null; then
+    PLATFORM_RUNNING=1
+  fi
+  if [[ "$PLATFORM_RUNNING" -eq 1 && "$CELLPD_BUILT" -eq 1 ]]; then
+    echo "==> restart cellpd (new binary)"
     kill "$(cat dev/data/pids/platform.pid)" 2>/dev/null || true
     rm -f dev/data/pids/platform.pid
+    PLATFORM_RUNNING=0
   fi
-  echo "==> start cellpd API :${PLATFORM_PORT} Gateway :${GATEWAY_PORT:-8787}"
-  export CELLP_REGISTRY_DB="${CELLP_REGISTRY_DB:-${REGISTRY_DB:-./dev/data/cellp-registry.sqlite}}"
-  export CELLP_DEPLOY_TOKEN="${CELLP_DEPLOY_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
-  export CELLP_ADMIN_TOKEN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
-  export S3_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION RUSTFS_ACCESS_KEY RUSTFS_SECRET_KEY OFFSHOOT_STORE
-  export GATEWAY_TLS_PORT GATEWAY_TLS_CERT GATEWAY_TLS_KEY CELLP_PUBLIC_SCHEME_PREVIEW CELLP_PUBLIC_SCHEME_PROD CELLP_INGRESS_BASE_DOMAIN GATEWAY_URL
-  "$CELLPD_BIN" >>dev/data/logs/cellpd.log 2>&1 &
-  echo $! > dev/data/pids/platform.pid
+  if [[ "$PLATFORM_RUNNING" -eq 1 ]]; then
+    echo "==> cellpd already running (pid $(cat dev/data/pids/platform.pid))"
+  else
+    echo "==> start cellpd API :${PLATFORM_PORT} Gateway :${GATEWAY_PORT:-8787}"
+    export CELLP_REGISTRY_DB="${CELLP_REGISTRY_DB:-${REGISTRY_DB:-./dev/data/cellp-registry.sqlite}}"
+    export CELLP_DEPLOY_TOKEN="${CELLP_DEPLOY_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
+    export CELLP_ADMIN_TOKEN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
+    export S3_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION RUSTFS_ACCESS_KEY RUSTFS_SECRET_KEY OFFSHOOT_STORE
+    export GATEWAY_TLS_PORT GATEWAY_TLS_CERT GATEWAY_TLS_KEY CELLP_PUBLIC_SCHEME_PREVIEW CELLP_PUBLIC_SCHEME_PROD CELLP_INGRESS_BASE_DOMAIN GATEWAY_URL
+    "$CELLPD_BIN" >>dev/data/logs/cellpd.log 2>&1 &
+    echo $! > dev/data/pids/platform.pid
+  fi
 else
   if [[ ! -f dev/data/pids/platform.pid ]] || ! kill -0 "$(cat dev/data/pids/platform.pid)" 2>/dev/null; then
     echo "==> start mock platform (API + Gateway) :${PLATFORM_PORT} / :${GATEWAY_PORT:-8787}"

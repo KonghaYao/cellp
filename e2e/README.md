@@ -71,11 +71,23 @@ D1_BRANCH_MULTI_SIZE_MB=100 D1_BRANCH_MULTI_COUNT=3 \
 | **TP-V11** | `e2e/scripts/v11-workflow-cron.sh` | bindings 含 workflow + cron；`GET …/workflows/{name}/instances` **不 500** |
 
 ```bash
-./e2e/scripts/v9-kv.sh
-./e2e/scripts/v10-queue.sh
-./e2e/scripts/v11-workflow-cron.sh
+# 日常只跑受影响项（名称可省略 .sh）
+./e2e/scripts/run-all.sh --only v9-kv,v12-kv-branch
+
+# 调试时保留已有 v-e2e-*；确认状态不会污染断言后再用
+./e2e/scripts/run-all.sh --only health-all --skip-cleanup
+
+# 查看可选脚本
+./e2e/scripts/run-all.sh --list
+
+# 完整 MANIFEST（沿用既有默认，不含 Phase 0）
 RUN_GATES=0 ./e2e/scripts/run-all.sh
+
+# 存储准入/发布门禁（包含 celld diagnose + offshoot RustFS）
+RUN_GATES=1 ./e2e/scripts/run-all.sh
 ```
+
+`--only` 仍按 gate/MANIFEST 顺序执行，但它只是开发快环，不能声明 TP-VE-ALL/M2 全绿。runner 会打印每个脚本和整套测试的耗时，便于发现慢项。环境变量等价形式：`E2E_ONLY=v9-kv,v12-kv-branch`、`E2E_SKIP_CLEANUP=1`。
 
 栈未起来时脚本 **SKIP**（exit 0 + 说明）。健康路径：`/.well-known/celld/health`（`health-all.sh`）。
 

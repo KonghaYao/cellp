@@ -8,9 +8,17 @@
 
 ```bash
 cp dev/.env.example dev/.env   # 首次
+
+# 首次或依赖变更
 ./dev/scripts/up.sh
-./dev/scripts/health.sh        # 必须 exit 0
+./dev/scripts/health.sh        # 完整运行时健康检查，必须 exit 0
+
+# 日常 cellpd 编辑循环
+./dev/scripts/up.sh --fast      # 不碰 RustFS/celld/offshoot
+./dev/scripts/health.sh --quick # 仅 API + Gateway readiness
 ```
+
+`--fast` 不会启动缺失的 RustFS/celld，也不会运行 `celld diagnose`；它只能复用存储探针已经成功的本地栈。存储、celld 或 offshoot 变更后必须重新跑完整路径，并执行 `RUN_GATES=1 ./e2e/scripts/run-all.sh`（或至少目标 `v0a-celld-diagnose`）。
 
 ## 改代码后验证
 
@@ -53,10 +61,22 @@ cd celld && cargo build -p celld --profile lab
 # 确保 ~/.local/bin/celld 指向 celld/target/lab/celld
 ```
 
-### 全门禁
+### 目标 E2E（编辑循环）
 
 ```bash
-./e2e/scripts/run-all.sh
+# 名称可省略 .sh；多个名称用逗号或重复 --only
+./e2e/scripts/run-all.sh --only v1-d1-seed,v1-d1-branch
+./e2e/scripts/run-all.sh --only health-all --skip-cleanup
+```
+
+`--only` 是开发加速入口，**不代表 M1/M2 全量门禁**。`--skip-cleanup` 会让目标脚本内部的 `cleanup_e2e_versions` 也跳过，仅在确认旧 `v-e2e-*` 不会污染结果时使用。
+
+### 全量验证
+
+```bash
+./e2e/scripts/run-all.sh  # 完整 MANIFEST（沿用既有默认，不含 Phase 0）
+# 存储准入/发布验证（包含 celld diagnose）
+RUN_GATES=1 ./e2e/scripts/run-all.sh
 ```
 
 ## Exit code 约定

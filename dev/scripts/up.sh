@@ -4,6 +4,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
+FAST=0
+usage() {
+  cat <<'EOF'
+Usage: ./dev/scripts/up.sh [--fast]
+
+  --fast  Only build/start cellpd when needed. Reuse running dependencies and
+          skip Docker, shared celld bootstrap, and offshoot initialization.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fast) FAST=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
 if [[ ! -f dev/.env ]]; then
   cp dev/.env.example dev/.env
   echo "Created dev/.env from example"
@@ -23,9 +42,7 @@ need() {
   fi
 }
 
-need docker "https://docs.docker.com/get-docker/"
 need curl
-need jq
 
 optional() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -34,16 +51,21 @@ optional() {
   fi
 }
 
-echo "==> docker compose up"
-docker compose -f dev/docker-compose.yml --env-file dev/.env up -d
+if [[ "$FAST" -eq 0 ]]; then
+  need docker "https://docs.docker.com/get-docker/"
+  echo "==> docker compose up (rustfs + s3-init)"
+  docker compose -f dev/docker-compose.yml --env-file dev/.env up -d rustfs s3-init
 
-echo "==> wait for RustFS"
-for i in $(seq 1 30); do
-  if curl -sf "http://127.0.0.1:${S3_PORT:-9000}/health" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
+  echo "==> wait for RustFS"
+  for _ in $(seq 1 30); do
+    if curl -sf "http://127.0.0.1:${S3_PORT:-9000}/health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+else
+  echo "==> fast mode: reuse RustFS, celld, and offshoot"
+fi
 
 # Platform: cellpd first; mock only when CELLP_USE_MOCK=1 (see docs/plans/phase-3-e2e.md P3-T3)
 platform_running() {
@@ -72,7 +94,11 @@ stop_platform() {
 CELLPD_BIN=""
 CELLPD_BUILT=0
 if [[ -d "${ROOT}/cellp/cmd/cellpd" ]]; then
-  if [[ ! -x "${ROOT}/dev/data/cellpd" ]] || find "${ROOT}/cellp" -name '*.go' -newer "${ROOT}/dev/data/cellpd" 2>/dev/null | grep -q .; then
+  CELLPD_SOURCE_NEWER=""
+  if [[ -x "${ROOT}/dev/data/cellpd" ]]; then
+    CELLPD_SOURCE_NEWER="$(find "${ROOT}/cellp" -name '*.go' -newer "${ROOT}/dev/data/cellpd" -print -quit 2>/dev/null || true)"
+  fi
+  if [[ ! -x "${ROOT}/dev/data/cellpd" ]] || [[ -n "$CELLPD_SOURCE_NEWER" ]]; then
     echo "==> build cellpd"
     if "$ROOT/dev/scripts/build-cellpd.sh"; then
       CELLPD_BUILT=1
@@ -130,45 +156,47 @@ if [[ "$PLATFORM_MODE" != "none" ]]; then
   done
 fi
 
-# celld
-if optional celld "curl -fsSL https://celld.dev/install.sh | sh"; then
-  if [[ ! -f dev/data/pids/celld.pid ]] || ! kill -0 "$(cat dev/data/pids/celld.pid)" 2>/dev/null; then
-    echo "==> celld deploy example (first run may take a minute)"
-    export CELLD_VAR_PROJECT_ID="${DEV_PROJECT:-demo-app}"
-    export CELLD_VAR_VERSION_ID="v-dev"
-    (
-      cd dev/examples/counter
-      celld deploy . --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
-        2>>"$ROOT/dev/data/logs/celld-deploy.log" || true
-    )
-    echo "==> celld storage probe (required for private RustFS)"
-    if ! celld diagnose --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
-      >>dev/data/logs/celld-diagnose.log 2>&1; then
-      echo "WARN: celld diagnose failed — see dev/data/logs/celld-diagnose.log (RustFS conditional writes)"
-    fi
-    echo "==> start celld :${CELLD_PORT}"
-    nohup celld --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
-      --listen "127.0.0.1:${CELLD_PORT}" >>dev/data/logs/celld.log 2>&1 &
-    echo $! > dev/data/pids/celld.pid
-    for i in $(seq 1 60); do
-      if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
-        break
+if [[ "$FAST" -eq 0 ]]; then
+  # celld
+  if optional celld "curl -fsSL https://celld.dev/install.sh | sh"; then
+    if [[ ! -f dev/data/pids/celld.pid ]] || ! kill -0 "$(cat dev/data/pids/celld.pid)" 2>/dev/null; then
+      echo "==> celld deploy example (first run may take a minute)"
+      export CELLD_VAR_PROJECT_ID="${DEV_PROJECT:-demo-app}"
+      export CELLD_VAR_VERSION_ID="v-dev"
+      (
+        cd dev/examples/counter
+        celld deploy . --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
+          2>>"$ROOT/dev/data/logs/celld-deploy.log" || true
+      )
+      echo "==> celld storage probe (required for private RustFS)"
+      if ! celld diagnose --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
+        >>dev/data/logs/celld-diagnose.log 2>&1; then
+        echo "WARN: celld diagnose failed — see dev/data/logs/celld-diagnose.log (RustFS conditional writes)"
       fi
-      sleep 1
-    done
-  fi
-else
-  echo "SKIP: celld not installed — gateway and platform will run; run simulate-cd after installing celld"
-fi
-
-# offshoot daemon (optional for data fork path)
-if optional offshoot "go install github.com/sricola/offshoot/cmd/offshoot@latest"; then
-  if [[ ! -f dev/data/pids/offshoot.pid ]] || ! kill -0 "$(cat dev/data/pids/offshoot.pid)" 2>/dev/null; then
-    mkdir -p "$OFFSHOOT_STORE" "$OFFSHOOT_CHECKOUTS"
-    if [[ ! -d "$OFFSHOOT_STORE/offshoot.json" ]] && [[ ! -f "$OFFSHOOT_STORE/offshoot.json" ]]; then
-      (cd "$ROOT" && offshoot init "$OFFSHOOT_STORE" 2>/dev/null || offshoot --store "$OFFSHOOT_STORE" create "${DEV_PROJECT:-demo-app}" 2>/dev/null || true)
+      echo "==> start celld :${CELLD_PORT}"
+      nohup celld --bucket "$CELLD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
+        --listen "127.0.0.1:${CELLD_PORT}" >>dev/data/logs/celld.log 2>&1 &
+      echo $! > dev/data/pids/celld.pid
+      for _ in $(seq 1 60); do
+        if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
     fi
-    echo "==> offshoot local store at $OFFSHOOT_STORE"
+  else
+    echo "SKIP: celld not installed — gateway and platform will run; run simulate-cd after installing celld"
+  fi
+
+  # offshoot daemon (optional for data fork path)
+  if optional offshoot "go install github.com/sricola/offshoot/cmd/offshoot@latest"; then
+    if [[ ! -f dev/data/pids/offshoot.pid ]] || ! kill -0 "$(cat dev/data/pids/offshoot.pid)" 2>/dev/null; then
+      mkdir -p "$OFFSHOOT_STORE" "$OFFSHOOT_CHECKOUTS"
+      if [[ ! -d "$OFFSHOOT_STORE/offshoot.json" ]] && [[ ! -f "$OFFSHOOT_STORE/offshoot.json" ]]; then
+        (cd "$ROOT" && offshoot init "$OFFSHOOT_STORE" 2>/dev/null || offshoot --store "$OFFSHOOT_STORE" create "${DEV_PROJECT:-demo-app}" 2>/dev/null || true)
+      fi
+      echo "==> offshoot local store at $OFFSHOOT_STORE"
+    fi
   fi
 fi
 

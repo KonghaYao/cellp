@@ -1,8 +1,27 @@
 #!/usr/bin/env bash
-# Agent health check — exit 0 if all required services OK
+# Runtime health check — exit 0 if all selected checks pass
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
+
+QUICK="${CELLP_HEALTH_QUICK:-0}"
+usage() {
+  cat <<'EOF'
+Usage: ./dev/scripts/health.sh [--quick]
+
+  --quick  Check only the cellpd API and Gateway readiness endpoints.
+           The default remains the full runtime health check.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --quick) QUICK=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
 
 set -a
 # shellcheck disable=SC1091
@@ -15,14 +34,18 @@ bad() { echo "FAIL $1"; FAIL=1; }
 
 if curl -sf "${GATEWAY_URL}/health" >/dev/null; then ok "gateway ${GATEWAY_URL}"; else bad "gateway ${GATEWAY_URL}"; fi
 
+if curl -sf "${PLATFORM_URL}/v1/health" >/dev/null; then ok "platform ${PLATFORM_URL}"; else bad "platform ${PLATFORM_URL}"; fi
+
+if [[ "$QUICK" == "1" ]]; then
+  exit $FAIL
+fi
+
 GW_DEEP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' "${GATEWAY_URL}/health/deep" 2>/dev/null || echo "000")
 if [[ "$GW_DEEP_CODE" == "200" || "$GW_DEEP_CODE" == "503" ]]; then
   ok "gateway deep health (http=${GW_DEEP_CODE})"
 else
   bad "gateway deep health (http=${GW_DEEP_CODE})"
 fi
-
-if curl -sf "${PLATFORM_URL}/v1/health" >/dev/null; then ok "platform ${PLATFORM_URL}"; else bad "platform ${PLATFORM_URL}"; fi
 
 if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
   ok "celld :${CELLD_PORT}"

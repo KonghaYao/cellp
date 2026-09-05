@@ -651,11 +651,18 @@ artifact URL **服务端构造**（防 SSRF）。status：`pending` → … → 
 
 ```bash
 cp dev/.env.example dev/.env
+
+# 首次/依赖变更
 ./dev/scripts/up.sh
 ./dev/scripts/simulate-cd.sh demo-app v-dev1
 ./dev/scripts/health.sh
-curl http://127.0.0.1:8787/demo-app/v-dev1/
+
+# 日常 cellpd 编辑循环 + 目标 E2E
+./dev/scripts/up.sh --fast && ./dev/scripts/health.sh --quick
+./e2e/scripts/run-all.sh --only v9-kv,v12-kv-branch
 ```
+
+`--fast` / `--quick` / `--only` 只用于开发反馈；它们不替代 `health.sh`、完整 `run-all.sh` 或 `RUN_GATES=1` 的存储准入（含 `celld diagnose`）。
 
 | 端口 | 模块 |
 |---|---|
