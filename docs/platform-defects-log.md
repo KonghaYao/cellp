@@ -173,6 +173,120 @@ prepare 在 `dist/_worker.js/index.js` 头部注入最小 `globalThis.caches` �
 
 ---
 
+## PD-20260905-01 — OpenNext no-bundle `*.wasm?module` 未进入 manifest（celld）
+
+| | |
+|--|--|
+| **层级** | celld / deploy module publication |
+| **严重度** | blocker（App Router version 无法 ready，58 runnable 未执行） |
+| **状态** | `open` |
+| **置信度** | 高；漏收 sidecar 已证实，是否存在后续 blocker 待修复后复验 |
+| **Owner** | celld deploy/module owner |
+
+### 证据与责任边界
+
+- 固定 OpenNext `1.14.0` no-patch artifact 的 `index.js` 静态 import `77d9…-resvg.wasm?module` 与 `ef48…-yoga.wasm?module`，同目录还有动态使用的 `*.ttf.bin`。
+- `celld/crates/celld/deploy.rs` 的 no-bundle 路径调用 `read_wasm_modules_from_dir`，但只接受 `Path::extension() == "wasm"`；文件名 `*.wasm?module` 的扩展名不是 `wasm`。JS sibling 收集也只接受 `.js/.mjs/.cjs`。
+- no-patch version `v-oncf-app-router-1788616744-24413` 的 OpenNext build、Wrangler dry-run 与 cellp staging 成功；celld warm isolate 报 `stateless Worker failed to load` / `instantiate: <none>`，最终 health timeout。该阶段尚未进入 binding/DO 实例或 HTTP assertion，不能写成 cache DO 失败。
+
+### 补救与复验门禁
+
+按 import specifier 原名发布 `*.wasm?module`，增加 no-bundle module-closure 校验以及 `.bin` data module策略；补 manifest + instantiate 回归测试。门禁：App Router version `ready`、无 module instantiate 错误、58 runnable 全部实际进入 Playwright，且不得删除官方 DO/R2/service binding。
+
+**证据：** `docs/evidence/opennext-official-e2e-20260905-215903-47835.log` · `$TMPDIR/celld-opennext-e2e-app-router-v-oncf-app-router-1788616744-24413.log`
+
+---
+
+## PD-20260905-02 — OpenNext converter 将 public forwarded authority 覆盖为 synthetic Host（集成边界）
+
+| | |
+|--|--|
+| **层级** | cellp Gateway → celld → OpenNext request conversion |
+| **严重度** | major（Host assertion 与 Server Actions 失败） |
+| **状态** | `open` |
+| **置信度** | 高 |
+| **Owner** | OpenNext integration owner；cellp ingress owner协同 |
+
+### 证据与责任边界
+
+- Gateway 测试与源码证明上游请求最初携带 public `X-Forwarded-Host`（含 `:8787`），managed celld 进程的定向环境核对也证明 `CELLD_TRUST_FORWARDED_HEADERS=1` 已实际生效；因此不是 manager 漏设变量或旧进程。
+- A/B：Gateway 与 direct celld + forwarded 均让 `/api/host` 返回 synthetic URL；direct celld + public `Host` 返回正确 public URL。
+- OpenNext 使用的 `@opennextjs/aws` edge converter 在 middleware handoff 创建新 `Request` 时无条件设置 `"x-forwarded-host": result.internalEvent.headers.host`。cellp 为路由使用 synthetic upstream Host，因此 public authority 被覆盖。
+- 同一 no-patch celld 日志明确记录 synthetic `x-forwarded-host` 与 public `Origin` 不匹配，随后 `Invalid Server Actions request`。Next 的 CSRF/Origin 校验按设计 fail-closed；无证据指向 cache/DO。
+- 同 commit、同 build 的官方 Wrangler `http://localhost` baseline 中 Host 与 Server Actions 均通过；这排除 upstream fixture/assertion 在官方 runtime 上的独立失败。
+
+### 补救与复验门禁
+
+适配层应保留可信 public forwarded authority，或 cellp 定义不会向应用暴露 synthetic authority 的内部 ingress 契约。门禁：`/api/host` 的 `request.url` 与 public preview URL 完全相等；Server Actions 用例通过；日志不再出现 forwarded-host/Origin mismatch。
+
+**证据：** `docs/evidence/opennext-official-app-pages-router-v-oncf-app-pages-router-1788614744-1071.log` · `docs/evidence/opennext-official-wrangler-mixed-baseline-localhost-20260905.log` · `$TMPDIR/celld-opennext-e2e-app-pages-router-v-oncf-app-pages-router-1788614744-1071.log` · `node_modules/.pnpm/@opennextjs+aws@3.9.0/.../overrides/converters/edge.js`
+
+---
+
+## PD-20260905-03 — 官方 middleware 假设 HTTPS，而 dev preview 仅 HTTP（验收环境）
+
+| | |
+|--|--|
+| **层级** | dev 验收环境 / 外层 ingress |
+| **严重度** | major（middleware redirect 浏览器连接失败） |
+| **状态** | `open` |
+| **置信度** | 高 |
+| **Owner** | 外层 TLS / dev acceptance environment owner；OpenNext integration owner协同修正 synthetic authority |
+
+### 证据与责任边界
+
+官方 middleware 对非 `localhost` Host 固定选择 `https`。A/B 均返回 307：Gateway/direct-forwarded 为 `https://synthetic...`，direct-public 为 `https://public...:8787`；本地 Gateway `:8787` 只有 HTTP，因此 Playwright 报 `ERR_CONNECTION_CLOSED`。即使先修复 synthetic Host，`*.lvh.me` 仍触发 HTTPS。同 commit、同 build 的官方 Wrangler `http://localhost` baseline 中该用例通过，符合 middleware 源码的 localhost HTTP 分支。
+
+AD-10 明确 cellp 不负责 TLS 终止，故补救应由外层 TLS preview origin 提供；不得修改官方 middleware 或加应用特判制造 PASS。门禁：在真实 HTTPS preview 下，307 `Location` 使用 public authority并成功导航至 `/redirect-destination`。
+
+**证据：** `docs/evidence/opennext-official-wrangler-mixed-baseline-localhost-20260905.log`
+
+---
+
+## PD-20260905-04 — OpenNext Pages rewrite/trailing 路径丢 query（celld 兼容路径）
+
+| | |
+|--|--|
+| **层级** | celld HTTP/self-fetch 与 OpenNext routing 兼容路径 |
+| **严重度** | major（3 个官方 assertion 稳定失败） |
+| **状态** | `open` |
+| **置信度** | 中高；平台责任边界已确定，具体函数待定位 |
+| **Owner** | celld HTTP/self-fetch owner；OpenNext integration owner协查 |
+
+### 证据与排除项
+
+no-patch Pages Router 新 preview稳定复现：rewrite 页面无 `SSR`；`/rewriteWithQuery?b=2` 结果只有 `q=1`；`/ssr?happy=true` 的最终 URL 为 `/ssr/?`。Gateway、direct celld + forwarded、direct celld + public Host 三条路径结果一致；直接 `/api/query?b=2&q=1` control 三条均保留两个参数。同 commit、同 build 的官方 Wrangler localhost baseline 对 rewrite/trailing 文件 **7/7 通过**。
+
+因此已排除 Gateway、celld 的**一般性** query 截断，以及 upstream fixture/assertion 在官方 runtime 上的独立失败。差异确定落在 celld 执行 OpenNext artifact 时的 rewrite/trailing URL 兼容路径；目前证据尚不能在 self-fetch、absolute `Request.url` 构造和 redirect normalization 之间精确到单一函数。
+
+### 补救与复验门禁
+
+对相同 raw target 在 celld URL 构造、OpenNext internal request 和最终 `Location` 处记录非敏感 path/query 元数据并与 Wrangler 对照，再修正差异。门禁：两个 rewrite 与 trailing 用例全绿，control 继续保留 query。
+
+**证据：** `docs/evidence/opennext-official-pages-router-v-oncf-pages-router-1788614929-19670.log` · `docs/evidence/opennext-official-wrangler-pages-baseline-20260905.log`
+
+---
+
+## PD-20260905-05 — Mixed fixture 的 App Router ISR flaky 与动态 JSON import 缺口相关但未定唯一根因（celld/OpenNext)
+
+| | |
+|--|--|
+| **层级** | celld dynamic import / OpenNext incremental cache |
+| **严重度** | major（缓存时序不稳定） |
+| **状态** | `open` |
+| **置信度** | 中；平台责任边界已确定，唯一根因待实验 |
+| **Owner** | celld dynamic-import/cache owner；OpenNext cache owner协查 |
+
+较早 App + Pages preview 的 ISR 首次失败后 retry 通过；no-patch 主套件首轮通过，旧失败证据必须继续保留。随后在同一 cellp preview 以 `--retries=0 --repeat-each=3` 复验：App Router ISR **1/3 失败**，Pages ISR **3/3 通过**；同 commit、同 build 的 Wrangler localhost baseline 两类 ISR **6/6 通过**。因此已排除仅由 upstream fixture 稳定性造成，问题属于 celld/OpenNext cache 兼容路径。
+
+失败轮启动时 celld 同时出现 `dynamic import of "./.next/prerender-manifest.json" is not supported`；这强化了相关性，但仍不能证明其是唯一根因，R2/DO/cache 状态与 OpenNext revalidation 时序仍需隔离。
+
+补救实验：在多份全新 preview 串行运行相同无 retry gate，分别补齐/禁用候选动态 import 路径做 A/B，并关联每轮 Playwright 与 celld 日志。门禁：多份 fresh preview 连续多轮两类 ISR 全绿，且相关 dynamic import 错误消失；未达到前不得改写为稳定 PASS。
+
+**证据：** `docs/evidence/opennext-official-cellp-mixed-isr-repeat3-20260905.log` · `docs/evidence/opennext-official-wrangler-mixed-isr-repeat3-20260905.log`
+
+---
+
 ## Polyfill 策略总结（给产品 / 实现）
 
 | 能力 | 能否用 npm polyfill？ | cellp 推荐 |

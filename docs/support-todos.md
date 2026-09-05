@@ -59,7 +59,7 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 ## 执行状态
 
-**见 [support-matrix.md](./support-matrix.md)**。**2026-09-05：S40 基础 Next.js App Router 固定 artifact 已通过 preview gate 后 promote，但仍为 AD-13 非一等实验。** **2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；**S38 Counterscale** prod **v2** · **不支持**（Analytics Engine）；P2 **S34 microfeed ✅**；P1 **S31–S32、S35 ✅**；**S36 Triplit · S37 Serverless DNS** prod ready · **不支持**（S37 HTTP **408**）；**S33 ⏸️ 后排**。框架 **S26–S29 ✅**。
+**见 [support-matrix.md](./support-matrix.md)**。**2026-09-05：S40 基础 Next.js App Router 固定 artifact 已通过 preview gate 后 promote；OpenNext `1.14.0` 官方核心套件确认 114 runnable，56 实际执行为 49 stable passed / 6 stable failed / 1 confirmed flaky，另 58 被 App Router no-bundle module publication/activation 阻塞；仍为 AD-13 非一等实验。** **2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；**S38 Counterscale** prod **v2** · **不支持**（Analytics Engine）；P2 **S34 microfeed ✅**；P1 **S31–S32、S35 ✅**；**S36 Triplit · S37 Serverless DNS** prod ready · **不支持**（S37 HTTP **408**）；**S33 ⏸️ 后排**。框架 **S26–S29 ✅**。
 
 **框架一等公民（S22–S25）** 见下表。
 
@@ -75,6 +75,18 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 | S25 | **Nuxt** | `cloudflare/workers-sdk` · `packages/create-cloudflare/templates/nuxt` + `dev/examples/support-nuxt/` | `./dev/scripts/deploy-support-app.sh S25` · **已验 v1 · 支持** |
 
 **Next.js：** 非一等；见 [plans/NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)。
+
+### OpenNext 官方套件补救队列（2026-09-05）
+
+| 优先级 | 缺口 | 状态 / 置信度 | Owner | 下一步与复验 gate |
+|--------|------|---------------|-------|--------------------|
+| P0 | App Router no-bundle `*.wasm?module` 未发布，58 runnable deployment-blocked | open / 高；漏收已证实，唯一性待修后验证 | celld deploy/module | 支持含 `?module` 的 wasm specifier并补 module closure；App Router preview `ready`，58 项全部进入 Playwright，不删官方 DO/R2/service binding |
+| P0 | OpenNext edge converter 把 public forwarded authority 覆盖为 synthetic Host，导致 Host 与 Server Actions 失败 | open / 高 | OpenNext integration + cellp ingress | 保留可信 public authority；`/api/host` 与 public baseURL 一致，Server Actions 绿，日志无 Origin mismatch |
+| P1 | 官方 middleware 的非 localhost HTTPS 假设与 HTTP-only dev preview 冲突 | open / 高 | 外层 TLS / dev acceptance environment | 使用真实 HTTPS preview origin；307 使用 public authority并成功完成导航；不改官方 middleware |
+| P1 | Pages rewrite/query/trailing 三项丢 query | open / 中高；Wrangler 7/7 对照通过，平台边界已确定 | celld HTTP/self-fetch；OpenNext integration协查 | 对 raw target、internal request、`Location` 做非敏感插桩，定位 self-fetch/absolute URL/normalization 差异；三个 assertion 全绿且 `/api/query` control 不回归 |
+| P1 | Mixed fixture 的 App Router ISR flaky；cellp repeat-3 为 2/3、Pages ISR 3/3，Wrangler 两类 ISR 6/6；动态 `prerender-manifest.json` import 同轮报不支持 | open / 中；平台边界已确定，唯一根因待实验 | celld dynamic-import/cache；OpenNext cache协查 | fresh preview 做无 retry A/B，隔离动态 import 与 R2/DO/cache 时序；多份 preview 连续全绿且动态 import 错误消失 |
+
+所有项目继续 **preview-only**；失败 version、trace 和日志保留。关键失败未清零前不得 promote，也不得将 AD-13 升级为 tier-1。
 
 ---
 

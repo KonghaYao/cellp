@@ -31,7 +31,8 @@ fi
 [[ -f .open-next/worker.js ]] || { echo "missing .open-next/worker.js" >&2; exit 1; }
 
 # Force SSR without edge image optimizer (cellp ASSETS + localPatterns mismatch on GET /).
-if [[ -f next.config.ts ]] && ! grep -q 'unoptimized: true' next.config.ts; then
+# Official upstream compatibility suites opt out so their fixture applications remain byte-for-byte unchanged.
+if [[ "${CELLP_OPENNEXT_SKIP_NEXT_CONFIG_PATCH:-0}" != "1" && -f next.config.ts ]] && ! grep -q 'unoptimized: true' next.config.ts; then
   log "patch next.config.ts images.unoptimized"
   node <<'NODE'
 const fs = require('fs');
