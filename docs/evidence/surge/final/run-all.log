@@ -1,0 +1,105 @@
+==> run-all.sh start RUN_GATES=0
+==> skip Phase 0 storage gates (set RUN_GATES=1 to include celld diagnose)
+==> run health-all.sh
+==> health-all
+PASS: platform API → 200
+PASS: gateway → 200
+PASS: celld → 200
+==> done health-all.sh (0s)
+==> run ve-cd-loop.sh
+==> VE-2 CD loop project=demo-app version=v-e2e-1788595602-19697
+{
+  "id": "v-e2e-1788595602-19697",
+  "poll_url": "/v1/projects/demo-app/versions/v-e2e-1788595602-19697",
+  "preview_url": "http://127.0.0.1:8787/demo-app/v-e2e-1788595602-19697/",
+  "project_id": "demo-app",
+  "status": "pending"
+}
+{
+  "n": 2,
+  "version": "v-e2e-1788595602-19697",
+  "project": "demo-app",
+  "greeting": null,
+  "topLevelGreeting": null,
+  "topLevelCounter": null,
+  "url": "http://v-e2e-1788595602-19697.demo-app.lvh.me:8787/"
+}
+PASS: VE-2 CD loop OK preview=http://127.0.0.1:8787/demo-app/v-e2e-1788595602-19697/ host=v-e2e-1788595602-19697.demo-app.lvh.me
+==> done ve-cd-loop.sh (3s)
+==> run ve-promote.sh
+==> VE-3 promote project=demo-app old=v-e2e-1788595605-4076 new=v-e2e-1788595605-21823 prod_host=demo-app.lvh.me
+==> promote v-e2e-1788595605-21823 to prod
+PASS: VE-3 promote OK prod_host=demo-app.lvh.me
+==> done ve-promote.sh (25s)
+==> run ve-fail-compensate.sh
+==> VE-4 fail compensate project=demo-app version=v-e2e-1788595630-16991
+PASS: VE-4 fail compensate OK status=failed no leaked route
+==> done ve-fail-compensate.sh (1s)
+==> run ve-destroy.sh
+==> VE-5 destroy project=demo-app version=v-e2e-1788595631-2820
+==> DELETE version v-e2e-1788595631-2820
+PASS: VE-5 destroy OK gateway gone within 120s
+==> done ve-destroy.sh (14s)
+==> run v1-d1-seed.sh
+==> V1 D1 import project=demo-app version=v-e2e-1788595645-12641 database=guestbook
+==> seed.db entries=42
+==> D1 query checksum OK entries=42 bucket=s3://cellp-celld/demo-app/v-e2e-1788595645-12641
+PASS: V1 D1 import OK seed=42 worker=42
+==> done v1-d1-seed.sh (35s)
+==> run v1-d1-branch.sh
+==> D1 branch e2e project=demo-app parent=v-e2e-1788595680-25923 child=v-e2e-1788595680-10902
+==> parent seed.db entries=42
+==> parent worker count OK=42
+==> child worker count OK=42
+==> child INSERT OK count=43
+==> parent isolation OK count=42
+==> B5 kill child celld :8810 then fresh watch /var/folders/fl/_w0l1wpd2892_p6w4rn_p6n40000gn/T//cellp-b5-watch.9K8Ehz (S3 restore)
+==> B5 S3-only restore OK count=43
+PASS: D1 branch parent=42 child=42 isolation OK
+==> done v1-d1-branch.sh (34s)
+==> run v2-quiesce-fork.sh
+==> V2 quiesce fork store=/Users/mino/code/remote/cellp/dev/data/offshoot-store db=v2-quiesce-96644
+PASS: V2 quiesce fork OK — child has no post-fork parent writes (see /Users/mino/code/remote/cellp/docs/evidence/v2-20260905-160834.log)
+==> done v2-quiesce-fork.sh (0s)
+==> run v3-dual-route.sh
+==> V3 dual route project=demo-app A=v-e2e-1788595714-15175 B=v-e2e-1788595714-154
+PASS: V3 dual route OK distinct version fields A=v-e2e-1788595714-15175 B=v-e2e-1788595714-154
+==> done v3-dual-route.sh (7s)
+==> run v4-promote-cutover.sh
+==> V4 promote cutover project=demo-app prod_host=demo-app.lvh.me
+WARN: cutover took 18741ms > 2000ms
+PASS: V4 promote cutover OK prod_host=demo-app.lvh.me (18741ms) preview_url=http://v-e2e-1788595721-12217.demo-app.lvh.me:8787/ path_old=404
+==> done v4-promote-cutover.sh (27s)
+==> run v4b-promote-offshoot-fail.sh
+==> V4b promote offshoot gate project=demo-app old=v-e2e-1788595748-18713 new=v-e2e-1788595748-3692
+PASS: V4b promote offshoot gate OK (prod stayed v-e2e-1788595748-18713)
+==> done v4b-promote-offshoot-fail.sh (144s)
+==> run v5-saga-compensate.sh
+==> V5 saga compensate project=demo-app version=v-e2e-1788595892-10153
+PASS: V5 saga compensate OK failed + no leaked route
+==> done v5-saga-compensate.sh (1s)
+==> run v5b-deploy-d1-branch-fail.sh
+==> V5B D1 branch fail-closed project=demo-app parent=v-e2e-1788595893-25586 child=v-e2e-1788595893-10565
+==> parent ready
+PASS: V5B D1 branch inject → failed + no leaked route
+==> done v5b-deploy-d1-branch-fail.sh (112s)
+==> run v6-migrate-order.sh
+==> V6 migrate order project=demo-app version=v-e2e-1788596005-27366
+forked demo-app@main -> demo-app@v-e2e-1788596005-27366 at txid 281
+checkpoint "v6-migrate" at txid 282
+{
+  "id": "v-e2e-1788596005-27366",
+  "project_id": "demo-app",
+  "git_ref": "e2e",
+  "git_sha": "local",
+  "artifact_uri": "s3://cellp-artifacts/demo-app/v-e2e-1788596005-27366/",
+  "data_branch": "demo-app/v-e2e-1788596005-27366",
+  "preview_url": "http://127.0.0.1:8787/demo-app/v-e2e-1788596005-27366/",
+  "status": "failed",
+  "error": "deploy: read /Users/mino/code/remote/cellp/dev/examples/counter/node_modules/esbuild: is a directory",
+  "created_at": "2026-09-05T08:13:25.479868Z",
+  "updated_at": "2026-09-05T08:13:25.692777Z",
+  "pinned": false
+}
+FAIL: version v-e2e-1788596005-27366 failed (wanted ready)
+FAIL: v6-migrate-order.sh exit non-zero after 1s
