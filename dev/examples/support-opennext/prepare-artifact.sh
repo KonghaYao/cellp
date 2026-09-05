@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Cloudflare templates next-starter-template (@opennextjs/cloudflare): prebuild + wrangler bundle + slim assets.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -12,15 +18,15 @@ export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-false}"
 export npm_config_ignore_scripts="${npm_config_ignore_scripts:-false}"
 
 if [[ ! -d node_modules ]]; then
-  log "npm ci"
-  npm ci
+  log "cellp_pnpm_install"
+  cellp_pnpm_install
 fi
 
 if [[ ! -f .open-next/worker.js ]]; then
   log "next build"
-  npm run build
+  pnpm run build
   log "opennextjs-cloudflare build"
-  npx opennextjs-cloudflare build
+  pnpm exec opennextjs-cloudflare build
 fi
 [[ -f .open-next/worker.js ]] || { echo "missing .open-next/worker.js" >&2; exit 1; }
 
@@ -42,9 +48,9 @@ fs.writeFileSync(p, s);
 NODE
   rm -rf .open-next .next
   log "next build (after unoptimized patch)"
-  npm run build
+  pnpm run build
   log "opennextjs-cloudflare build"
-  npx opennextjs-cloudflare build
+  pnpm exec opennextjs-cloudflare build
 fi
 
 log "wrangler dry-run bundle"
@@ -68,7 +74,7 @@ if (!j.assets.binding) j.assets.binding = 'ASSETS';
 delete j.no_bundle;
 fs.writeFileSync('wrangler.cellp-dry-run.jsonc', JSON.stringify(j, null, 2) + '\n');
 NODE
-CI=1 WRANGLER_SEND_METRICS=false npx --yes wrangler@4 deploy --config wrangler.cellp-dry-run.jsonc --dry-run --outdir .cellp-bundle
+CI=1 WRANGLER_SEND_METRICS=false pnpm exec --yes wrangler@4 deploy --config wrangler.cellp-dry-run.jsonc --dry-run --outdir .cellp-bundle
 rm -f wrangler.cellp-dry-run.jsonc
 if [[ -f .cellp-bundle/worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/worker.js .cellp-bundle/index.js

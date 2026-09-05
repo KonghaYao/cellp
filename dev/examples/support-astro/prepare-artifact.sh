@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Astro @astrojs/cloudflare: native dist/_worker.js + static assets; celld bundles.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -13,7 +19,7 @@ export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
 
 if [[ ! -f dist/_worker.js/index.js ]]; then
   log "astro build"
-  npm run build
+  pnpm run build
 fi
 [[ -f dist/_worker.js/index.js ]] || { echo "missing dist/_worker.js/index.js" >&2; exit 1; }
 

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # C3 full-stack frameworks (solid | qwik | waku) on Workers — non-interactive scaffold for cellp.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -40,7 +46,7 @@ scaffold_solid() {
   rm -rf "$SCAFFOLD"
   (
     cd "$APP_DIR"
-    CI=1 DEBIAN_FRONTEND=noninteractive npx --yes create-solid@latest \
+    CI=1 DEBIAN_FRONTEND=noninteractive pnpm exec --yes create-solid@latest \
       -p "${SCAFFOLD##*/}" \
       -s --v2 --ts -t basic
   )
@@ -88,8 +94,8 @@ if (!src.includes('cloudflare-module')) {
 }
 fs.writeFileSync(file, src);
 NODE
-  npm install
-  npm install -D wrangler
+  cellp_pnpm_install
+  cellp_pnpm_install -D wrangler
 }
 
 scaffold_qwik() {
@@ -97,11 +103,11 @@ scaffold_qwik() {
   rm -rf "$SCAFFOLD"
   (
     cd "$APP_DIR"
-    CI=1 npm create qwik@latest playground "${SCAFFOLD##*/}" -f
+    CI=1 pnpm create qwik@latest playground "${SCAFFOLD##*/}" -f
   )
   cd "$SCAFFOLD"
-  npm install
-  npx qwik add cloudflare-workers --skipConfirmation=true
+  cellp_pnpm_install
+  pnpm exec qwik add cloudflare-workers --skipConfirmation=true
 }
 
 scaffold_waku() {
@@ -110,7 +116,7 @@ scaffold_waku() {
   rm -rf "$SCAFFOLD"
   (
     cd "$APP_DIR"
-    npx --yes create-waku@latest --project-name "${SCAFFOLD##*/}" --skip-install
+    pnpm exec --yes create-waku@latest --project-name "${SCAFFOLD##*/}" --skip-install
   )
   [[ -d "$waku_tpl" ]] || {
     echo "prepare-artifact: missing ${waku_tpl} (clone cloudflare/workers-sdk for S29)" >&2
@@ -128,8 +134,8 @@ raw = raw.replace(/<WORKER_NAME>/g, overlay.name || process.argv[2]);
 raw = raw.replace(/<COMPATIBILITY_DATE>/g, overlay.compatibility_date || '2026-09-03');
 fs.writeFileSync('wrangler.jsonc', raw);
 " "$OVERLAY" "$wname"
-  npm install
-  npm install -D @cloudflare/vite-plugin miniflare @types/node wrangler
+  cellp_pnpm_install
+  cellp_pnpm_install -D @cloudflare/vite-plugin miniflare @types/node wrangler
 }
 
 mkdir -p "$APP_DIR"
@@ -147,7 +153,7 @@ cd "$SCAFFOLD"
 
 if [[ "$FRAMEWORK" == "qwik" ]] && [[ -f wrangler.jsonc ]] && grep -q '.cellp-bundle' wrangler.jsonc 2>/dev/null; then
   log "qwik: reset wrangler.jsonc for upstream build + dry-run"
-  npx qwik add cloudflare-workers --skipConfirmation=true
+  pnpm exec qwik add cloudflare-workers --skipConfirmation=true
 fi
 
 apply_qwik_wrangler_overlay() {
@@ -179,7 +185,7 @@ apply_qwik_wrangler_overlay
 export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-false}"
 log "build"
 if grep -q '"build"' package.json; then
-  npm run build
+  pnpm run build
 fi
 
 log "wrangler dry-run bundle"
@@ -187,11 +193,11 @@ rm -rf .cellp-bundle
 CFG="wrangler.jsonc"
 [[ -f wrangler.toml ]] && CFG="wrangler.toml"
 if [[ "$FRAMEWORK" == "waku" && -f dist/server/wrangler.json ]]; then
-  npx wrangler deploy --config dist/server/wrangler.json --dry-run --outdir .cellp-bundle
+  pnpm exec wrangler deploy --config dist/server/wrangler.json --dry-run --outdir .cellp-bundle
 elif [[ "$FRAMEWORK" == "solid" && -f .output/server/wrangler.json ]]; then
-  npx wrangler deploy --config .output/server/wrangler.json --dry-run --outdir .cellp-bundle
+  pnpm exec wrangler deploy --config .output/server/wrangler.json --dry-run --outdir .cellp-bundle
 else
-  npx wrangler deploy --config "$CFG" --dry-run --outdir .cellp-bundle
+  pnpm exec wrangler deploy --config "$CFG" --dry-run --outdir .cellp-bundle
 fi
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js

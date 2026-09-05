@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # cf-workers-status-page: flareact client + webpack worker → wrangler slim bundle for celld.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -16,8 +22,8 @@ fi
 export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-false}"
 export npm_config_ignore_scripts="${npm_config_ignore_scripts:-false}"
 
-log "npm install (--legacy-peer-deps for flareact/react peer)"
-npm install --legacy-peer-deps
+log "cellp_pnpm_install (--legacy-peer-deps for flareact/react peer)"
+cellp_pnpm_install --legacy-peer-deps
 
 # celld has no cf-ray; cron getCheckLocation() would throw on GET-driven checks later.
 if [[ -f src/functions/helpers.js ]]; then
@@ -51,8 +57,8 @@ fi
 export NODE_OPTIONS="${NODE_OPTIONS:---openssl-legacy-provider --max-old-space-size=8192}"
 
 log "postcss + flareact client build"
-npm run css
-npx flareact build
+pnpm run css
+pnpm exec flareact build
 
 [[ -f out/_flareact/static/build-manifest.json ]] || {
   echo "prepare-artifact: missing flareact client build-manifest" >&2
@@ -60,7 +66,7 @@ npx flareact build
 }
 
 log "flareact worker webpack (dist/main.js)"
-IS_WORKER=true NODE_ENV=production npx webpack \
+IS_WORKER=true NODE_ENV=production pnpm exec webpack \
   --config node_modules/flareact/configs/webpack.worker.config.js \
   --mode production
 
@@ -71,7 +77,7 @@ IS_WORKER=true NODE_ENV=production npx webpack \
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/index.js && ! -f .cellp-bundle/main.js ]]; then
   cp .cellp-bundle/index.js .cellp-bundle/main.js
 fi

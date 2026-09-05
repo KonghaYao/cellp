@@ -15,18 +15,20 @@
 
 完整文档索引：**[docs/README.md](./docs/README.md)**
 
+**JS 依赖：** 仓库根目录 **`pnpm install`**（`pnpm-workspace.yaml`：`web` · `site` · `dev/examples/{counter,d1-seed,commerce}`）。勿在子目录单独 `npm install`。
+
 ## 仓库地图
 
 | 路径 | 是什么 | 验证命令 |
 |------|--------|----------|
 | `cellp/` | Go 控制面 + **`cellp` CLI**（`dev` / `serve`） | `cd cellp && go test ./...` |
 | `celld/` | Rust Workers 运行时（**git submodule**） | `cargo build -p celld --profile lab`（在 `celld/`） |
-| `web/` | Dashboard（Vite + React SPA） | `cd web && npm run test:e2e` |
+| `web/` | Dashboard（Vite + React SPA） | `pnpm install`（仓库根）后 `pnpm --filter cellp-dashboard test:e2e` |
 | `dev/` | 本地 dev 栈（RustFS · cellpd · celld · offshoot） | `./dev/scripts/health.sh` |
 | `e2e/` | 端口级集成测试（M1/M2 门禁） | `./e2e/scripts/run-all.sh` |
 | `stress/` | 压测（phase5 生产 · phase6 扩展/D1 scale） | 见 `stress/README.md` |
 | `docs/` | 计划 · 契约 · 证据（内部） | 索引 [docs/README.md](./docs/README.md) |
-| `site/` | 公开产品文档（GitHub Pages） | `cd site && npm run docs:build` |
+| `site/` | 公开产品文档（GitHub Pages） | `pnpm --filter cellp-docs docs:build` |
 
 ## 核心决策（摘要）
 

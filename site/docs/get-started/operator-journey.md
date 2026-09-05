@@ -9,7 +9,7 @@ This page is the **closed loop** for a platform operator: deploy a Worker, inspe
 | cellp CLI + celld | [Install](/guides/install) · `cellp doctor` |
 | Local platform | `cellp dev --no-deploy` or [Local stack](/get-started/local) (`./dev/scripts/up.sh`) |
 | Admin token | Same as `CELLP_ADMIN_TOKEN` / `PLATFORM_TOKEN` in dev |
-| Dashboard | `cd web && npm run dev` → `http://127.0.0.1:5190` with `VITE_CELLP_*` |
+| Dashboard | `cd web && pnpm run dev` → `http://127.0.0.1:5190` with `VITE_CELLP_*` |
 
 There is **no login UI**. The Dashboard sends `Authorization: Bearer` on every API call.
 
@@ -46,7 +46,7 @@ Use this list while you run the loop locally. Check items off in your notes or e
   **If it fails:** Version must stay `ready` (not archived/destroyed); see [Rollback](/guides/rollback).
 
 - [ ] **Contributor verify**  
-  **Success:** `cd web && npm run test` green; optional `./dev/scripts/up.sh` then `cd web && npm run test:e2e:live`.  
+  **Success:** `cd web && pnpm run test` green; optional `./dev/scripts/up.sh` then `cd web && pnpm run test:e2e:live`.  
   **If it fails:** Vitest logs under `web/`; live skip OK if stack down—use `web/scripts/verify-user-loop.sh` for the standard gate + log in `docs/evidence/`.
 
 ## 1. Register a project (optional)
@@ -117,7 +117,7 @@ Promote a previous **ready** version again, or follow [Rollback](/guides/rollbac
 **Fast (Vitest, mock API):**
 
 ```bash
-cd web && npm run test
+cd web && pnpm run test
 ```
 
 Covers create-project, preview snapshot copy, promote confirm, and navigation helpers under `web/src/flows/`.
@@ -125,13 +125,13 @@ Covers create-project, preview snapshot copy, promote confirm, and navigation he
 **Browser mock (Playwright):**
 
 ```bash
-cd web && npm run test:e2e
+cd web && pnpm run test:e2e
 ```
 
 **Live cellpd:**
 
 ```bash
-cd web && npm run test:e2e:live
+cd web && pnpm run test:e2e:live
 ```
 
 Uses real `:8790` (not the Playwright mock). Override project id: `CELLP_LIVE_PROJECT=commerce-store`.

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # pi-worker monorepo: hello-agent depends on workspace:pi-worker — build package + wrangler bundle.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -18,7 +24,7 @@ export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
 log "build pi-worker package"
 cd "$PKG_DIR"
 if [[ ! -d node_modules/typescript ]]; then
-  npm install --no-workspaces
+  cellp_pnpm_install --no-workspaces
 fi
 ./node_modules/.bin/tsc -p tsconfig.build.json
 [[ -f dist/index.js ]] || { echo "prepare-artifact: missing packages/pi-worker/dist" >&2; exit 1; }
@@ -39,13 +45,13 @@ j.dependencies = j.dependencies || {};
 j.dependencies['pi-worker'] = 'file:../../packages/pi-worker';
 fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
 NODE
-npm install --no-workspaces
+cellp_pnpm_install --no-workspaces
 
 [[ -f wrangler.jsonc ]] || { echo "prepare-artifact: missing wrangler.jsonc" >&2; exit 1; }
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx wrangler deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec wrangler deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 test -f .cellp-bundle/index.js
 
 node <<'NODE'

@@ -14,16 +14,20 @@ set -a
 source dev/.env
 set +a
 
+# shellcheck disable=SC1091
+source dev/scripts/support-pnpm.sh
+
 need() { command -v "$1" >/dev/null || { echo "MISSING: $1" >&2; exit 1; }; }
 need curl
 need jq
 need docker
 
 echo "==> [1/4] build dashboard SPA (flat dist for artifact fetch)"
+cellp_ensure_pnpm
 (
   cd web
   test -f .env || cp .env.example .env
-  npm run build
+  pnpm run build
 )
 
 echo "==> [2/4] sync dist → ${EXAMPLE}/public/"

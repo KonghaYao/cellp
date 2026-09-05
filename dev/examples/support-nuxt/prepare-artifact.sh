@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Nuxt Nitro cloudflare_module (C3 workers template): nuxi scaffold, bundle worker, slim assets.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -18,8 +24,8 @@ if [[ ! -f "${SCAFFOLD}/package.json" ]]; then
   rm -rf "$SCAFFOLD"
   (
     cd "$APP_DIR"
-    CI=1 npx --yes nuxi@3.25.0 init .cellp-nuxt-app \
-      --packageManager npm \
+    CI=1 pnpm exec --yes nuxi@3.25.0 init .cellp-nuxt-app \
+      --packageManager pnpm \
       --no-install \
       --no-gitInit \
       -f || true
@@ -73,9 +79,9 @@ export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-false}"
 export npm_config_ignore_scripts="${npm_config_ignore_scripts:-false}"
 
 log "install + build"
-npm install
-npm rebuild esbuild 2>/dev/null || true
-npm run build
+cellp_pnpm_install
+pnpm rebuild esbuild 2>/dev/null || true
+pnpm run build
 
 [[ -f .output/server/index.mjs ]] || {
   echo "missing .output/server/index.mjs" >&2
@@ -84,7 +90,7 @@ npm run build
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 fi

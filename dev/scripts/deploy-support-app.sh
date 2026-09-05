@@ -13,8 +13,10 @@ EVIDENCE="${ROOT}/docs/evidence"
 source dev/.env 2>/dev/null || { echo "FAIL: dev/.env"; exit 1; }
 # shellcheck disable=SC1091
 source e2e/scripts/lib.sh
+# shellcheck disable=SC1091
+source dev/scripts/support-pnpm.sh
 
-# npm 源（国内默认 npmmirror；可在 dev/.env 覆盖 NPM_CONFIG_REGISTRY）
+# pnpm / npm 源（国内默认 npmmirror；可在 dev/.env 覆盖 NPM_CONFIG_REGISTRY）
 export NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}"
 export npm_config_registry="${npm_config_registry:-$NPM_CONFIG_REGISTRY}"
 
@@ -30,35 +32,35 @@ lookup() {
   case "$SID" in
     S01) PROJECT=support-relay; REPO_URL=https://github.com/YuriCrystal/relay.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S02) PROJECT=support-nimail; REPO_URL=https://github.com/mskatoni/ni-mail.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
-    S03) PROJECT=support-tempik; REPO_URL=https://github.com/hirotomasato/tempik.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci" ;;
-    S04) PROJECT=support-kukuroo; REPO_URL=https://github.com/saiday/kukuroo.git; WORKDIR_SUB=templates/standalone; BUILD_STEPS="npm install" ;;
-    S05) PROJECT=support-flaremo; REPO_URL=https://github.com/realchendahuang/FlareMo.git; WORKDIR_SUB=.; BUILD_STEPS="corepack enable 2>/dev/null || true; pnpm install --ignore-scripts && pnpm --filter @flaremo/web build" ;;
+    S03) PROJECT=support-tempik; REPO_URL=https://github.com/hirotomasato/tempik.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    S04) PROJECT=support-kukuroo; REPO_URL=https://github.com/saiday/kukuroo.git; WORKDIR_SUB=templates/standalone; BUILD_STEPS="cellp_pnpm_install" ;;
+    S05) PROJECT=support-flaremo; REPO_URL=https://github.com/realchendahuang/FlareMo.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm --filter @flaremo/web build" ;;
     S06) PROJECT=support-memos; REPO_URL=https://github.com/souvenp/memos-worker.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
-    S07) PROJECT=support-monolith; REPO_URL=https://github.com/one-ea/Monolith.git; WORKDIR_SUB=server; BUILD_STEPS="(cd .. && npm ci && npm run build) && rm -rf client-dist node_modules && mkdir -p client-dist node_modules && rsync -a ../client/dist/ client-dist/ && rsync -a --exclude monolith-server --exclude monolith-client ../node_modules/ node_modules/" ;;
+    S07) PROJECT=support-monolith; REPO_URL=https://github.com/one-ea/Monolith.git; WORKDIR_SUB=server; BUILD_STEPS="(cd .. && cellp_pnpm_install && pnpm run build) && rm -rf client-dist node_modules && mkdir -p client-dist node_modules && rsync -a ../client/dist/ client-dist/ && rsync -a --exclude monolith-server --exclude monolith-client ../node_modules/ node_modules/" ;;
     S08) PROJECT=support-edgeever; REPO_URL=https://github.com/tianma-if/edgeever.git; WORKDIR_SUB=.; BUILD_STEPS="bun install && bun run build:web && bun run build:worker" ;;
-    S09) PROJECT=support-sonicjs; REPO_URL=https://github.com/SonicJs-Org/sonicjs.git; WORKDIR_SUB=my-sonicjs-app; BUILD_STEPS="(cd .. && npm install && npm run build:core)" ;;
-    S10) PROJECT=support-nodewarden; REPO_URL=https://github.com/shuaiplus/nodewarden.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
+    S09) PROJECT=support-sonicjs; REPO_URL=https://github.com/SonicJs-Org/sonicjs.git; WORKDIR_SUB=my-sonicjs-app; BUILD_STEPS="(cd .. && cellp_pnpm_install && pnpm run build:core)" ;;
+    S10) PROJECT=support-nodewarden; REPO_URL=https://github.com/shuaiplus/nodewarden.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm run build" ;;
     S11) PROJECT=support-sink; REPO_URL=https://github.com/miantiao-me/Sink.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
-    S12) PROJECT=support-inkstone; REPO_URL=https://github.com/shuaiplus/inkstone.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
-    S13) PROJECT=support-saasmail; REPO_URL=https://github.com/choyiny/saasmail.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
-    S14) PROJECT=support-cfbase; REPO_URL=https://github.com/cloudflarebase/cloudflarebase.git; WORKDIR_SUB=.; BUILD_STEPS="npm ci && npm run build" ;;
-    S15) PROJECT=support-workflows; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=workflows-starter-template; BUILD_STEPS="npm ci && npm run build" ;;
-    S16) PROJECT=support-pastebin; REPO_URL=https://github.com/SharzyL/pastebin-worker.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npm run build:frontend" ;;
-    S17) PROJECT=support-r2filebox; REPO_URL=https://github.com/workHMZ/r2filebox.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
-    S18) PROJECT=support-webhookflare; REPO_URL=https://github.com/fayazara/webhookflare.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
-    S19) PROJECT=support-requestbin; REPO_URL=https://github.com/ghostdevv/request-bin.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
-    S20) PROJECT=support-r2explorer; REPO_URL=https://github.com/G4brym/R2-Explorer.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
-    S21) PROJECT=support-fileworker; REPO_URL=https://github.com/woaiqjj/FileWorker.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
-    S22) PROJECT=support-astro; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=astro-blog-starter-template; BUILD_STEPS="npm install" ;;
+    S12) PROJECT=support-inkstone; REPO_URL=https://github.com/shuaiplus/inkstone.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm run build" ;;
+    S13) PROJECT=support-saasmail; REPO_URL=https://github.com/choyiny/saasmail.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm run build" ;;
+    S14) PROJECT=support-cfbase; REPO_URL=https://github.com/cloudflarebase/cloudflarebase.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm run build" ;;
+    S15) PROJECT=support-workflows; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=workflows-starter-template; BUILD_STEPS="cellp_pnpm_install && pnpm run build" ;;
+    S16) PROJECT=support-pastebin; REPO_URL=https://github.com/SharzyL/pastebin-worker.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm run build:frontend" ;;
+    S17) PROJECT=support-r2filebox; REPO_URL=https://github.com/workHMZ/r2filebox.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    S18) PROJECT=support-webhookflare; REPO_URL=https://github.com/fayazara/webhookflare.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    S19) PROJECT=support-requestbin; REPO_URL=https://github.com/ghostdevv/request-bin.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    S20) PROJECT=support-r2explorer; REPO_URL=https://github.com/G4brym/R2-Explorer.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    S21) PROJECT=support-fileworker; REPO_URL=https://github.com/woaiqjj/FileWorker.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    S22) PROJECT=support-astro; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=astro-blog-starter-template; BUILD_STEPS="cellp_pnpm_install" ;;
     S23) PROJECT=support-sveltekit; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/svelte; BUILD_STEPS= ;;
-    S24) PROJECT=support-remix; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=remix-starter-template; BUILD_STEPS="npm install" ;;
+    S24) PROJECT=support-remix; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=remix-starter-template; BUILD_STEPS="cellp_pnpm_install" ;;
     S25) PROJECT=support-nuxt; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/nuxt; BUILD_STEPS= ;;
     S26) PROJECT=support-hono; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
     S27) PROJECT=support-solidstart; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/solid; BUILD_STEPS= ;;
     S28) PROJECT=support-qwik; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/qwik/workers; BUILD_STEPS= ;;
     S29) PROJECT=support-waku; REPO_URL=https://github.com/cloudflare/workers-sdk.git; WORKDIR_SUB=packages/create-cloudflare/templates/hello-world-with-assets/ts; BUILD_STEPS= ;;
     S30) PROJECT=support-opennext; REPO_URL=https://github.com/cloudflare/templates.git; WORKDIR_SUB=next-starter-template; BUILD_STEPS= ;;
-    S31) PROJECT=support-imgbed; REPO_URL=https://github.com/MarSeventh/CloudFlare-ImgBed.git; WORKDIR_SUB=deploy/worker; BUILD_STEPS="(cd ../.. && npm install)" ;;
+    S31) PROJECT=support-imgbed; REPO_URL=https://github.com/MarSeventh/CloudFlare-ImgBed.git; WORKDIR_SUB=deploy/worker; BUILD_STEPS="(cd ../.. && cellp_pnpm_install)" ;;
     S32) PROJECT=support-status-page; REPO_URL=https://github.com/eidam/cf-workers-status-page.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S33) PROJECT=support-uptimeflare; REPO_URL=https://github.com/lyc8503/UptimeFlare.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S34) PROJECT=support-microfeed; REPO_URL=https://github.com/microfeed/microfeed.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
@@ -68,10 +70,10 @@ lookup() {
     S38) PROJECT=support-counterscale; REPO_URL=https://github.com/jeffysl/counterscale.git; WORKDIR_SUB=packages/server; BUILD_STEPS= ;;
     S39) PROJECT=support-cloudpaste; REPO_URL=https://github.com/ling-drag0n/CloudPaste.git; WORKDIR_SUB=backend; BUILD_STEPS= ;;
     S40) PROJECT=support-next-basic; REPO_URL=https://github.com/vercel/next.js.git; REPO_REF=6685283fe8533a469ee1a9455e2bc4047c7453cb; WORKDIR_SUB=examples/hello-world; BUILD_STEPS= ;;
-    A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
+    A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install && pnpm exec vite build" ;;
     A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
-    A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
-    A04) PROJECT=support-fx-on-workers; REPO_URL=https://github.com/codingstark-dev/fx-on-workers.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
+    A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
+    A04) PROJECT=support-fx-on-workers; REPO_URL=https://github.com/codingstark-dev/fx-on-workers.git; WORKDIR_SUB=.; BUILD_STEPS="cellp_pnpm_install" ;;
     A05) PROJECT=support-mastra; REPO_URL=local; WORKDIR_SUB=.; BUILD_STEPS="" ;;
     *) echo "Unknown ${SID}"; exit 1 ;;
   esac
@@ -165,9 +167,10 @@ cd "$APP_DIR"
 
 if [[ -n "$BUILD_STEPS" && "${SUPPORT_SKIP_BUILD:-}" != "1" ]]; then
   log "build: ${BUILD_STEPS}"
+  cellp_ensure_pnpm
   export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
   export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
-  bash -lc "$BUILD_STEPS" || { echo "FAIL: build (${SID})"; exit 1; }
+  bash -lc "source '${ROOT}/dev/scripts/support-pnpm.sh'; ${BUILD_STEPS}" || { echo "FAIL: build (${SID})"; exit 1; }
 fi
 
 CELLP_WRANGLER_OVERLAY="${ROOT}/dev/examples/${PROJECT}/wrangler.cellp.jsonc"

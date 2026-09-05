@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Sink (Nuxt / Nitro cloudflare-module): pnpm build + wrangler dry-run slim bundle for celld.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -61,7 +67,7 @@ NODE
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 fi

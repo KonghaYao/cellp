@@ -2,6 +2,12 @@
 # Mastra: mastra build → wrangler dry-run bundle → celld (single .cellp-bundle).
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
+
 APP_DIR="${1:?app dir}"
 OVERLAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APP_DIR"
@@ -12,12 +18,12 @@ export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
 
 if [[ ! -d node_modules ]]; then
-  log "npm install"
-  npm install --legacy-peer-deps
+  log "cellp_pnpm_install"
+  cellp_pnpm_install --legacy-peer-deps
 fi
 
 log "mastra build (CloudflareDeployer → .mastra/output)"
-npm run build
+pnpm run build
 
 [[ -f .mastra/output/index.mjs ]] || { echo "missing .mastra/output/index.mjs" >&2; exit 1; }
 
@@ -28,7 +34,7 @@ log "wrangler dry-run bundle (~18MiB; gzip ~3.5MiB)"
 rm -rf .cellp-bundle
 (
   cd .mastra/output
-  npx wrangler deploy --config wrangler.cellp.json --dry-run --outdir "${APP_DIR}/.cellp-bundle"
+  pnpm exec wrangler deploy --config wrangler.cellp.json --dry-run --outdir "${APP_DIR}/.cellp-bundle"
 )
 test -f .cellp-bundle/index.js
 

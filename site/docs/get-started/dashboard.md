@@ -6,7 +6,7 @@ The Dashboard is a Vite SPA (`web/`). It is an operator console for **projects, 
 
 ```bash
 ./dev/scripts/up.sh          # API must be up
-cd web && npm install && npm run dev
+pnpm install && pnpm --filter cellp-dashboard dev
 ```
 
 Open `http://127.0.0.1:5190`. Point it at your API with `VITE_CELLP_*` (see `web/.env.example`). Auth is the **admin token**.

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # CloudPaste unified SPA (backend/wrangler.spa.toml): API Worker + frontend/dist as ASSETS.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -24,8 +30,8 @@ if [[ ! -f "${FRONTEND_DIST}/index.html" ]]; then
   log "build frontend (vite)"
   (
     cd "${REPO_ROOT}/frontend"
-    npm install
-    npm run build
+    cellp_pnpm_install
+    pnpm run build
   )
 fi
 [[ -f "${FRONTEND_DIST}/index.html" ]] || {
@@ -38,14 +44,14 @@ if [[ ! -f wrangler.jsonc ]]; then
   exit 1
 fi
 
-log "backend npm install"
-npm install
+log "backend cellp_pnpm_install"
+cellp_pnpm_install
 
 mkdir -p .cellp-assets
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 elif [[ -f .cellp-bundle/unified-entry.js && ! -f .cellp-bundle/index.js ]]; then

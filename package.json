@@ -1,0 +1,18 @@
+{
+  "name": "cellp",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "install:all": "pnpm install",
+    "dev:web": "pnpm --filter cellp-dashboard dev",
+    "build:web": "pnpm --filter cellp-dashboard build",
+    "test:web": "pnpm --filter cellp-dashboard test",
+    "docs:dev": "pnpm --filter cellp-docs docs:dev",
+    "docs:build": "pnpm --filter cellp-docs docs:build"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

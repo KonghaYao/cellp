@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Hono cloudflare-workers (create-hono): slim wrangler bundle + public assets.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -20,7 +26,7 @@ if [[ ! -f "${SCAFFOLD}/package.json" ]]; then
   mkdir -p "$SCAFFOLD"
   (
     cd "$SCAFFOLD"
-    npx --yes create-hono@0.19.4 . \
+    pnpm exec --yes create-hono@0.19.4 . \
       --template cloudflare-workers \
       --install \
       --pm npm
@@ -82,7 +88,7 @@ delete j.no_bundle;
 fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
 NODE
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 fi

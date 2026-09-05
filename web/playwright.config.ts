@@ -31,7 +31,7 @@ export default defineConfig({
       },
     },
     {
-      command: "VITE_BASE=/ npm run build && npm run preview",
+      command: "VITE_BASE=/ pnpm run build && pnpm run preview",
       url: `http://127.0.0.1:${PREVIEW_PORT}`,
       reuseExistingServer: true,
       env: {

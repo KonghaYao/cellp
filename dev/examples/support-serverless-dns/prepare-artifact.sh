@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # serverless-dns: webpack dist/worker.js (ESM) → wrangler dry-run slim bundle for celld.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -61,11 +67,11 @@ if (s.includes('120000; // 120s (cellp overlay)')) {
 }
 NODE
 
-log "npm install"
-npm install --ignore-scripts
+log "cellp_pnpm_install"
+cellp_pnpm_install --ignore-scripts
 
 log "webpack build → dist/worker.js"
-npm run build
+pnpm run build
 
 [[ -f dist/worker.js ]] || {
   echo "prepare-artifact: missing dist/worker.js" >&2
@@ -74,7 +80,7 @@ npm run build
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/worker.js .cellp-bundle/index.js
 fi

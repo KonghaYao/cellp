@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Pre-bundle worker with wrangler; celld deploy OOM on full esbuild in low-memory dev.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 APP_DIR="${1:?app dir}"
 cd "$APP_DIR"
 if [[ ! -f wrangler.jsonc ]]; then
@@ -8,7 +14,7 @@ if [[ ! -f wrangler.jsonc ]]; then
   exit 1
 fi
 rm -rf .cellp-bundle
-npx --yes wrangler deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 test -f .cellp-bundle/index.js
 node <<'NODE'
 const fs = require('fs');

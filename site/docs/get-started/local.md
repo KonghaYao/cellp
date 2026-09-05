@@ -26,7 +26,7 @@ Copying `.env` is required. Do not hand-edit files under `dev/data/`; use `./dev
 | **8787** | Gateway (preview + prod HTTP) |
 | **8790** | REST API + Prometheus `/metrics` |
 | **8792+** | celld — one process per ready version, ports increment |
-| **5190** | Dashboard Vite dev server (`cd web && npm run dev`) |
+| **5190** | Dashboard Vite dev server (`cd web && pnpm run dev`) |
 | **9000 / 19000** | RustFS S3 (see `dev/.env.example`) |
 | **9001** | RustFS console |
 
@@ -77,7 +77,7 @@ Production-shaped offshoot-on-RustFS is a separate gate (`v0b`). For product usa
 ./dev/scripts/up.sh
 
 # terminal 2
-cd web && npm install && npm run dev
+pnpm install && pnpm --filter cellp-dashboard dev
 # http://127.0.0.1:5190
 ```
 

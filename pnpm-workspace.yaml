@@ -1,0 +1,9 @@
+packages:
+  - web
+  - site
+  - dev/examples/counter
+  - dev/examples/d1-seed
+  - dev/examples/commerce
+
+onlyBuiltDependencies:
+  - esbuild

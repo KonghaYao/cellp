@@ -13,8 +13,8 @@
 | 前端 API | `fetch('/api/…')` | 需 `apiUrl()` 或 `<base>` / 构建时 `BASE_URL`（**E 类**） |
 | wrangler | `observability`、`routes`、`preview_urls`、`email`… | overlay 或 `strip_wrangler_for_celld`（**C 类**） |
 | GitHub | 直连 | `GITHUB_CLONE_MIRROR=https://ghfast.top/https://github.com/` |
-| npm | postinstall workerd | `NPM_CONFIG_IGNORE_SCRIPTS=true` |
-| 依赖 | 不含 node_modules | 有 `npm install` 时 artifact **含 node_modules** |
+| pnpm | postinstall **workerd** 占盘 | `NPM_CONFIG_IGNORE_SCRIPTS=true` + **`cellp_pnpm_install`**（`dev/scripts/support-pnpm.sh`）；勿在 corpus 里散落 `npm install` |
+| 依赖 | 不含 node_modules | 构建后 artifact **含 node_modules**（pnpm 全局 store 去重；清理：`./dev/scripts/clean-support-node-modules.sh`） |
 | **RustFS 上传** | `sync_artifact_to_rustfs`（`lib.sh`） | `artifact_uri` 为 `s3://` 时 orch 从 RustFS 拉取；**仅写本地目录不够** |
 | D1 | `wrangler d1 execute` | `seed.db` 放入 artifact 目录 |
 
@@ -86,7 +86,7 @@ cellp **不是**「Worker 占一个固定端口」。浏览器只认 **Gateway**
 
 | 改造 | 文件 | 说明 |
 |------|------|------|
-| Monorepo 构建 | `seed-support-r2filebox-demo.sh` | `frontend`: `npm install && npm run build`；根目录 `npm install`（`NPM_CONFIG_IGNORE_SCRIPTS=true`） |
+| Monorepo 构建 | `seed-support-r2filebox-demo.sh` | `frontend`: `cellp_pnpm_install && pnpm run build`；根目录 `cellp_pnpm_install`（`NPM_CONFIG_IGNORE_SCRIPTS=true`） |
 | wrangler overlay | `dev/examples/support-r2filebox/wrangler.cellp.jsonc` | 去掉 CF `ratelimits` / `analytics_engine` / `observability` / `version_metadata` |
 | **禁止** `run_worker_first` 含 `/*` | 同上 | cellp `stripJSONC` 误删 `"/api/*"` 后整文件 → **parse wrangler: unexpected end**（**cellp bug**，待修） |
 | 去掉 `triggers.crons` | overlay | 非 prod 时走 cron strip 拷贝；也可直接不写 cron |
@@ -111,7 +111,7 @@ cellp **不是**「Worker 占一个固定端口」。浏览器只认 **Gateway**
 | 改造 | 说明 |
 |------|------|
 | overlay | `dev/examples/support-pastebin/wrangler.cellp.jsonc`（KV/R2/ASSETS、`DEPLOY_URL` 占位） |
-| build | `npm install && npm run build:frontend`（勿删 corpus 内 `wrangler.toml`，overlay 在 stage 前执行） |
+| build | `cellp_pnpm_install && pnpm run build:frontend`（勿删 corpus 内 `wrangler.toml`，overlay 在 stage 前执行） |
 | DEPLOY_URL | 注入时用 `\u002f` 转义，避免 cellp `stripJSONC` 把 `http://` 当注释 |
 | vars | celld 要求 **字符串**（如 `"7200"` 非数字） |
 
@@ -128,7 +128,7 @@ cellp **不是**「Worker 占一个固定端口」。浏览器只认 **Gateway**
 
 | 改造 | 文件/脚本 | 说明 |
 |------|-----------|------|
-| pnpm monorepo | `deploy-support-app.sh` | `pnpm install --ignore-scripts` + `@flaremo/web` build（勿 `npm ci`） |
+| pnpm monorepo | `deploy-support-app.sh` | `cellp_pnpm_install` + `@flaremo/web` build |
 | wrangler bundle | `prepare-artifact.sh` | `wrangler deploy --dry-run --outdir .cellp-bundle` → `main` + `no_bundle: true` |
 | overlay | `wrangler.cellp.jsonc` | D1/R2/assets；去掉 Vectorize/AI；`FLAREMO_EMBEDDING_PROVIDER=none` |
 | **禁止** `run_worker_first` 含 `/*` | overlay | cellp `stripJSONC` 会把 `"/api/*"` 当块注释 → **parse wrangler: unexpected end** |

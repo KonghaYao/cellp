@@ -2,6 +2,12 @@
 # UptimeFlare status page: @cloudflare/next-on-pages → dist/_worker.js + static assets (single Worker slim path).
 # Monitoring cron worker + DO remain upstream-only; cellp validates the Pages/Next bundle only.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -15,10 +21,10 @@ export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-false}"
 export npm_config_ignore_scripts="${npm_config_ignore_scripts:-false}"
 
 if [[ ! -f .vercel/output/static/_worker.js/index.js ]]; then
-  log "npm install"
-  npm install
+  log "cellp_pnpm_install"
+  cellp_pnpm_install
   log "@cloudflare/next-on-pages build"
-  npx @cloudflare/next-on-pages
+  pnpm exec @cloudflare/next-on-pages
 fi
 
 [[ -f .vercel/output/static/_worker.js/index.js ]] || {

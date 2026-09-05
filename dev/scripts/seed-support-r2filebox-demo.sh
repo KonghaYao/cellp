@@ -9,6 +9,8 @@ cd "$ROOT"
 source dev/.env
 # shellcheck disable=SC1091
 source e2e/scripts/lib.sh
+# shellcheck disable=SC1091
+source dev/scripts/support-pnpm.sh
 
 PROJECT=support-r2filebox
 SID=S17
@@ -38,9 +40,9 @@ bash "${OVERLAY}/patch-download.sh" "${CORPUS}"
 
 echo "==> build frontend (may take 1–3 min)"
 if [[ "${SUPPORT_SKIP_BUILD:-}" != "1" ]]; then
-  (cd "${CORPUS}/frontend" && npm install --no-audit --no-fund @noble/hashes@^1.7.1 && npm install --no-audit --no-fund && npm run build)
+  (cd "${CORPUS}/frontend" && cellp_ensure_pnpm && pnpm add @noble/hashes@^1.7.1 && cellp_pnpm_install && pnpm run build)
   echo "==> root deps (wrangler/hono for bundle)"
-  (cd "${CORPUS}" && npm install --no-audit --no-fund)
+  (cd "${CORPUS}" && cellp_pnpm_install)
 else
   echo "SKIP build (SUPPORT_SKIP_BUILD=1)"
 fi

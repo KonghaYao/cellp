@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Install template consumer app + pre-bundle worker for celld.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 APP_DIR="${1:?app dir}"
 cd "$APP_DIR"
 export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
-( cd template && npm install )
+( cd template && cellp_pnpm_install )
 if [[ ! -f wrangler.jsonc ]]; then
   echo "prepare-artifact: missing wrangler.jsonc" >&2
   exit 1
@@ -15,7 +21,7 @@ if [[ ! -d template/node_modules/r2-explorer/dashboard ]]; then
   exit 1
 fi
 rm -rf .cellp-bundle
-npx --yes wrangler deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 test -f .cellp-bundle/index.js
 rm -rf .cellp-assets
 mkdir -p .cellp-assets

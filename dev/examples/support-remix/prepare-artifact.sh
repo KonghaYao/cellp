@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Remix @remix-run/cloudflare (templates/remix-starter-template): wrangler bundle + slim assets.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -13,7 +19,7 @@ export npm_config_ignore_scripts="${npm_config_ignore_scripts:-true}"
 
 if [[ ! -f build/server/index.js ]]; then
   log "remix build"
-  npm run build
+  pnpm run build
 fi
 [[ -f build/server/index.js ]] || { echo "missing build/server/index.js" >&2; exit 1; }
 
@@ -25,7 +31,7 @@ rsync -a \
   build/client/ .cellp-assets/
 
 log "wrangler dry-run bundle"
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 fi

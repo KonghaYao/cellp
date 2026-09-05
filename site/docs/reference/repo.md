@@ -40,7 +40,7 @@ Start on this site. Deep links into GitHub when you need a file:
 ```bash
 cd site
 npm install
-npm run docs:dev
+pnpm run docs:dev
 ```
 
 Production URL: `https://konghayao.github.io/cellp/` (GitHub Pages).

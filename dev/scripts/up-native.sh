@@ -31,6 +31,8 @@ set -a
 # shellcheck disable=SC1091
 source dev/.env
 set +a
+# shellcheck disable=SC1091
+source dev/scripts/support-pnpm.sh
 
 mkdir -p dev/data/{artifacts,offshoot-store,offshoot-checkouts,celld-watch,pids,logs}
 
@@ -196,7 +198,7 @@ done
 if optional celld; then
   if [[ -d dev/examples/counter ]] && [[ ! -x dev/examples/counter/node_modules/.bin/esbuild ]]; then
     echo "==> install counter esbuild (celld deploy dependency)"
-    (cd dev/examples/counter && npm install --silent) || echo "WARN: npm install esbuild failed" >&2
+    (cd dev/examples/counter && cellp_ensure_pnpm 2>/dev/null && pnpm install --silent) || echo "WARN: pnpm install esbuild failed" >&2
   fi
   if [[ ! -f dev/data/pids/celld.pid ]] || ! kill -0 "$(cat dev/data/pids/celld.pid)" 2>/dev/null; then
     echo "==> celld deploy example"

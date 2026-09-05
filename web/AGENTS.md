@@ -14,8 +14,8 @@
 # 终端 1：后端栈
 ./dev/scripts/up.sh && ./dev/scripts/health.sh
 
-# 终端 2：Dashboard
-cd web && npm install && npm run dev
+# 终端 2：Dashboard（依赖在仓库根 `pnpm install`）
+pnpm --filter cellp-dashboard dev
 # http://127.0.0.1:5190
 ```
 
@@ -25,11 +25,11 @@ API 默认 `http://127.0.0.1:8790`（见 `web/src/lib/cellp-api.ts`）。
 ## 改代码后验证
 
 ```bash
-cd web && npm run lint
-cd web && npm run test          # Vitest 用户心流 + 巡检（mock API，快）
-cd web && npm run test:e2e    # Playwright smoke（TP-UI-5，mock API）
-cd web && npm run test:e2e:live  # TP-UI-14：真 cellpd :8790（需 ./dev/scripts/up.sh）
-cd web && npm run build       # 产物 web/dist/
+cd web && pnpm run lint
+cd web && pnpm run test
+cd web && pnpm run test:e2e
+cd web && pnpm run test:e2e:live
+cd web && pnpm run build
 ```
 
 ## 架构约束

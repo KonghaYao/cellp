@@ -55,7 +55,12 @@ Gateway **:8787** 按 **Host** 选 version。`*.lvh.me` → `127.0.0.1`。`./dev
 ## 前置
 
 - Docker（仅 RustFS compose；Gateway/API 跑在宿主机）
-- Node 20+
+- Node 20+ · **pnpm**（`corepack enable`；在**仓库根**执行一次安装）
+
+```bash
+corepack enable
+pnpm install   # web / site / dev/examples/*
+```
 - `celld` — 本仓库 submodule [`celld/`](https://github.com/KonghaYao/celld)（`git submodule update --init` 后 `cargo build -p celld --profile lab`）
 - `esbuild` — `npm i -g esbuild`
 - `offshoot` — `go install github.com/sricola/offshoot/cmd/offshoot@latest`
@@ -77,6 +82,8 @@ Gateway **:8787** 按 **Host** 选 version。`*.lvh.me` → `127.0.0.1`。`./dev
 | `ingress-repromote-support.sh` | 换 base 后重绑 support 项目 prod Host |
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
+| `deploy-support-app.sh` | 拉取 Support corpus 并用 **pnpm** 构建（`cellp_pnpm_install`） |
+| `clean-support-node-modules.sh` | 删除 corpus/examples 下全部 `node_modules`（释放重复 **workerd** 占用） |
 
 ## Registry GC（Phase 6A-T3）
 

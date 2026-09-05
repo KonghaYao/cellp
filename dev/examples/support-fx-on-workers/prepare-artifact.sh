@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # fx-on-workers: wrangler bundle (wasm) → celld esbuild re-bundle (no no_bundle; celld no_bundle drops wasm).
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -49,7 +55,7 @@ NODE
 
 log "wrangler dry-run bundle (~2.2 MiB gzip)"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 test -f .cellp-bundle/index.js
 
 node <<'NODE'

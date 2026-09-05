@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Vite+Workflow template: patch worker for ASSETS, bundle, stage client for celld.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 APP_DIR="${1:?app dir}"
 cd "$APP_DIR"
 
@@ -31,8 +37,8 @@ if (!src.includes('ASSETS?: { fetch')) {
 }
 NODE
 
-npm ci
-npm run build
+cellp_pnpm_install
+pnpm run build
 [[ -f dist/support_workflows/index.js ]] || { echo "missing dist/support_workflows/index.js" >&2; exit 1; }
 [[ -f dist/client/index.html ]] || { echo "missing dist/client" >&2; exit 1; }
 

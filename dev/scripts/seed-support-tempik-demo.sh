@@ -9,6 +9,8 @@ cd "$ROOT"
 source dev/.env
 # shellcheck disable=SC1091
 source e2e/scripts/lib.sh
+# shellcheck disable=SC1091
+source dev/scripts/support-pnpm.sh
 
 PROJECT=support-tempik
 CORPUS="${ROOT}/dev/support-corpus/support-tempik"
@@ -46,9 +48,9 @@ if [[ -d "${CORPUS}/node_modules" ]]; then
   rsync -a --exclude .git "${CORPUS}/" "$DEST/"
 else
   rsync -a --exclude .git --exclude node_modules "${CORPUS}/" "$DEST/"
-  log "npm ci"
+  log "pnpm install"
   export NPM_CONFIG_IGNORE_SCRIPTS=true
-  (cd "$DEST" && npm ci)
+  (cd "$DEST" && cellp_ensure_pnpm && cellp_pnpm_install)
 fi
 
 log "seed.db"

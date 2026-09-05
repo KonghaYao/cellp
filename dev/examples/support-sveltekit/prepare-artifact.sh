@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # SvelteKit adapter-cloudflare (C3 workers template): scaffold via sv CLI, bundle worker, slim assets.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 export SUPPORT_RSYNC_NO_NODE=1
 
 APP_DIR="${1:?app dir}"
@@ -16,12 +22,12 @@ mkdir -p "$APP_DIR"
 if [[ ! -f "${SCAFFOLD}/package.json" ]]; then
   log "scaffold minimal SvelteKit + adapter-cloudflare (workers)"
   rm -rf "$SCAFFOLD"
-  npx --yes sv@0.17.0 create "$SCAFFOLD" \
+  pnpm exec --yes sv@0.17.0 create "$SCAFFOLD" \
     --template minimal \
     --types ts \
     --add sveltekit-adapter=adapter:cloudflare+cfTarget:workers \
     --no-download-check \
-    --install npm \
+    --install pnpm \
     --no-dir-check
 fi
 
@@ -55,8 +61,8 @@ fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
 NODE
 
 log "gen + build"
-npm run gen
-npm run build
+pnpm run gen
+pnpm run build
 
 WORKER_ENTRY=".svelte-kit/cloudflare/_worker.js"
 if [[ ! -f "$WORKER_ENTRY" ]]; then
@@ -112,7 +118,7 @@ NODE
 
 log "wrangler dry-run bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
+pnpm exec --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir .cellp-bundle
 if [[ -f .cellp-bundle/_worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/_worker.js .cellp-bundle/index.js
 fi

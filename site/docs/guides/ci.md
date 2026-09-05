@@ -39,7 +39,7 @@ A full workflow lives in the repo: [`dev/examples/ci-pr-preview.example.yml`](ht
 Sketch:
 
 ```yaml
-# build job: npm ci && npm run build, aws s3 cp bundle to
+# build job: pnpm install --frozen-lockfile && pnpm run build, aws s3 cp bundle to
 # s3://cellp-artifacts/$PROJECT/$VERSION/
 
 # preview job:

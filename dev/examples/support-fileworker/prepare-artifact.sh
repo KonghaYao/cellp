@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # FileWorker is Cloudflare Pages (functions/ + dist). Bundle for celld via wrangler pages functions build.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 APP_DIR="${1:?app dir}"
 cd "$APP_DIR"
@@ -19,11 +25,11 @@ fi
 log() { echo "prepare-artifact: $*"; }
 
 log "vue build"
-npm run build-only
+pnpm run build-only
 
 log "pages functions → worker bundle"
 rm -rf .cellp-bundle
-npx --yes wrangler@4 pages functions build functions \
+pnpm exec --yes wrangler@4 pages functions build functions \
   --outdir .cellp-bundle \
   --build-output-directory dist \
   --compatibility-date 2024-03-14 \

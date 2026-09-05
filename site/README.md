@@ -4,9 +4,9 @@ VitePress source for **https://konghayao.github.io/cellp/**
 
 ```bash
 cd site
-npm install          # .npmrc → https://registry.npmmirror.com
-npm run docs:dev      # http://localhost:5173/cellp/
-npm run docs:build
+pnpm install          # 根目录 .npmrc → https://registry.npmmirror.com
+pnpm run docs:dev      # http://localhost:5173/cellp/
+pnpm run docs:build
 ```
 
 GitHub Actions (`.github/workflows/docs.yml`) builds and publishes on push to `main`.

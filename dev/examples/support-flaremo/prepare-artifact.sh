@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Bundle worker with wrangler; avoid shipping pnpm node_modules (symlinks break in celld).
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${ROOT}/dev/scripts/support-pnpm.sh"
+cellp_ensure_pnpm
+export NPM_CONFIG_IGNORE_SCRIPTS="${NPM_CONFIG_IGNORE_SCRIPTS:-true}"
 APP_DIR="${1:?app dir}"
 cd "$APP_DIR"
 OVERLAY="$(cd "$(dirname "$0")" && pwd)"

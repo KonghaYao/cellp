@@ -211,7 +211,7 @@
 
 ### [x] TP-UI-5 — Playwright smoke
 
-| 命令 | `cd web && npm run test:e2e` |
+| 命令 | `cd web && pnpm run test:e2e` |
 | 通过 | exit 0 |
 
 ### [x] TP-UI-6 — 无直连运行时
@@ -223,7 +223,7 @@
 
 | 检查 | `/projects/{id}/storage` 可见 d1 / kv / queue / workflow / r2 / cron |
 | 对齐 | [phase-7-t4-dashboard.md](./plans/phase-7-t4-dashboard.md) Playwright |
-| 通过 | `storage-bindings.spec.ts` · `cd web && CI=1 npm run test:e2e`（2026-08-30） |
+| 通过 | `storage-bindings.spec.ts` · `cd web && CI=1 pnpm --filter cellp-dashboard test:e2e`（2026-08-30） |
 
 ### [x] TP-UI-8 — KV browser
 
@@ -383,21 +383,21 @@
 ### [x] TP-UI-15 — Dashboard 监控与巡检
 
 | 检查 | 项目 **Inspect** 页；Version **Runtime inspection**；Deployments fleet 摘要；Platform 项目过滤 + Gateway 5xx 指标 |
-| 命令 | `cd web && npm run test`（`inspection.test.ts` · `project-inspect.flow.test.tsx`） |
+| 命令 | `cd web && pnpm run test`（`inspection.test.ts` · `project-inspect.flow.test.tsx`） |
 | 文档 | [dashboard.md](../site/docs/get-started/dashboard.md) · operator-journey §4 Walk |
 | 通过 | Vitest 17/17 · **2026-08-31** |
 
 ### [x] TP-UI-14 — 用户行为闭环（Dashboard 真栈 + 创建项目）
 
-| 检查 | mock：`create-project.spec.ts`；**Vitest**：`src/flows/*.flow.test.ts`（含 `operator-checklist.flow.test.tsx`）；文档 **Operator checklist**；门禁 `web/scripts/verify-user-loop.sh`；真栈：`npm run test:e2e:live` |
-| 命令 | `cd web && npm run test` · `web/scripts/verify-user-loop.sh` · `./dev/scripts/up.sh` 后 `cd web && npm run test:e2e:live` |
+| 检查 | mock：`create-project.spec.ts`；**Vitest**：`src/flows/*.flow.test.ts`（含 `operator-checklist.flow.test.tsx`）；文档 **Operator checklist**；门禁 `web/scripts/verify-user-loop.sh`；真栈：`pnpm run test:e2e:live` |
+| 命令 | `cd web && pnpm run test` · `web/scripts/verify-user-loop.sh` · `./dev/scripts/up.sh` 后 `cd web && pnpm run test:e2e:live` |
 | 文档 | [operator-journey.md](../site/docs/get-started/operator-journey.md#operator-checklist) · [user-behavior-closed-loop.md](./plans/user-behavior-closed-loop.md) |
 | 通过 | mock + Vitest 绿 + checklist/Overview 引导交付；live 栈未起可 skip · **2026-08-31** |
 
 ### [x] TP-UI-13 — Settings Worker env
 
 | 检查 | `/projects/:id/settings` 可编辑生产 version env；Save 走 `PUT …/env` |
-| 命令 | `cd web && CI=1 npm run test:e2e` |
+| 命令 | `cd web && CI=1 pnpm --filter cellp-dashboard test:e2e` |
 | 通过 | `dashboard.spec.ts`「settings edits worker env」· 2026-08-30 |
 
 ### TP-VE-1（路径修订，非新 ID）
