@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cellp/cellp/internal/gateway/activator"
 	"github.com/cellp/cellp/internal/metrics"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/go-chi/chi/v5"
@@ -21,6 +22,7 @@ type Gateway struct {
 	store       registry.Store
 	cache       *RouteCache
 	snapshots   *RouteSnapshotHolder
+	activator   *activator.Activator
 	router      chi.Router
 	cfg         GatewayConfig
 	lastTouchMu sync.Mutex
@@ -129,6 +131,10 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 	projectID, versionID, ok := g.versionForBinding(r.Context(), binding)
 	if !ok {
 		http.Error(w, "ingress_unknown", http.StatusNotFound)
+		return
+	}
+
+	if g.tryColdActivator(w, r, projectID, versionID) {
 		return
 	}
 
