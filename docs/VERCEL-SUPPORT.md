@@ -1,6 +1,6 @@
 # Vercel open source on cellp
 
-> **Status:** secondary track (after Cloudflare Workers + Agent Cloud) · **Updated:** 2026-09-02  
+> **Status:** secondary track (after Cloudflare Workers + Agent Cloud) · **Updated:** 2026-09-05
 > **Plan:** [VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md) · **Agents:** [AGENT-SUPPORT.md](./AGENT-SUPPORT.md) (fx on Workers)
 
 cellp is **not** Vercel. This catalog tracks **Vercel Labs / Vercel OSS** when the **deploy artifact** can be a **wrangler bundle** on **celld**, or when we only study architecture for a future bridge.
@@ -13,7 +13,7 @@ cellp is **not** Vercel. This catalog tracks **Vercel Labs / Vercel OSS** when t
 
 | Project | URL | Role | On cellp |
 |---------|-----|------|----------|
-| **Next.js** | [vercel/next.js](https://github.com/vercel/next.js) | React framework | **❌** Not a hosted Next platform · **⚠️** pre-built OpenNext → single Worker ([NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)) |
+| **Next.js** | [vercel/next.js](https://github.com/vercel/next.js) | React framework | **❌** Not a hosted Next platform · **⚠️** pre-built OpenNext → single Worker; fixed S30/S40 artifacts passed lab gates, including S40 dynamic App Router SSR and a Route Handler ([NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md)) |
 | **AI SDK** | [vercel/ai](https://github.com/vercel/ai) | TypeScript AI toolkit (`ai`, `@ai-sdk/*`) | **⚠️** Runs **inside** your Worker bundle if you wire providers; no Vercel account required · provider keys are yours |
 | **Workflow SDK** | [vercel/workflow](https://github.com/vercel/workflow) | Durable steps / hooks (Workflow DevKit) | **🔜** Vercel-managed runtime ≠ cellp · compare to **CF Workflows** on celld (**Partial**) · see [workflow-examples](https://github.com/vercel/workflow-examples) |
 | **Vercel Workflows (product)** | [docs](https://vercel.com/docs/workflows) | Managed durable platform | **❌** Not self-hosted on cellp |

@@ -20,6 +20,7 @@ export npm_config_registry="${npm_config_registry:-$NPM_CONFIG_REGISTRY}"
 
 SID="${1:?S-id or A-id e.g. S01 or A01}"
 LOG="${EVIDENCE}/support-${SID}.log"
+REPO_REF=
 mkdir -p "$EVIDENCE" "$CORPUS"
 
 exec > >(tee -a "$LOG") 2>&1
@@ -66,6 +67,7 @@ lookup() {
     S37) PROJECT=support-serverless-dns; REPO_URL=https://github.com/serverless-dns/serverless-dns.git; WORKDIR_SUB=.; BUILD_STEPS= ;;
     S38) PROJECT=support-counterscale; REPO_URL=https://github.com/jeffysl/counterscale.git; WORKDIR_SUB=packages/server; BUILD_STEPS= ;;
     S39) PROJECT=support-cloudpaste; REPO_URL=https://github.com/ling-drag0n/CloudPaste.git; WORKDIR_SUB=backend; BUILD_STEPS= ;;
+    S40) PROJECT=support-next-basic; REPO_URL=https://github.com/vercel/next.js.git; REPO_REF=6685283fe8533a469ee1a9455e2bc4047c7453cb; WORKDIR_SUB=examples/hello-world; BUILD_STEPS= ;;
     A01) PROJECT=support-agents-starter; REPO_URL=https://github.com/cloudflare/agents-starter.git; WORKDIR_SUB=.; BUILD_STEPS="npm install && npx vite build" ;;
     A02) PROJECT=support-pi-worker; REPO_URL=https://github.com/qaml-ai/pi-worker.git; WORKDIR_SUB=examples/hello-agent; BUILD_STEPS= ;;
     A03) PROJECT=support-opencode-do; REPO_URL=https://github.com/southpolesteve/opencode-do.git; WORKDIR_SUB=.; BUILD_STEPS="npm install" ;;
@@ -132,13 +134,28 @@ else
   if [[ -d "${CLONE_DIR}/.git" ]]; then
     if [[ "${SUPPORT_SKIP_GIT_FETCH:-}" == "1" ]]; then
       log "skip git fetch (SUPPORT_SKIP_GIT_FETCH=1, use existing corpus)"
+    elif [[ -n "$REPO_REF" ]]; then
+      git -C "$CLONE_DIR" fetch --depth 1 origin "$REPO_REF"
     else
       git -C "$CLONE_DIR" fetch --depth 1 origin 2>/dev/null || true
       git -C "$CLONE_DIR" pull --ff-only 2>/dev/null || true
     fi
   else
     rm -rf "$CLONE_DIR"
-    GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$CLONE_URL" "$CLONE_DIR"
+    if [[ -n "$REPO_REF" ]]; then
+      GIT_TERMINAL_PROMPT=0 git clone --filter=blob:none --no-checkout --depth 1 "$CLONE_URL" "$CLONE_DIR"
+      git -C "$CLONE_DIR" fetch --depth 1 origin "$REPO_REF"
+    else
+      GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$CLONE_URL" "$CLONE_DIR"
+    fi
+  fi
+  if [[ -n "$REPO_REF" ]]; then
+    if [[ "${SUPPORT_SKIP_GIT_FETCH:-}" == "1" ]] && ! git -C "$CLONE_DIR" cat-file -e "${REPO_REF}^{commit}" 2>/dev/null; then
+      echo "FAIL: pinned ref ${REPO_REF} is absent while SUPPORT_SKIP_GIT_FETCH=1"
+      exit 1
+    fi
+    log "checkout pinned ref ${REPO_REF}"
+    git -C "$CLONE_DIR" checkout --detach --force "$REPO_REF"
   fi
 fi
 
@@ -484,6 +501,15 @@ if [[ "${INGRESS_HOST_ONLY:-1}" != "0" ]]; then
 else
   CODE=$(http_code "$PREVIEW")
   log "smoke GET ${PREVIEW} → HTTP ${CODE}"
+fi
+
+PREVIEW_SMOKE="${ROOT}/dev/examples/${PROJECT}/smoke-preview.sh"
+if [[ -f "$PREVIEW_SMOKE" ]]; then
+  log "preview gate: ${PREVIEW_SMOKE}"
+  if ! bash "$PREVIEW_SMOKE" "$PROJECT" "$VERSION"; then
+    log "FAIL: preview gate failed; refusing to promote ${PROJECT}/${VERSION}"
+    exit 1
+  fi
 fi
 
 if ! promote_out="$(curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${VERSION}/promote" \

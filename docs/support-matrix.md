@@ -65,7 +65,7 @@
 | S24 | **Remix** | **支持** | http://support-remix.lvh.me:8787/ | `@remix-run/cloudflare` · `dev/examples/support-remix/`（wrangler bundle + `.cellp-assets`，剔除 `.assetsignore`） |
 | S25 | **Nuxt** | **支持** | http://support-nuxt.lvh.me:8787/ | Nitro `cloudflare_module` · `dev/examples/support-nuxt/`；prod 验收 2026-09-03（v1，含 `/_nuxt/builds/latest.json`）· celld `node:timers` |
 
-## README 框架扩展（S26–S30）
+## README 框架扩展（S26–S30 · S40 实验）
 
 | ID | 框架 | **支持？** | 验证 URL | 备注 |
 |----|------|:--------:|----------|------|
@@ -73,7 +73,8 @@
 | S27 | **SolidStart** | **支持** | http://support-solidstart.lvh.me:8787/ | 非交互 `create-solid` + C3 overlay · **v3** · `nodejs_compat` + `nodejs_als` · celld 动态 `import()` 加载 `no_bundle` 兄弟 chunk · prod **200** ~1.9 KiB · `Hello world!` |
 | S28 | **Qwik City** | **支持** | http://support-qwik.lvh.me:8787/ | `templates/qwik/workers` · 无 `nodejs_compat`（避免 unenv `process.stdin`）· **v7** · prod **200** ~19 KiB · `Welcome to Qwik` |
 | S29 | **Waku** | **支持** | http://support-waku.lvh.me:8787/ | `create-waku` + C3 overlay · **v9** ready + promote · prod/preview **200** · grep `Waku` / `An internet website!` · celld: sibling `.js`→`EsModule` + relative resolve · `docs/evidence/support-S29.log` |
-| S30 | **Next.js (OpenNext)** | **不支持** | — | **实验 v55 prod `GET /` 200**（`Create Next App`）· celld `url` / `node:url` lazy builtin 已修复根页误判 · 仅此单 Worker artifact 验收通过，**不升级 AD-13 tier-1** · [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md) · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| S30 | **Next.js (OpenNext)** | **不支持** | — | **实验 v55**：Cloudflare starter 的 prod 根页与静态资产通过；仅固定单 Worker artifact 证据，不升级 AD-13 tier-1 · [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md) |
+| S40 | **Next.js (OpenNext)** | **不支持** | — | **实验 v11**：固定 `vercel/next.js` commit `6685283fe8533a469ee1a9455e2bc4047c7453cb`、Next `16.0.7`、OpenNext `1.14.0`；preview 验收根页、静态 chunk、动态 App Router SSR、Route Handler 与 Next 404 后才 promote。仍无任意版本/功能矩阵与 tier-1 承诺 · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 
@@ -135,7 +136,7 @@ LLM → build → `POST /versions` → preview Host → promote；对齐 [Agent 
 
 | 组件 | 状态 |
 |------|------|
-| Next.js / OpenNext | **不支持**（S30 实验；v55 单 Worker artifact 的 prod 根页已 200，仍非 tier-1）· [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md) · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| Next.js / OpenNext | **不支持（tier-1）**；S30/S40 固定单 Worker artifact 已通过各自实验 gate（S40 含动态 App Router SSR、Route Handler、Next 404），但证据不覆盖任意版本或完整功能矩阵 · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 | AI SDK (`vercel/ai`) | ⚠️ 打进 Worker 包 |
 | Workflow SDK | 🔜 对照 CF Workflows |
 | fx → fx-on-workers | **支持** · A04 · v9 |

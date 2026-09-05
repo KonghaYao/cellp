@@ -28,7 +28,7 @@ See [Framework tiers (detail)](./frameworks.md) and the internal [framework cove
 Cloudflare hosts Next via **OpenNext** or **vinext**. cellp does **not** treat Next as first-class:
 
 - No Next.js Dashboard or official Next template in cellp.
-- You may still ship an OpenNext-built artifact if it is a **single** Worker bundle + assets and passes celld deploy.
+- You may still ship an OpenNext-built artifact if it is a **single** Worker bundle + assets and passes celld deploy. Fixed S30 and S40 artifacts have passed lab gates, including S40 dynamic App Router SSR and a Route Handler; this evidence does not generalize to arbitrary versions.
 - **Node SSR / App Router on Node** belongs on Vercel or a Node host, not cellp.
 
 Optimization notes: [OpenNext on cellp (experimental)](https://github.com/KonghaYao/cellp/blob/main/docs/plans/NEXT-OPENNEXT-CELLP.md).

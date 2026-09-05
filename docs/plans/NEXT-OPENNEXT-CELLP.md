@@ -1,6 +1,6 @@
 # Next.js / OpenNext on cellp（实验路径）
 
-> **状态：** 非一等公民 · **不**纳入 [support-matrix.md](../support-matrix.md) tier-1 门禁 · **2026-09-04 S30 单 Worker artifact 已通过 preview/prod 根页验收**
+> **状态：** 非一等公民 · **不**纳入 [support-matrix.md](../support-matrix.md) tier-1 门禁 · **S30 根页与 S40 基础 App Router 固定 artifact 已通过实验验收**
 > **决策：** [decisions.md §18 AD-13](../decisions.md#18-ad-13--前端框架一等公民与-nextjs-边界)  
 > **对照：** [framework-coverage-cellp.md](../framework-coverage-cellp.md)  
 > **Hard problem（闭环实录）：** [S30-OPENNEXT-HARD-PROBLEM.md](./S30-OPENNEXT-HARD-PROBLEM.md)
@@ -75,6 +75,22 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
 | 5 | 非 308 / 400 / 404 / hang | ✅ | slash、artifact proto-rel、`setImmediate`、`node:url` 四个独立问题均已闭环 |
 | 6 | AD-13 tier-1 | ❌ | 产品决策未改；单一 PoC 通过不等于通用支持承诺 |
 
+### S40 基础 App Router 实验验收（2026-09-05）
+
+S40 与 S30 的 Cloudflare starter 不同：它取自 `vercel/next.js` 的基础 `examples/hello-world`，再叠加最小 App Router 动态页面与 Route Handler，以验证 runtime，而不是重复验证同一模板。
+
+| 项 | 固定值 / 结果 |
+|----|---------------|
+| 上游源码 | `vercel/next.js` commit `6685283fe8533a469ee1a9455e2bc4047c7453cb` · `examples/hello-world` |
+| artifact 依赖 | Next.js `16.0.7` · React `19.2.1` · `@opennextjs/cloudflare` `1.14.0` · Wrangler `4.123.0` |
+| artifact 形态 | `.cellp-bundle/index.js` + `.cellp-assets` · `no_bundle: true` · `nodejs_compat` |
+| preview gate | v11：`/` 200 + `Hello, Next.js!`；静态 chunk 200；`/dynamic` 两次 SSR 时间戳不同；`/api/health` 200、`pathname=/api/health` 且两次时间戳不同；不存在路由由 Next 返回 404 |
+| promote | 仅在上述 preview gate 全绿后执行；prod v11 再验 200 |
+| 证据 | `docs/evidence/support-S40.log` · overlay `dev/examples/support-next-basic/` |
+| AD-13 tier-1 | ❌；这是固定源码、固定依赖、固定 artifact 的实验性兼容证据，未覆盖任意 Next/OpenNext 版本、middleware、image optimizer、缓存或完整 Node API |
+
+S40 首次运行暴露 celld `Request` 构造器使用公开 `this.url` 的兼容缺陷：Next 风格 getter-only 子类会抛错。修复改为内部 URL slot 并增加 getter-only 子类复制/clone 回归测试；没有修改 Route Handler 来绕过错误。
+
 **celld（2026-09-03）：** 同源 `fetch` loopback 在**外层 fetch 未 settle** 时须同 isolate 完成（`finish_turn` 持 `CurrentGuard` + `wake` 见嵌套 event depth）；`op_fetch` egress 对 canonical origin fail-closed。OpenNext `_next/image` 需 **`CelldHttpBodyStream` BYOB/`readAtLeast`**（`harness.js` + `byte_streams.js` 协议）。复验前需 **rebuild celld** 并 redeploy S30（本任务不 deploy）。
 
 **复验：** `curl -H 'Host: support-opennext.lvh.me' http://127.0.0.1:8787/`
@@ -106,9 +122,9 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
 
 ---
 
-## 6. 验收标准（若将来开实验槽位）
+## 6. 验收标准（实验槽位）
 
-**不**写入 support-matrix，除非显式新 ADR。实验通过最低线：
+实验通过最低线；S40 的实际 gate 在此基础上增加动态 SSR、Route Handler payload/动态性与 Next 原生 404：
 
 1. `GET /` prod Host → **200**（或预期 3xx 登录链，**单 Worker**）
 2. 无 celld deploy 阶段 esbuild loader 错误
@@ -116,8 +132,8 @@ CF 侧 Next 依赖 **OpenNext** 或 **vinext**，将 App Router 编译为 Worker
 
 ---
 
-## 7. 下一步（工程）
+## 7. 后续工程
 
-1. 从 `cloudflare/templates` 的 `next-starter-template` 或 OpenNext 官方样例做 **一次性** PoC（`dev/examples/support-next/` overlay，**不**占 S22–S25）。
-2. 将 PoC 结论回写本文件 §3（固定 main 路径与 assets 目录名）。
-3. **不**把 Next 标为一等公民，除非 AD-13 修订。
+1. 扩展独立样本和版本组合，覆盖 middleware、缓存、图片路径及更广泛 Node API；失败用例保留，不用应用级 workaround 制造通过。
+2. 所有新样本先运行项目 `smoke-preview.sh`；任何关键检查失败时拒绝 promote。
+3. **不**把 Next 标为一等公民，除非 AD-13 修订且更广泛门禁通过。

@@ -54,7 +54,7 @@
 | **Worker 内 React SSR + Tailwind + import `.md`** | wrangler 全规则 | S16 pastebin | **不支持** |
 | **SvelteKit adapter（单 Worker 静态+_worker.js）** | adapter-cloudflare | S14 **能 slim 部署**，但 **多 service** → 矩阵 **不支持** |
 | **多 Worker `[[services]]` 控制台** | 主站 + auth/db agents | S14 cloudflarebase | **不支持**（平台） |
-| **Next.js / OpenNext** | OpenNext / vinext | **实验**；不进 support 矩阵 | **非一等**（见 OpenNext 计划） |
+| **Next.js / OpenNext** | OpenNext / vinext | **实验**；S30 根页 + S40 基础 App Router 固定 artifact 已验，不进 support 矩阵 | **非一等**（见 OpenNext 计划） |
 
 ---
 

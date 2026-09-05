@@ -21,7 +21,7 @@
 
 | 能力缺口 | 典型需求 | cellp / celld 现状 | 受影响示例 | 备注 |
 |----------|----------|-------------------|--------------|------|
-| **Next.js / OpenNext tier-1** | App Router SSR · OpenNext 单 Worker · `request.url` / `node:http` / 图片路由 | **非一等公民**；**S30 实验** prod 仍 **400/超时**；补丁在 prepare + celld，**未达门禁** | **S30** OpenNext · **S33** UptimeFlare（Next/Pages）· Supermemory SaaS stack | **⏸️ 后排** · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · AD-13 |
+| **Next.js / OpenNext tier-1** | App Router SSR · OpenNext 单 Worker · `request.url` / `node:http` / 图片路由 | **非一等公民**；S30 根页和 S40 基础 App Router 的固定单 Worker artifact 已通过，但尚无跨版本/功能矩阵与官方模板，**未达 tier-1 门禁** | **S30/S40** OpenNext · **S33** UptimeFlare（Next/Pages）· Supermemory SaaS stack | 固定 artifact 可实验；任意 Next/OpenNext 组合不在承诺内 · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · AD-13 |
 | **Node SSR 在 Worker 内二次打包** | Worker 内完整 SSR + Tailwind/MD 图 · celld **再 esbuild** | **A 类 blocked**；宜 **wrangler dry-run → `.cellp-bundle` + `no_bundle`** | **S16** pastebin-worker | 与「预打包 Astro/Nuxt」对比 |
 | **Pages + Worker 双部署（未合并）** | 静态 Pages 与 API Worker 分离 | cellp 只认 **单 artifact 单 celld**；需 **unified SPA** 或单 Worker 入口 | 原 **CloudPaste** 叙述；**S39 unified SPA → 支持** | 缺口是 **部署模型**，不是 R2 |
 | **flareact webpack SW IIFE** | `addEventListener('fetch')` 无 ESM default | 需 **cellp-entry 包装**（已解决一类） | **S32**（已 **支持**） | 曾属缺口；保留作模式参考 |

@@ -1,0 +1,14 @@
+{
+  "name": "support-next-basic",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-10-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "vars": {
+    "DEPLOY_URL": "__CELLP_DEPLOY_URL__",
+    "PUBLIC_BASE_URL": "__CELLP_DEPLOY_URL__"
+  }
+}

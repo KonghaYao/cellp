@@ -59,7 +59,7 @@ S02 ni-mail · S03 Tempik · S04 Kukuroo · S11–S13 Sink/Inkstone/SaaSMail 等
 
 ## 执行状态
 
-**见 [support-matrix.md](./support-matrix.md)**。**2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；**S38 Counterscale** prod **v2** · **不支持**（Analytics Engine）；P2 **S34 microfeed ✅**；P1 **S31–S32、S35 ✅**；**S36 Triplit · S37 Serverless DNS** prod ready · **不支持**（S37 HTTP **408**）；**S30/S33 ⏸️ 后排**。框架 **S26–S29 ✅**。
+**见 [support-matrix.md](./support-matrix.md)**。**2026-09-05：S40 基础 Next.js App Router 固定 artifact 已通过 preview gate 后 promote，但仍为 AD-13 非一等实验。** **2026-09-03：** P0 **S39 CloudPaste ✅**（unified SPA · D1+Workflows · prod **v1** `support-cloudpaste.lvh.me` **200**）；**S38 Counterscale** prod **v2** · **不支持**（Analytics Engine）；P2 **S34 microfeed ✅**；P1 **S31–S32、S35 ✅**；**S36 Triplit · S37 Serverless DNS** prod ready · **不支持**（S37 HTTP **408**）；**S33 ⏸️ 后排**。框架 **S26–S29 ✅**。
 
 **框架一等公民（S22–S25）** 见下表。
 
@@ -120,6 +120,7 @@ A 运行时 · B Binding · C wrangler · D 框架 SSR · E Gateway/控制面 ·
 
 | 日期 | 变更 |
 |------|------|
+| 2026-09-05 | **S40 Next.js 基础 App Router（实验）**：固定 `vercel/next.js` commit `6685283fe8533a469ee1a9455e2bc4047c7453cb` + Next `16.0.7` / OpenNext `1.14.0`；preview v11 验收根页、静态 chunk、动态 SSR、Route Handler payload/动态时间戳与 Next 404 全绿后才 promote；仍为 AD-13 非一等，不进入 tier-1 `支持` verdict · `docs/evidence/support-S40.log` |
 | 2026-09-04 | **A05 Mastra**：prod **v14** · `acceptance.sh` 全绿（Agent · Tool · Workflow · R2 · Memory/D1）· **支持** · 证据 `docs/evidence/support-A05.log` |
 | 2026-09-04 | **A05 Mastra**：in-repo demo · prod **v13** · Tool、Workflow、R2 miss→hit、Mastra Memory/D1 写读及独立 D1 查询通过；严格 Agent 请求被公共模型 **429** 阻塞，`acceptance.sh` 非零，状态仍 **待兼容** |
 | 2026-09-03 | **S38 Counterscale**：`support-counterscale` · `deploy-support-app.sh S38` · [jeffysl/counterscale](https://github.com/jeffysl/counterscale) · overlay `dev/examples/support-counterscale/` · v1 deploy 失败（`analytics_engine_datasets`）· prod **v2** Host `/` **200** · `/dashboard` **501** · **不支持** |

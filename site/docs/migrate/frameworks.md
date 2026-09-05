@@ -45,7 +45,7 @@ Cloudflare documents Next.js via **OpenNext** (and related tooling). cellp:
 - Does **not** list Next as tier 1.
 - Does **not** use Next for the Dashboard (`web/` is Vite SPA).
 - Allows **experimental** OpenNext artifacts if you pre-build a single Worker entry and static assets (see repo doc `docs/plans/NEXT-OPENNEXT-CELLP.md`).
-- The S30 lab artifact passed preview and production `GET /` on 2026-09-04 after celld added the `url` / `node:url` APIs it uses. This is compatibility evidence for that artifact, not tier-1 support or a promise that arbitrary Next/OpenNext versions work unchanged.
+- The S30 lab artifact passed preview and production `GET /` on 2026-09-04. A separate S40 fixture based on pinned `vercel/next.js` `examples/hello-world` then passed static assets, dynamic App Router SSR, a Route Handler, and Next’s 404 on 2026-09-05. Both are fixed-version artifact evidence—not tier-1 support or a promise that arbitrary Next/OpenNext versions work unchanged.
 
 | Approach | cellp |
 |----------|--------|
