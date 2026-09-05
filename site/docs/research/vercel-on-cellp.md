@@ -2,17 +2,19 @@
 
 cellp is **not** Vercel. This page tracks **Vercel open source** when it can run as a **Workers bundle** on private **celld**, or when we only study it for later.
 
-**Full catalog (contributor):** [VERCEL-SUPPORT.md](https://github.com/KonghaYao/cellp/blob/main/docs/VERCEL-SUPPORT.md)
+**Status:** research and lab validation only. See [Research](/research/) for scope.
 
 ## At a glance
 
-| | On cellp today |
-|---|----------------|
-| **Next.js** | Not hosted · experimental **OpenNext → one Worker**; fixed S30 and S40 artifacts passed their preview/prod gates, but remain outside tier 1 |
+| Dimension | On cellp today |
+|-----------|----------------|
+| **Next.js** | Not hosted as a Next platform · **Experimental** OpenNext → one Worker only; minimal lab fixtures outside [tier-1 stacks](/migrate/stacks) |
 | **[AI SDK](https://github.com/vercel/ai)** | In your Worker bundle + your provider keys |
 | **[Workflow SDK](https://github.com/vercel/workflow)** | Research vs **CF Workflows** on celld |
-| **[fx](https://github.com/vercel-labs/fx)** | **P1** via [fx-on-workers](https://github.com/codingstark-dev/fx-on-workers) on Workers |
+| **[fx](https://github.com/vercel-labs/fx)** | Research via [fx-on-workers](https://github.com/codingstark-dev/fx-on-workers) on Workers |
 | **[Eve](https://github.com/vercel/eve)** | Research — default deploy is Vercel |
+
+Arbitrary Next.js or OpenNext combinations are **not** in scope until they are listed on [Supported stacks](/migrate/stacks).
 
 ## Related
 

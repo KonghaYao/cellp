@@ -15,7 +15,7 @@ Effects:
 - celld **stops**
 - Local watch cache is dropped
 - Object storage **kept**
-- Preview URL returns **`503 version_archived`**
+- Preview URL returns **`503 version_archived`** (prod Host is unaffected)
 - The version can still be a **branch parent**
 
 You cannot archive production (`422`). Pinned versions refuse archive (`409`).
@@ -48,3 +48,9 @@ Use pin for:
 - The previous production you want hot for instant rollback
 
 Unpin when that job is done so the reaper can reclaim the process.
+
+## Elastic serving (future)
+
+When **elastic serving** is enabled (operator feature flag, off by default today), a version may be **cold**—no live serving replica—while object storage is still retained. That is **not** the same as **archived** in the v1 API: archive still means celld stopped and preview returns `503` until [wake](/concepts/archive#wake). Cold vs archived mutual exclusion and wake rules will apply only when elastic serving ships.
+
+Until then, use **archive** and **wake** to stop and restart processes. See [Versions — one process per ready version](/concepts/versions#one-process-per-ready-version).

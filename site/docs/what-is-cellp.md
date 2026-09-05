@@ -1,6 +1,6 @@
 # What is cellp
 
-**cellp** is a **private Workers platform control plane**. It versions your Worker **and** its data on every deploy, serves a preview URL, and lets you promote that version to production.
+**cellp** is a **private Workers platform control plane**. It versions your Worker **and** its data on every deploy, serves a preview URL, assigns the **first** `ready` version to production automatically, and uses **promote** for later production cutovers.
 
 It is **not** a Cloudflare account and **not** self-hosted Cloudflare. It is not Vercel and not a Git host. You keep GitHub (or GitLab, or Forgejo), your CI, and your load balancer. cellp sits in the middle: **receive an artifact, run an isolated [celld](https://github.com/KonghaYao/celld) process, route traffic**.
 
@@ -11,7 +11,7 @@ A **project** is an app. A **version** is one deploy of that app.
 | You get | What that means |
 |---------|-----------------|
 | **Preview URL** | `preview_url` — live Worker for that deploy (HTTP **Host** on gateway) |
-| **Production URL** | `prod_url` — version you last promoted (prod Host unchanged on promote) |
+| **Production URL** | `prod_url` — current `prod_version_id` (first `ready` on a new project, or last [promote](/concepts/promote); prod Host unchanged on promote) |
 | **Data that matches the code** | Child versions **branch** D1, KV, R2, and Queues from a parent. Writes stay in the preview. |
 | **Dashboard** | Projects, versions, storage browsers, env vars — talking only to the REST API |
 | **Self-host** | One-line install then `cellp dev` on a laptop (no Docker). Docker Compose + **RustFS** for a production-shaped VM. |
@@ -29,7 +29,7 @@ export default {
 }
 ```
 
-Bindings come from `wrangler.jsonc` inside the bundle (`d1_databases`, `kv_namespaces`, `r2_buckets`, `queues`, `workflows`, `triggers.crons`). The runtime is **[celld](https://github.com/KonghaYao/celld)** — a Rust Workers engine. cellp does not re-implement the isolate; it **orchestrates versions of it**.
+Bindings come from `wrangler.jsonc` inside the bundle (`d1_databases`, `kv_namespaces`, `r2_buckets`, `queues`, `workflows`, `triggers.crons`). The runtime is **[celld](https://github.com/KonghaYao/celld)** — a Rust Workers engine shipped with cellp (git submodule in the repository). The cellp project **maintains and extends** celld for private deployment: per-version buckets, `d1 branch`, KV/R2/Queue branch, and operator CLIs that cellpd invokes. cellp does not re-implement the isolate; it **orchestrates one celld process per ready version**.
 
 ## What cellp is not
 
@@ -51,7 +51,7 @@ Read the full comparison in [Compare](/compare) and the honest list in [Limits](
 |-------|------|
 | **cellpd** | API, orchestrator, gateway, SQLite registry |
 | **celld** | Workers + D1 + KV + R2 + Queue + Workflow runtime (one process per ready version) |
-| **offshoot** | Copy-on-write SQLite branching for App + Data |
+| **offshoot** | Copy-on-write data fork between parent and child versions ([concept](/concepts/offshoot)) |
 | **RustFS** | Private S3 for artifacts, offshoot, and per-version blobs |
 | **Dashboard** (`web/`) | Vite SPA. Never talks to celld directly |
 

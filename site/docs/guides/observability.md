@@ -1,14 +1,12 @@
 # Observability
 
-**Architecture (authoritative):** [OTEL-OBSERVABILITY](https://github.com/KonghaYao/cellp/blob/main/docs/plans/OTEL-OBSERVABILITY.md) · AD-14.
+**Today:** Prometheus metrics on cellpd, structured logs on stdout, and per-version celld process output. **Planned (not shipped):** OTLP trace/log export and a version-scoped query API behind the same admin token — backends would be pluggable (memory, Jaeger, or your own LGTM stack).
 
-v1 ships **Prometheus + per-version process logs**. Request tail, the query facade, and a pluggable OTLP backend are **designed, not implemented**.
-
-cellp will **not** ship a SaaS analytics product or an in-tree search engine. Production search is an optional Tempo / Loki / Grafana stack behind a version-scoped API.
+cellp will **not** ship a SaaS analytics product or an in-tree log search engine.
 
 ## Metrics
 
-Scrape cellpd:
+Scrape **cellpd** at the **root** path (not under `/v1`):
 
 ```yaml
 scrape_configs:
@@ -18,7 +16,7 @@ scrape_configs:
     metrics_path: /metrics
 ```
 
-You will see HTTP counters/histograms, orchestrator queue depth, and gateway upstream health. Exact names live in `cellp/internal/metrics`.
+You will see HTTP counters/histograms, orchestrator queue depth, and gateway upstream health. Metric names are defined in the `cellp` Go module (`internal/metrics`).
 
 ```bash
 curl -s http://127.0.0.1:8790/metrics | head
@@ -34,6 +32,8 @@ curl -s http://127.0.0.1:8790/metrics | head
 
 Archive reaper lines contain `orch: archive reaper`.
 
+There is no `wrangler tail` equivalent. Use process logs and metrics until OTLP live tail ships.
+
 ## Health
 
 ```bash
@@ -41,20 +41,20 @@ curl -sf http://127.0.0.1:8790/v1/health
 curl -sf http://127.0.0.1:8790/v1/health/deep
 ```
 
-Deep health is the right probe for “can I deploy?” — registry, object store, runtimes, queue.
+Deep health is the right probe for “can I deploy?” — registry, object store, runtimes, queue. Returns **503** when the deploy queue exceeds `CELLP_QUEUE_MAX`.
 
 `GET /v1/runtime/routes` (admin) summarizes upstreams.
 
-## AD-14 (not shipped)
+## Planned observability (OTLP, not shipped)
 
-| Layer | Contract |
-|-------|----------|
+| Layer | Contract (design) |
+|-------|-------------------|
 | Emit | OTLP traces + logs; `cellp.project` / `cellp.version`; Gateway `traceparent` |
 | Query | cellpd facade (`context`, `traces/{id}`, template `search`) — `ADMIN_TOKEN` only |
 | Live | Process stream (SSE), not OTEL |
-| Backend | `none` (default) · `memory` · `jaeger` · `lgtm` / `lgtm-prod` |
+| Backend | Operator-chosen collector (Jaeger, Grafana stack, etc.) |
 
-Bring your own Grafana for boards. Dashboard talks only to `:8790`.
+Bring your own Grafana for boards. The Dashboard talks only to `:8790`.
 
 ## Promote windows
 

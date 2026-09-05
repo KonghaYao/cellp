@@ -1440,4 +1440,7 @@ components:
     adminToken:
       type: http
       scheme: bearer
-      description: CELLP_ADMIN_TOKEN or PLATFORM_TOKEN (dev-local-token fallback) — full admin
+      description: >-
+        CELLP_ADMIN_TOKEN or PLATFORM_TOKEN (dev-local-token fallback).
+        When CELLP_DEPLOY_TOKEN and CELLP_ADMIN_TOKEN differ, admin cannot POST /projects/{projectID}/versions (403);
+        use deployToken for version create. Otherwise full admin on /v1/*.

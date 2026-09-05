@@ -42,12 +42,24 @@ Response is `202` with a poll URL. Wait until `status` is `ready`.
 | `destroyed` | Gone. Cannot roll back to it |
 | `failed` | Inspect `error` on the version payload |
 
+## Initial production
+
+When a project has **no** `prod_version_id` yet, the orchestrator sets production to the **first** version that becomes `ready` (compare-and-set on the empty prod pointer). Later versions stay preview-only until [promote](/concepts/promote).
+
 ## Parent vs root
 
 - **Root** (no parent): D1 import / empty bindings as configured for first seed.
-- **Child** (has parent): data plane **fork**. Worker code comes from **this** bundle.
+- **Child** (has parent): data plane **fork** ([Data fork](/concepts/data-fork)). Worker code comes from **this** bundle.
 
 Do not parent a PR at live production unless you know why. Use a staging seed. The API will 422 or scrub some prod-fork cases.
+
+## One process per ready version
+
+Today, each **`ready`** version runs **one celld process** on its own port. There is no small hard cap on how many ready versions you can have; idle previews are [archived](/concepts/archive) to reclaim processes.
+
+Multi-replica **elastic serving** (scale-to-zero and `0..N` replicas per version) is on the roadmap and ships behind an operator feature flag—**off by default** in current releases. Until you enable that explicitly, plan capacity around one process per hot version.
+
+See [Limits](/reference/limits).
 
 ## Pin
 

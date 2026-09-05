@@ -24,7 +24,7 @@
 | 2 | **App + Data 同版** | offshoot fork/export；根 version D1 import；子 version D1 branch |
 | 3 | **Binding branch** | 子 version：D1 · KV · R2 · Queue（AD-8）；Workflow / Cron / Worker 脚本不 branch |
 | 4 | **运行时隔离** | 每 ready version 独立 celld 进程 + 独立 bucket（AD-1） |
-| 5 | **Gateway** | `/{project}/{version}/` 预览；`/{project}/` 生产（AD-2） |
+| 5 | **Gateway** | **Host ingress（AD-12）：** preview `{version}.{project}.{baseDomain}`；prod `{project}.{baseDomain}`；path `/{project}/…` / `/{project}/{version}/…` **废弃**（不新增旧行为） |
 | 6 | **Promote** | saga 切流：drain · offshoot promote · CAS prod（AD-5） |
 | 7 | **Bindings 运维** | `GET …/bindings`；KV / Queue / D1 operator；Workflow 只读 |
 | 8 | **Worker env** | per-version 覆盖 → `CELLD_VARS_FILE`；Dashboard / API 可编辑 |
@@ -149,7 +149,7 @@ flowchart TB
 
 | 用途 | bucket / prefix | 依据 |
 |------|-----------------|------|
-| **offshoot** 分支对象 | `s3://cellp-offshoot/{project}/` | S3 + 条件写；**官方仅 MinIO / AWS S3 shipped-and-tested**；RustFS **未验证**（见下） |
+| **offshoot** 分支对象 | `s3://cellp-offshoot/{project}/` | S3 + 条件写；**prod 数据面**（AD-4）用 RustFS；须 **TP-V0b**（✅ [v0b-pass-report](./docs/evidence/v0b-pass-report.md)）；offshoot 上游仅 MinIO/AWS **shipped-and-tested**（见下） |
 | **CI 制品** | `s3://cellp-artifacts/{project}/{version}/` | 外部 CI 上传 · cellpd 校验 digest |
 | **celld Blob** | `s3://cellp-celld/{project}/` | celld S3 路径；**须通过 `celld diagnose` 存储探针** |
 
@@ -196,7 +196,7 @@ offshoot 的 branch（CoW fork · checkpoint · promote · export · GC）在 S3
 | **local directory** | ✅ shipped-and-tested | quickstart 默认 |
 | **MinIO** | ✅ shipped-and-tested | CI 每 PR 跑 conformance + `TestS3RealProvider`（含 multipart） |
 | **AWS S3** | ✅ shipped-and-tested | 真实 bucket（us-east-1, 2026-08-13） |
-| **RustFS** | ⚠️ **未验证** | 条件写已有实现，但 **不在 offshoot CI**；fork 路径依赖 `CopyObject` / `UploadPartCopy` + CAS ref，需单独 spike |
+| **RustFS** | ✅ **cellp V0b**（非 offshoot upstream CI） | 条件写已有实现，**不在 offshoot CI**；fork 依赖 `CopyObject` / `UploadPartCopy` + CAS ref；cellp 已在目标 RustFS 跑全序列（2026-08-29）；**升级须重跑 V0b** |
 | **Garage 等** | ❌ | 无条件写 → attach 探针直接拒绝 |
 
 S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](https://github.com/sricola/offshoot/blob/main/docs/status.md)）：
@@ -207,9 +207,10 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 **cellp 约定：**
 
 - **attach CAS 探针通过** 只证明「能连上 store」，**不证明** fork/export/promote 在 RustFS 上正确  
-- **Phase 0 必做 V0b**：在目标 S3（RustFS）上跑完整 branch 序列 → **[VALIDATION.md](./VALIDATION.md)**
-- **V0b 完成前**：prod offshoot 用 **local directory**（单机）或 **MinIO**（若探针通过）；RustFS 仅用于 celld Blob / 制品  
-- **V0b 通过后**：offshoot 才迁到 `s3://cellp-offshoot`（RustFS）
+- **Prod 数据面（AD-4）：** offshoot 使用 RustFS `s3://cellp-offshoot`；**必须先通过 TP-V0b**（✅ 2026-08-29，[evidence](./docs/evidence/v0b-pass-report.md)；序列见 **[VALIDATION.md](./VALIDATION.md)**）
+- **Dev / M2：** 仍可用 **local directory**（默认）；压测须标注 `offshoot_tier`
+- **持续门禁：** RustFS 或 offshoot 版本变更 → 重跑 `celld diagnose`、存储 RUN_GATES、**V0b 类探针**；不宣称与上游永久兼容
+- *(historical / superseded)* **V0b 完成前** 曾约定 prod offshoot 用 local/MinIO、RustFS 仅 celld/制品 — **已由 V0b PASS 取代**
 
 #### cellp 自有组件（确认选型）
 
@@ -220,7 +221,7 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 | **运行时** | **celld** + **offshoot** | celld 源码以 git submodule `celld/` 跟踪（[KonghaYao/celld](https://github.com/KonghaYao/celld)）；集成层仍走 CLI |
 | **对象存储** | **RustFS** | celld Blob · offshoot · artifacts（见上） |
 | **Dashboard** | **Vite + React SPA** | 一期 · VE 通过后 · 纯静态 `web/dist/` |
-| **Dev mock** | Node（`dev/mock-platform`） | 过渡；由 `cellpd` 替换 |
+| **Dev mock** | Node（`dev/mock-platform`） | 可选遗留 harness；**主路径为 Go `cellpd`** |
 
 #### 外部边界（**不是 cellp 组件 · AD-10**）
 
@@ -242,7 +243,7 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 **实现顺序（一期硬约束）：**
 
 ```
-1. Go cellpd（API · SQLite Registry · Orchestrator · 内置 Gateway）  ← P0
+1. Go cellpd（API · SQLite Registry · Orchestrator · 内置 Gateway）  ← P0（已交付）
 2. 端口级 E2E 测试（全后端、无浏览器）                         ← 前端门禁
 3. Vite Dashboard（列表 · 部署 · 存储 · Promote/Destroy）      ← M1 后
 ```
@@ -256,14 +257,14 @@ S3 上 fork 的两条路径（[offshoot status.md — Reflink/CopyObject fork](h
 | **API Server** | 接收 CD；Project/Version CRUD；鉴权 | **Go** · chi/echo · OpenAPI | cellp 自研 |
 | **Orchestrator** | 驱动 pending→ready 状态机；失败补偿；fork/deploy 编排 | **Go** · 内置 worker pool | cellp 自研 |
 | **Registry** | project/version 树、prod 指针、路由表 | **SQLite** | **权威存储**；WAL 模式 |
-| **Gateway** | `/{project}/{version}/*` → celld upstream | **Go**（cellpd 内置 reverse proxy） | 非 Caddy；TLS 由外部 LB |
+| **Gateway** | **Host** → `ingress_bindings` → celld upstream（path 从 `/` 起、不 strip） | **Go**（cellpd 内置 reverse proxy） | AD-12；TLS 由外部 LB |
 | **Dashboard** | 项目 · 部署 · 存储（D1）· Bindings（KV / Queue / Workflow / Cron） | **Vite + React SPA** | 仅 API；不直连 celld |
-| **Branch Manager** | offshoot checkpoint/fork/export/promote | **offshoot** · RustFS / local | V0b 前 offshoot 可 local |
+| **Branch Manager** | offshoot checkpoint/fork/export/promote | **offshoot** · RustFS / local | prod：**RustFS**（AD-4 + V0b）；dev：local 默认 |
 | **Runtime Manager** | celld deploy/start/health | **celld** · RustFS · esbuild | `celld diagnose` 门禁 |
 | **Artifact Store** | CI bundle；digest 校验 | **RustFS** `cellp-artifacts` | 外部 CI 写入 |
 | **celld State Store** | cell SQLite 复制 | **RustFS** `cellp-celld` | 条件写探针 |
-| **offshoot Store** | SQLite CoW 分支对象 | RustFS / **local** | 与 celld 分逻辑卷 |
-| **Dev Harness** | 本地栈 · simulate-cd | RustFS · mock→cellpd | 见 §11 |
+| **offshoot Store** | SQLite CoW 分支对象 | prod：**RustFS**；dev：**local** | 与 celld 分逻辑卷；AD-4 |
+| **Dev Harness** | 本地栈 · simulate-cd | RustFS · cellpd | 见 §11 |
 
 ### 2.4 CD 时序
 
@@ -289,12 +290,15 @@ sequenceDiagram
   OS-->>Orch: data_branch + export.sql
   Orch->>CLD: d1 execute --file seed.sql
   Orch->>CLD: celld deploy bundle
-  Orch->>GW: register /{project}/{version} route
+  Orch->>GW: register preview ingress (Host)
   Orch->>CLD: health check /.well-known/celld/health
   Orch-->>CI: status=ready, preview_url
+  opt prod_version_id 为空
+    Orch->>GW: SetProdVersionCAS + prod ingress
+  end
 
-  Dev->>GW: GET /{project}/{version}/
-  GW->>CLD: proxy
+  Dev->>GW: GET / (Host = preview 或 prod)
+  GW->>CLD: proxy（synthetic Host + X-Forwarded-*）
   CLD-->>Dev: response
 ```
 
@@ -350,8 +354,8 @@ cellp 的护城河不在「包一层 celld」，而在下面 **6 项必须自研
 |---|---|---|---|---|
 | **T1** | **offshoot → celld D1 数据种子管道** | celld Worker 无法读 host 文件；offshoot 与 celld 各有一套 SQLite 存储，无官方集成 | export SQL → `celld d1 execute`；约定 Worker 只用 D1 binding；禁止 DATABASE_PATH | **一期** |
 | **T2** | **Quiesce + checkpoint 一致性 fork** | fork 时 parent 仍在写入 → 子版本继承 stale 数据 | Orchestrator：drain active route → offshoot checkpoint → 再 fork；非 live head fork | **一期** |
-| **T3** | **单 celld fleet 多 Version 路由** | celld 限制 1 fleet = 1 deploy；不能每 version 起一个 celld | Gateway 路径路由 + 单 active deploy per project；版本 metadata 与路由解耦 | **一期** |
-| **T4** | **Promote 原子 cutover** | 只改 prod 指针会双 prod 并存、双写分叉 | CAS prod_version + 停旧 Gateway 路由 + drain 旧 deploy + offshoot promote； saga 补偿 | **一期** |
+| **T3** | **每 Version 独立 celld + Host 选路** | celld 限制 1 fleet = 1 deploy（AD-1） | 每 ready version 独立 celld upstream；Gateway **Host** → `ingress_bindings`（AD-12）；**非** path 前缀 | **一期** |
+| **T4** | **Promote 原子 cutover** | 只改 prod 指针会双 prod 并存、双写分叉 | CAS prod_version + prod Host 切 upstream + drain 旧 deploy + offshoot promote；saga 补偿（**首版 bootstrap prod** 见 §6，不走 saga） | **一期** |
 | **T5** | **Orchestrator saga / 补偿** | branching 成功 + deploy 失败 → 孤儿 branch、泄漏路由 | 每步可逆操作；failed 自动 release 路由；offshoot branch GC；idempotent retry | **一期** |
 | **T6** | **Schema migration × fork 顺序** | 新代码 + 旧 schema fork 或迁移破坏 fork 数据 | 显式 migrate 步骤：fork → migrate on preview → health gate；版本化 migration 记录 | **一期** |
 
@@ -360,11 +364,11 @@ cellp 的护城河不在「包一层 celld」，而在下面 **6 项必须自研
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | celld alpha | API/行为变更 | pin 版本；封装 Runtime Manager；跟进 cloudflare-compat |
-| offshoot branch × RustFS S3 未验证 | fork/export/promote 可能在 RustFS 上静默失败 | **[V0b](./VALIDATION.md#v0b--offshoot-sqlite-branch--rustfs-s3全序列)**；完成前 offshoot 不走 RustFS |
-| offshoot pre-1.0 | 存储 layout 可能变 | preview-only；pin SHA；不用于 prod 数据 |
+| offshoot branch × RustFS S3（上游未 ship） | 仅 attach 探针不足以发现 fork/export 回归 | **V0b 已通过**；RustFS/offshoot **升级须重跑** [V0b](./VALIDATION.md#v0b--offshoot-sqlite-branch--rustfs-s3全序列) / RUN_GATES / `celld diagnose` |
+| offshoot pre-1.0 | 存储 layout / 兼容可能变 | **pin offshoot SHA**；prod 已上 RustFS 仍须 **持续 V0b 类探针**；非永久兼容承诺 |
 | RustFS 条件写探针失败 | celld 双主 / fleet 无法启动 | 部署前 `celld diagnose`；Phase 0 锁定 RustFS 版本；探针失败则不上线 |
 
-**Bindings 本期攻：** 沿用 celld 0.4.0 的 KV / Queue / Workflow / Cron（见 §8）。**仍延期：** KV/R2/Queue/Workflow **branch/inherit**（celld 尚无）· R2 对象浏览器（无 `celld r2`）· Workflow 实例控制（无 `celld workflow`）· Gateway wake · 多节点 Orchestrator · offshoot↔celld 运行时双向 sync。
+**Bindings 本期攻：** 沿用 celld 0.4.0 的 KV / Queue / Workflow / Cron（见 §8）；子 version **D1 branch**（deploy · `runtime.D1Branch`）与 **KV + R2 + Queue branch**（AD-8 · `orch/runBindingBranches`）已落地。**仍延期：** R2 对象浏览器（无 `celld r2`）· Workflow 实例控制（无 `celld workflow`）· Gateway wake · 多节点 Orchestrator · offshoot↔celld 运行时双向 sync · Queue pull consumer / HTTP API · KV bulk 包装（可第二轮）。
 
 **三期（架构冻结 · 实现未排期）：** [OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)（AD-14）。**不做**用量计费 / 自研搜索。
 
@@ -394,7 +398,7 @@ erDiagram
 
 | Project 字段 | Version 字段 |
 |---|---|
-| `id` · `git_remote`（可选元数据）· `prod_version_id` | `id` · `parent_version_id` · `git_ref/sha` |
+| `id` · `git_remote`（可选元数据）· `prod_version_id` · `prod_url` | `id` · `parent_version_id` · `git_ref/sha` |
 | | `artifact_uri/digest` · `data_branch` |
 | | `preview_url` · `status` · `ttl` |
 | | Worker KV **不是** Registry 字段：命名空间在 wrangler `kv_namespaces[].id`，数据在该 version 的 celld bucket |
@@ -423,7 +427,7 @@ s3://cellp-celld/               # celld fleet Blob（cells/ deploy/ nodes/ …�
 | 环境 | celld Blob | offshoot | artifact |
 |---|---|---|---|
 | **prod** | **RustFS** `cellp-celld` | **RustFS** `cellp-offshoot` | **RustFS** `cellp-artifacts` |
-| **dev** | **RustFS**（compose `:9000`） | **local dir**（默认；S3 branch 待 T0b） | RustFS 或 `./dev/data/artifacts/` |
+| **dev** | **RustFS**（compose `:9000`） | **local dir**（默认；可选 RustFS，见 AD-4） | RustFS 或 `./dev/data/artifacts/` |
 
 ---
 
@@ -432,11 +436,13 @@ s3://cellp-celld/               # celld fleet Blob（cells/ deploy/ nodes/ …�
 ```
 外部 CI → POST cellp /versions
   → artifact → offshoot checkpoint/fork/export
-  → celld d1 seed → celld deploy → Gateway 路由
-  → preview_url: https://cellp/{project}/{version}/
+  → celld d1 seed → celld deploy → preview ingress（Host）
+  → preview_url / prod_url（API 返回；Host 形如 {version}.{project}.{baseDomain} / {project}.{baseDomain}）
 ```
 
-**Promote：** prod 指针 + offshoot promote + **cutover**（停旧路由）+ CAS。
+**Bootstrap prod：** `projects.prod_version_id` 为空时，**首个**进入 `ready` 的 version 在 deploy job 末尾经 `SetProdVersionCAS(project, "", version_id)` 设为 prod，并注册 prod ingress（`ensureProdIngress`）；**无需**单独 promote。
+
+**Promote（已有 prod 之后）：** `POST …/promote` → AD-5 saga：prod 指针 + offshoot promote + cutover（prod Host 不变、切 upstream）+ CAS。
 
 **PR preview：** parent ≠ prod；fork from seed/scrubbed branch。
 
@@ -455,8 +461,8 @@ celld:    d1 execute --file seed.sql → deploy → Worker 用 D1/DO
 
 ## 8. Bindings — celld 0.4.0 原生绑定（本期）
 
-> **决策：** [docs/decisions.md](./docs/decisions.md) **AD-6 · AD-7**  
-> **celld 依据：** [celld/docs/cloudflare-compat.md](./celld/docs/cloudflare-compat.md) · [v0.4.0 release](https://github.com/denoland/celld/releases/tag/v0.4.0)
+> **决策：** [docs/decisions.md](./docs/decisions.md) **AD-6 · AD-7 · AD-8**
+> **celld 依据：** 本仓库 `celld/`（[KonghaYao/celld](https://github.com/KonghaYao/celld)，cellp-maintained extended runtime）· [celld/docs/cloudflare-compat.md](./celld/docs/cloudflare-compat.md)
 
 celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Workflows · R2**，并继续支持 **D1 · Durable Objects · Cron · Assets**。cellp **沿用这些运行时能力**，控制面只做三件事：解析清单、包装已有 operator CLI、在 Dashboard 展示。Worker KV 数据在 celld fleet bucket（RustFS）。
 
@@ -474,10 +480,10 @@ celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Work
 | 绑定 | wrangler | 运行时（deploy 后） | celld operator | cellp 本期 | Dashboard 本期 | 延期 |
 |---|---|---|---|---|---|---|
 | **D1** | `d1_databases` | 已接 | `celld d1` | import / branch / SQL | Storage browser | — |
-| **KV** | `kv_namespaces` | 透传即生效 | `get/put/delete/list/info` + bulk | 包装 CLI | KV browser | branch / inherit；bulk 可第二轮 |
-| **Queues** | `queues.producers` / `consumers` | 透传即生效 | `info/peek/purge/pause/resume/redrive` | 包装 CLI | Queue 控制台 | branch；pull consumer；HTTP API |
+| **KV** | `kv_namespaces` | 透传即生效 | `get/put/delete/list/info` + bulk | branch（deploy）+ 包装 CLI | KV browser | bulk 包装（可第二轮） |
+| **Queues** | `queues.producers` / `consumers` | 透传即生效 | `info/peek/purge/pause/resume/redrive` | branch（deploy）+ 包装 CLI | Queue 控制台 | pull consumer；HTTP API |
 | **Workflows** | `workflows` | 透传即生效 | **无** `celld workflow`；实例是 reserved cell `__Workflow` | `celld cell list` 只读 | 实例列表 | pause/resume/restart；delete |
-| **R2** | `r2_buckets` | 对象在本 version bucket 的 `r2/<bucket_name>/` | **无** `celld r2` | 清单可见 | 仅徽章 / 空态 | 对象浏览器；branch |
+| **R2** | `r2_buckets` | 对象在本 version bucket 的 `r2/<bucket_name>/` | **无** `celld r2` | branch（deploy）+ 清单可见 | 仅徽章 / 空态 | 对象浏览器 |
 | **Cron** | `triggers.crons` | celld 按 fleet 触发 | 无独立 CLI | 从 wrangler 只读 | 表达式列表 | 平台调度器；跨 version 策略 |
 | **Durable Objects** | `durable_objects` | 已随 Worker 跑 | `celld cell list` | 本期不做独立页 | — | DO 浏览器 |
 
@@ -509,6 +515,8 @@ s3://cellp-celld/{project}/{version}/
 | **Workflow / Cron / Worker 脚本** | **不 branch**（空起步或仅 artifact 差异） |
 
 根 version（无 `parent_version_id`）：KV / R2 / Queue **空起步**。Archived 父仍可作为 branch 源（S3 保留）。
+
+**Preview 数据语义（AD-8）：** 子 version 的 D1/KV/R2/Queue = **fork 时刻父 bucket 快照** + **子侧写入**；与父 **不**实时共享、**不**挂同一 writer bucket。`parent_version_id` 应指向 **seed / staging** 父版（见 §6 PR preview）；勿默认从 prod 随意 branch。
 
 ### 8.4 控制面 API（`:8790/v1` · ADMIN_TOKEN）
 
@@ -593,7 +601,7 @@ celld 0.4.0 公共健康路径是 **`/.well-known/celld/health`**（不再是 `/
 
 ### 8.7 明确不做（本期）
 
-- 父子 KV/R2/Queue 共享或复制（见 AD-7）
+- 父子 KV/R2/Queue **实时共享**或 cellp 侧 CopyObject / 挂父桶（子 version 用 **时间点 branch**，之后隔离；见 **AD-8**）
 - R2 对象 list/get/put（等 `celld r2` 或单独契约）
 - Workflow 控制动作
 - Queue pull consumer、手动 attach consumer、R2 event notification
@@ -671,7 +679,8 @@ cp dev/.env.example dev/.env
 |---|---|
 | 8787 | cellpd Gateway（内置） |
 | 8790 | cellpd API |
-| 8792 | celld（含 Workers KV） |
+| 8792 | dev 共享 celld（`CELLD_PORT` · 探针 / stress；**非** AD-1 per-version upstream） |
+| 8803+ | 每 ready version 独立 celld upstream（`basePort+10+N`，默认首版 8803；AD-1） |
 | 9000 | RustFS S3 |
 | 9001 | RustFS Console |
 
@@ -702,7 +711,7 @@ e2e/                            # 端口级 E2E（后端完成后、前端前）
 
 dev/                            # 本地 harness（已有）
 ├── docker-compose.yml
-├── mock-platform/              # → 由 cellpd 替换
+├── mock-platform/              # 遗留 Node harness（非主路径）
 └── scripts/
 
 web/                            # Dashboard（Vite SPA · web/src/）
@@ -784,9 +793,9 @@ web/                            # Dashboard（Vite SPA · web/src/）
 **验证：** 门面契约测 opt-in（未立 TP 编号前不得塞进 `run-all.sh`）
 
 - [x] dev harness
-- [ ] **P0** Go `cellpd` 替换 mock
-- [ ] **P0** VALIDATION V0–V7 + **VE**
-- [ ] **P1** 极简 Dashboard（VE 后）
+- [x] **P0** Go `cellpd`（替代 mock-platform 主路径）
+- [ ] **P0** VALIDATION V0–V7 + **VE**（执行口径见 [docs/test-plan.md](./docs/test-plan.md)）
+- [ ] **P1** 极简 Dashboard（VE 后；`web/` 已存在，门禁以 test-plan 为准）
 
 ---
 

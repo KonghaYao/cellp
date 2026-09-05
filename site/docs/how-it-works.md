@@ -9,10 +9,20 @@ You do not push git to cellp. You **push a version**. On a laptop that is `cellp
   'POST /v1/projects/{project}/versions with id, optional parent_version_id, and artifact digest',
   'Poll GET …/versions/{id} until status is ready (or failed)',
   'Open preview_url on the gateway (HTTP Host, e.g. v1.my-shop.ingress.local:8787)',
-  'When it looks right, POST …/versions/{id}/promote — prod Host points at that version'
+  'When it looks right, POST …/versions/{id}/promote — prod Host points at that version (skip promote for the first version on a new project; it becomes prod when ready)'
 ]" />
 
 That is the entire CD contract. GitHub Actions, GitLab CI, or a laptop script are interchangeable.
+
+## cellp vs celld
+
+| | **cellp** (control plane) | **celld** (runtime) |
+|--|---------------------------|---------------------|
+| **You install** | `cellp` / `cellpd`, Dashboard, RustFS | Bundled with cellp releases (or built from `celld/` in the repo) |
+| **Responsibility** | Versions, registry, gateway Host routing, promote saga, data fork orchestration | Execute Worker `fetch`, bindings, Cron, Workflows inside the isolate |
+| **Process model** | One `cellpd` per deployment | One **celld** child process per **ready** version |
+
+Application code never imports cellp. It only sees the Workers APIs celld provides. Platform automation talks to **`:8790`**; browsers and CI smoke tests use **`:8787`** with the correct **Host** ([Gateway routing](/concepts/routing)).
 
 ## Isolation model
 
@@ -39,11 +49,11 @@ If you set `parent_version_id`, cellp treats this deploy as a **child**:
 | KV / R2 / Queue | Branch from parent |
 | Workflow instances / Cron | Do **not** branch — start empty / from this script |
 
-Typical PR preview: parent is a **staging seed**, not live production. Forking prod is rejected or scrubbed on purpose.
+Typical PR preview: parent is a **staging seed**, not live production. Forking prod is rejected or scrubbed on purpose. See [Data fork](/concepts/data-fork).
 
 ## URLs
 
-The gateway is a reverse proxy inside cellpd ([AD-12 Host routing](/concepts/preview)):
+The gateway is a reverse proxy inside cellpd ([Host-based routing](/concepts/routing)):
 
 | URL | Meaning |
 |-----|---------|
@@ -51,7 +61,7 @@ The gateway is a reverse proxy inside cellpd ([AD-12 Host routing](/concepts/pre
 | `http://{project}.{base}:8787/` | Current production version |
 | `POST /v1/.../promote` | Atomically point production at a ready version |
 
-Path selectors `/{project}/{version}/` and `/{project}/` are **deprecated**. Dev hosts: [INGRESS-HOST.md](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md).
+Path selectors `/{project}/{version}/` and `/{project}/` are **deprecated** — see [Gateway routing](/concepts/routing). Dev hosts: [INGRESS-HOST.md](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md).
 
 TLS and custom domains sit **in front** of the gateway. cellp speaks HTTP on `:8787` in dev.
 
@@ -86,6 +96,7 @@ There is no user table. See [Auth](/reference/auth).
 
 ## Where to go next
 
+- [Gateway routing](/concepts/routing) · [Data fork](/concepts/data-fork)
 - [Concepts: Versions](/concepts/versions)
 - [Deploy from CI](/guides/ci)
 - [Bindings](/concepts/bindings)

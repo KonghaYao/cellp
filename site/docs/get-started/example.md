@@ -24,7 +24,7 @@ Declared in [`wrangler.jsonc`](https://github.com/KonghaYao/cellp/blob/main/dev/
 | **Queue** | Fulfillment after checkout |
 | **Workflow** | Revenue report |
 | **R2** | Text asset uploads |
-| **Cron** | Hourly heartbeat written to KV |
+| **Cron** | Hourly heartbeat written to KV ([prod only](/bindings/cron)) |
 
 ## HTTP surface
 

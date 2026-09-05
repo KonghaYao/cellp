@@ -27,9 +27,7 @@ Production does **not** share a database with a PR. A PR with `parent_version_id
 
 ### Seed D1 with a SQLite file
 
-If the artifact directory contains **`seed.db`** (a real SQLite file), the orchestrator may run `celld d1 import` for a **root** version — **after** an optional offshoot **export to that same path**.
-
-If offshoot export succeeds, **it overwrites** the `seed.db` you copied. Locally export often fails (non-strict warn) and your file survives; that is luck, not the contract. e2e seeds **offshoot**, not only the artifact file.
+If the artifact directory contains **`seed.db`** (a real SQLite file), the orchestrator runs `celld d1 import` for a **root** version (no `parent_version_id`). Before import, an optional **[offshoot](/concepts/offshoot) export** may write to that same path; when export succeeds, it **replaces** any `seed.db` you bundled. Child versions **branch** parent storage instead of re-importing `seed.db`.
 
 Your CI can still generate `seed.db` (`sqlite3 seed.db < schema.sql`). Do not POST SQLite bytes through the JSON API.
 

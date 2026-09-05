@@ -1,6 +1,10 @@
 # Dashboard
 
-The Dashboard is a Vite SPA (`web/`). It is an operator console for **projects, versions, and data you already declared in wrangler** — not a place to create a Worker. Write the app first: [Write a Worker](/build/).
+The Dashboard is a **Vite + React SPA** (`web/`). It is an operator console for **projects, versions, and data you already declared in wrangler** — not a place to create a Worker. Write the app first: [Write a Worker](/build/).
+
+## API boundary
+
+All Dashboard traffic goes to **cellpd on port `:8790`** (`VITE_CELLP_API_URL` and related `VITE_CELLP_*` in `web/.env.example`). It does **not** call celld listen ports (`8792+`), offshoot, or object storage directly. Storage browsers and binding actions are proxied through the REST API. See [Architecture at a glance](/get-started/architecture#components).
 
 ## Run it
 
@@ -9,7 +13,7 @@ The Dashboard is a Vite SPA (`web/`). It is an operator console for **projects, 
 pnpm install && pnpm --filter cellp-dashboard dev
 ```
 
-Open `http://127.0.0.1:5190`. Point it at your API with `VITE_CELLP_*` (see `web/.env.example`). Auth is the **admin token**.
+Open `http://127.0.0.1:5190`. Point it at your API with `VITE_CELLP_*` (see `web/.env.example`). Auth is the **admin token**. Run from the **repository root** after `pnpm install` (workspace package `cellp-dashboard`).
 
 For the full click-path from deploy to promote, see [Operator journey](/get-started/operator-journey).
 
@@ -37,6 +41,8 @@ R2 is **visible on the bindings list**. There is no object browser (the runtime 
 - Git commit browser — git is metadata on the version
 - Live `wrangler tail` — see [Observability](/guides/observability)
 - Pause / resume Workflows — list only
+
+The Dashboard only calls the **`:8790` API**; it never talks to celld or S3 directly (see [API boundary](#api-boundary)).
 
 ## Production note
 

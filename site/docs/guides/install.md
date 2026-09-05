@@ -32,6 +32,8 @@ If the GitHub API rate-limits you, set `GH_TOKEN` (a fine-grained or classic tok
 | **cellpd** | Same process as `cellp serve` (Compose / systemd) |
 | **esbuild** | Bundler used by `celld deploy` (included in the release tarball) |
 
+Overview of how these fit together: [Architecture at a glance](/get-started/architecture).
+
 ## GitHub Releases
 
 Cross-platform archives are published on version tags (`v*`):
@@ -46,7 +48,7 @@ Native Windows is not shipped yet (`celld` is Unix). Use WSL2, macOS, Linux, or 
 
 Production-shaped stack (RustFS + cellpd image): [Self-hosting](/guides/self-hosting) · `ghcr.io/konghayo/cellp`.
 
-## From source (contributors)
+## From source
 
 ```bash
 git clone https://github.com/KonghaYao/cellp.git && cd cellp
@@ -55,4 +57,4 @@ cd cellp && go build -o cellp ./cmd/cellp
 cd ../celld && cargo build -p celld --profile lab
 ```
 
-The old Docker-based laptop stack is still `./dev/scripts/up.sh`.
+For a Docker-based laptop stack with RustFS, use `./dev/scripts/up.sh` (see [Local stack](/get-started/local)).

@@ -35,7 +35,7 @@ Platform teams already have Git, CI, object storage, and a load balancer. What t
 - An explicit production pointer (so rollback is “promote the previous version”)
 - An operator API and UI that do not require a Cloudflare account
 
-cellp is that control plane. It is boring on purpose: SQLite registry, RustFS, Docker Compose, two tokens. The interesting part is the **versioning model**.
+cellp is that **self-hosted** control plane. It is boring on purpose: SQLite registry, RustFS, Docker Compose, two tokens—no Cloudflare account, no hosted cellp SaaS. The interesting part is the **versioning model** (preview Host + explicit promote).
 
 ## What we refuse to build
 

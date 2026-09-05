@@ -1,12 +1,12 @@
 # From Vercel
 
-cellp feels like “preview URL, then production” — with a Workers runtime and **versioned data**. It is not a place to host Next.js.
+cellp feels like “preview URL, then production” — with a Workers runtime and **versioned data**. It is not a place to host Next.js on Node.
 
 ## If you are on App Router / Node
 
 Stop here: [Supported stacks](/migrate/stacks). Run Next on Vercel or a Node host. cellp will not execute `next start`.
 
-If you can express the app as a **Worker** (`fetch` + bindings) — including static assets via wrangler `assets` — continue.
+If you can express the app as a **Worker** (`fetch` + bindings) — including static assets via wrangler `assets` — continue. OpenNext **Worker** bundles are [experimental](/migrate/frameworks), not tier 1.
 
 ## Git push vs POST version
 
@@ -42,9 +42,15 @@ Example workflow: [`ci-pr-preview.example.yml`](https://github.com/KonghaYao/cel
 
 ## Data
 
-Vercel Postgres/KV previews often **share** production or require a second instance. cellp’s default for children is **fork D1/KV/R2/Queue**.
+Vercel Postgres/KV previews often **share** production or require a second instance. cellp’s default for children is **fork D1/KV/R2/Queue** from the parent version.
 
-Workflows and Cron do not fork in-flight work.
+| Pattern | cellp |
+|---------|--------|
+| Vercel Postgres / Neon preview DB | Use [D1](/bindings/d1) on cellp, or call **your** database from the Worker (no Hyperdrive layer) |
+| Edge Config / KV | [KV](/bindings/kv) with branch on preview versions |
+| Blob | [R2](/bindings/r2) with branch on preview versions |
+
+Workflow **instances** do not fork. Cron runs on **production** scheduling policy only ([Cron](/bindings/cron)). Durable Objects are not branched like D1—see [Durable Objects](/bindings/durable-objects).
 
 ## Ops
 

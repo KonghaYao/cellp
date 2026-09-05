@@ -1,37 +1,51 @@
-# Framework tiers on cellp
+# Supported stacks
 
-Runtime: **celld** (Workers semantics). **AD-13** defines which stacks are first-class on cellp.
+Runtime: **celld** (Cloudflare Workers semantics on your hardware). cellp documents **tier 1** stacks as first-class; other CF framework guides may work when you ship a **single Worker + assets** bundle built in CI.
 
-## First-class (tier 1)
+**Status legend:** **Works** — validated on cellp · **Experimental** — lab fixtures only, not a hosting promise · **Not a goal** — use another platform
 
-These align with [Cloudflare Workers framework guides](https://developers.cloudflare.com/workers/framework-guides/) and have a dedicated support validation track (S22–S25 where noted):
+## Tier 1 (first-class)
+
+Aligned with [Cloudflare Workers framework guides](https://developers.cloudflare.com/workers/framework-guides/). cellp documents, recommends, and runs a dedicated validation track for these when they deploy as **one Worker per version**:
 
 | Framework | Typical artifact | Notes |
 |-----------|------------------|--------|
 | **React + Vite SPA** | `dist` + thin Worker | **Default recommendation** for new apps |
 | **Vue + Vite SPA** | same | same pattern |
-| **Astro** | `@astrojs/cloudflare` single Worker | S22 validation |
-| **SvelteKit** | `adapter-cloudflare` **single** Worker | Not multi-`services` consoles (e.g. cloudflarebase) |
-| **Remix** | `@remix-run/cloudflare` bundle | S24 validation |
-| **Nuxt** | Nitro `cloudflare` preset | S25 validation |
+| **Astro** | `@astrojs/cloudflare` single Worker | static or adapter single deploy |
+| **SvelteKit** | `adapter-cloudflare` **single** Worker | not multi-`services` consoles |
+| **Remix** | `@remix-run/cloudflare` bundle | single bundle per version |
+| **Nuxt** | Nitro `cloudflare` preset | single Worker |
 
-**Deploy pattern:** build in CI → upload artifact → `POST /versions`. Prefer **pre-built** worker + `assets`; avoid relying on celld to re-bundle Tailwind, `.md`, or full SSR graphs.
+**Deploy pattern:** build in CI → upload artifact → `POST /versions`. Prefer **pre-built** worker + `assets`; avoid relying on celld to re-bundle Tailwind, `.md`, or full SSR graphs inside the Worker.
 
-See [Framework tiers (detail)](./frameworks.md) and the internal [framework coverage](https://github.com/KonghaYao/cellp/blob/main/docs/framework-coverage-cellp.md) doc.
+Details: [Framework tiers (detail)](/migrate/frameworks).
+
+## Also works (not tier 1)
+
+Cloudflare documents additional stacks. cellp does **not** treat these as product defaults, but community validation has passed for single-Worker artifacts:
+
+| Framework | Status | Notes |
+|-----------|:------:|-------|
+| **Hono** | Works | API or API + static assets |
+| **SolidStart** | Works | single Worker + `nodejs_compat` where needed |
+| **Qwik City** | Works | Workers template, pre-built bundle |
+| **Waku** | Works | pre-build + slim wrangler layout |
+
+If a template uses **`[[services]]`** (multiple Workers), treat it as **unsupported** until cellp gains multi-worker orchestration.
+
+## Next.js
+
+| Dimension | Status |
+|-----------|--------|
+| OpenNext / vinext **Worker** bundles (not Node `next start`) | Experimental |
+| App Router on **Node** (Vercel-style SSR) | Not a goal |
+
+**Experimental** — lab fixture checks only for minimal OpenNext and pinned App Router samples; that does **not** mean arbitrary Next versions deploy unchanged. See [Framework tiers](/migrate/frameworks) and [From Vercel](/migrate/vercel).
 
 ## Recommended default
 
 **Vite SPA (React or Vue) + one Worker API** with wrangler static `assets` — same mental model as Cloudflare **Workers + Static Assets**.
-
-## Next.js (not tier 1)
-
-Cloudflare hosts Next via **OpenNext** or **vinext**. cellp does **not** treat Next as first-class:
-
-- No Next.js Dashboard or official Next template in cellp.
-- You may still ship an OpenNext-built artifact if it is a **single** Worker bundle + assets and passes celld deploy. Fixed S30 and S40 artifacts have passed lab gates, including S40 dynamic App Router SSR and a Route Handler; this evidence does not generalize to arbitrary versions.
-- **Node SSR / App Router on Node** belongs on Vercel or a Node host, not cellp.
-
-Optimization notes: [OpenNext on cellp (experimental)](https://github.com/KonghaYao/cellp/blob/main/docs/plans/NEXT-OPENNEXT-CELLP.md).
 
 ## Supported runtime kinds (summary)
 
@@ -41,6 +55,7 @@ Optimization notes: [OpenNext on cellp (experimental)](https://github.com/Kongha
 | `wrangler.json` / `wrangler.jsonc` | Parsed from the **bundle** at deploy |
 | D1, KV, R2, Queue, Workflows, Cron | See [bindings](/concepts/bindings) |
 | Static assets | wrangler `assets` within celld support |
+| Durable Objects | **Partial** in celld — verify before migration |
 
 ## Not supported / not a goal
 
@@ -49,13 +64,13 @@ Optimization notes: [OpenNext on cellp (experimental)](https://github.com/Kongha
 | **Multiple Workers** (`[[services]]` stacks) | Single main Worker per version today |
 | Worker-in-Worker SSR graphs without prebuild | Pre-bundle + `no_bundle` or use tier-1 adapters |
 | Pages Functions that are not Workers | Rewrite as a Worker |
-| Workers AI, Vectorize, Hyperdrive | Not in celld |
+| Workers AI, Vectorize, Hyperdrive | Not in celld — use D1 or call an external DB/API from the Worker |
 | Arbitrary npm needing Node built-ins | Workers-compatible packages + `nodejs_compat` where supported |
 | Python Workers | No |
 
 ## Compatibility
 
-celld marks many CF APIs **Partial**. Read [celld cloudflare-compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md).
+celld marks many Cloudflare APIs **Partial**. Read [celld cloudflare-compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md) and the [binding guides](/bindings/).
 
 ## Languages
 

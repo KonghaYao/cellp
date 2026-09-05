@@ -12,42 +12,52 @@ Authorization: Bearer <token>
 
 | Token | Endpoints |
 |-------|-----------|
-| `DEPLOY_TOKEN` | `POST /projects/{id}/versions` |
-| `ADMIN_TOKEN` | Everything else (including GET version for polling if you choose admin; CI often uses deploy token only on POST — poll with whichever your deployment grants) |
+| `CELLP_DEPLOY_TOKEN` | `POST /projects/{id}/versions` only |
+| `CELLP_ADMIN_TOKEN` | Everything else — list/get versions, poll deploy status, promote, bindings, Dashboard |
+
+If deploy and admin tokens differ, CI must use **admin** (or a second credential) to `GET …/versions/{id}` while polling; deploy token alone cannot read version status.
 
 Details: [Auth](/reference/auth).
 
 ## Health & runtime
 
-| Method | Path | Notes |
-|--------|------|--------|
-| `GET` | `/health` | Liveness |
-| `GET` | `/health/deep` | Registry, store, queue; `503` if overloaded |
-| `GET` | `/metrics` | Prometheus |
-| `GET` | `/runtime/routes` | Upstream summary (admin) |
+REST paths below are under **`/v1`**. Prometheus metrics are **not** under `/v1`:
+
+| Method | Path | Auth | Notes |
+|--------|------|------|--------|
+| `GET` | `/v1/health` | none | Liveness |
+| `GET` | `/v1/health/deep` | none | Registry, store, queue; `503` if overloaded (`queue_full`) |
+| `GET` | `http://<cellpd>:8790/metrics` | none | Prometheus (cellpd **root**, no `/v1` prefix) |
+| `GET` | `/v1/runtime/routes` | admin | Active upstream summary |
 
 ## Projects
 
-| Method | Path |
-|--------|------|
-| `GET` | `/projects` |
-| `POST` | `/projects` |
-| `GET` | `/projects/{projectID}` |
+| Method | Path | Auth |
+|--------|------|------|
+| `GET` | `/projects` | admin |
+| `POST` | `/projects` | admin |
+| `GET` | `/projects/{projectID}` | admin |
+
+Query `GET /projects`: `limit` (default 50, max 200), `cursor` for pagination.
+
+`GET /projects/{projectID}`: optional `include=versions` with `limit` for an embedded first page.
 
 `POST` body: `{ "id": "my-shop", "git_remote": "optional" }`.
 
+Response includes `prod_version_id`, `prod_url` when production is set.
+
 ## Versions
 
-| Method | Path | Notes |
-|--------|------|--------|
-| `GET` | `/projects/{p}/versions` | Cursor pagination |
-| `POST` | `/projects/{p}/versions` | **202** — CD entry (`DEPLOY_TOKEN`) |
-| `GET` | `/projects/{p}/versions/{v}` | Status, `preview_url`, … |
-| `DELETE` | `/projects/{p}/versions/{v}` | Destroy |
-| `GET` `PUT` | `/projects/{p}/versions/{v}/env` | Overrides |
-| `POST` | `…/promote` | Production cutover |
-| `POST` | `…/archive` `…/wake` | Process lifecycle |
-| `POST` | `…/pin` `…/unpin` | Idle protection |
+| Method | Path | Auth | Notes |
+|--------|------|------|--------|
+| `GET` | `/projects/{p}/versions` | admin | `limit`, `cursor`, optional `status` filter |
+| `POST` | `/projects/{p}/versions` | **deploy** | **202** — async deploy |
+| `GET` | `/projects/{p}/versions/{v}` | admin | Status, `preview_url`, `prod_url`, parent, … |
+| `DELETE` | `/projects/{p}/versions/{v}` | admin | Destroy (irreversible) |
+| `GET` `PUT` | `/projects/{p}/versions/{v}/env` | admin | Worker env overrides |
+| `POST` | `…/promote` | admin | Production cutover (**202**) |
+| `POST` | `…/archive` `…/wake` | admin | Process lifecycle |
+| `POST` | `…/pin` `…/unpin` | admin | Idle protection |
 
 ### POST /versions body
 
@@ -62,49 +72,76 @@ Details: [Auth](/reference/auth).
 }
 ```
 
-`422` example: illegal prod fork.
+- `id` optional — server generates `v-YYYYMMDDHHMMSS` if omitted.
+- `artifact_uri` in client JSON is **ignored**; cellpd builds `s3://{CELLP_ARTIFACTS_BUCKET}/{project}/{version}/`.
+- Upload artifacts to that prefix **before** or immediately after POST (orchestrator fetches from object storage).
 
-Poll until `status` is `ready` or `failed`.
+### POST /versions responses
+
+| Code | Meaning |
+|------|---------|
+| **202** | Accepted — body includes `id`, `status`, `preview_url`, `poll_url` |
+| **422** | Invalid fork (e.g. parenting live production for a PR) |
+| **503** | Deploy queue full (`queue_full`, `pending_jobs`, `queue_max`) |
+
+Poll `GET …/versions/{id}` until `status` is `ready` or `failed` (you may see `deploy_ready` transiently when elastic runtime is on—keep polling until `ready`; see table above).
+
+### Version `status` values
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Created, queued |
+| `fetching` | Pulling artifact |
+| `branching` | offshoot / D1 / KV / R2 / Queue branch |
+| `preparing` | Import / seed |
+| `deploying` | celld deploy |
+| `deploy_ready` | Artifact and bindings prepared; may appear only when [elastic serving](/reference/limits) (`CELLP_ELASTIC_RUNTIME`) is enabled—qualification before `ready`. **Poll until `ready`** for deploy success; do not treat `deploy_ready` as the public CD terminal state. |
+| `ready` | Serves preview Host (external deploy success terminal state) |
+| `failed` | Deploy error — see `error` field |
+| `archived` | Process stopped; data retained |
+| `draining` | Transient during promote |
+| `destroyed` | Removed |
 
 ### GET /versions/{v} fields (snapshot semantics)
 
 | Field | Meaning |
 |-------|---------|
-| `parent_version_id` | When set, this version **branched data** (D1/KV/R2/Queue) from that parent at deploy time. The child does not see parent writes after the fork cut (`fork_txid` in D1; not exposed in JSON). `null` = root version. |
-| `ready_at` | When the version became `ready` (deploy + branch pipeline finished). |
-| `preview_url` | Outward Gateway URL for preview Host (`http://{version}.{project}.{base}:8787/` in dev). |
+| `parent_version_id` | When set, this version **branched data** (D1/KV/R2/Queue) from that parent at deploy time. The child does not see parent writes after the fork cut. `null` = root version. |
+| `ready_at` | When the version became `ready`. |
+| `preview_url` | Outward Gateway URL for preview Host (scheme/host from ingress config). |
 
 Concepts: [Preview](/concepts/preview) · [Promote](/concepts/promote).
 
 ## Gateway (not `/v1`)
 
-User traffic hits **cellpd Gateway** on port **8787** (default). Routing is by **HTTP Host** ([AD-12](/concepts/preview)):
+User traffic hits **cellpd Gateway** on port **8787** (default). Routing is by **HTTP Host** ([Preview & production](/concepts/preview)):
 
 | Role | Host pattern |
 |------|----------------|
 | Preview | `{version}.{project}.{baseDomain}` |
 | Production | `{project}.{baseDomain}` |
 
-Dev setup: [repo `dev/INGRESS-HOST.md`](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md). Path selectors `http://gateway:8787/{project}/` and `/{project}/{version}/` are **deprecated**.
+Configure `CELLP_INGRESS_BASE_DOMAIN`, `GATEWAY_URL`, and public schemes on cellpd. Dev setup: [repo `dev/INGRESS-HOST.md`](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md). Path selectors `http://gateway:8787/{project}/` and `/{project}/{version}/` are **deprecated**.
+
+**WebSockets:** The gateway forwards `Upgrade: websocket` to celld (RFC 6455). Use the same Host rules as HTTP. TLS terminates at your outer proxy, not inside cellpd.
 
 ```bash
 curl -H "Host: demo-app.ingress.local" http://127.0.0.1:8787/health
-curl -sS -H "Authorization: Bearer $TOKEN" \
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
   "$CELLP_URL/projects/demo-app/versions/v1" | jq .preview_url
-# open preview_url in browser (http + :8787 in dev)
 ```
 
 ## Bindings & data
 
-Prefix: `/projects/{p}/versions/{v}`
+Prefix: `/projects/{p}/versions/{v}` — all **admin**.
 
 | Area | Paths |
 |------|--------|
 | Manifest | `GET /bindings` |
 | D1 | `GET /database`, `/database/tables`, `/database/tables/{table}/rows`, `POST /database/query` |
-| KV | `/kv`, `/kv/{ns}`, `/kv/{ns}/keys`, `/kv/{ns}/keys/{key}` |
-| Queues | `/queues`, `/queues/{name}`, `peek` `pause` `resume` `redrive` `purge` |
-| Workflows | `/workflows`, `/workflows/{name}/instances` |
+| KV | `GET /kv`, `/kv/{ns}`, `/kv/{ns}/keys`, `GET|PUT|DELETE /kv/{ns}/keys/{key}` |
+| Queues | `/queues`, `/queues/{name}`, `GET /peek`, `POST /pause` `/resume` `/redrive` `/purge` |
+| Workflows | `GET /workflows`, `GET /workflows/{name}/instances` (read-only) |
 
 ## curl: first version smoke
 

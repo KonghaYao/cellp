@@ -45,7 +45,7 @@ features:
 
 ## Position
 
-**cellp** is the **control plane** for private Workers: CI posts a version, you get a preview Host, you **promote** to production. **[celld](https://github.com/KonghaYao/celld)** is the **runtime** (Workers APIs, bindings). cellp does not re-implement the isolate — it runs one celld per ready version and forks data with **offshoot**.
+**cellp** is a **self-hosted Workers control plane**: CI posts a version, you get a preview Host; the **first** `ready` version becomes production, and you **promote** for later cutovers on your hardware. **[celld](https://github.com/KonghaYao/celld)** is the **runtime** (Workers APIs, bindings)—vendored and extended in the cellp repository for private deploy (D1/KV/R2/Queue branch, per-version buckets). cellp does not re-implement the isolate; it runs one celld per ready version and forks data with **offshoot**.
 
 This is **not** self-hosted Cloudflare: no account, no Anycast edge, no built-in DNS/TLS/CDN. You keep Git, CI, and your load balancer. [Why cellp](/why) · [Compare](/compare) · [From Cloudflare](/migrate/cloudflare)
 
@@ -80,18 +80,18 @@ This is **not** self-hosted Cloudflare: no account, no Anycast edge, no built-in
   { title: 'Queue', badge: 'branches', body: 'The queue name in wrangler is the same; the data is a branch. Messages enqueued here never drain in prod.' }
 ]" />
 
-Workflow instances and Cron are **not** branched — they start from this artifact. That is intentional. [Bindings](/concepts/bindings) · [Preview](/concepts/preview)
+Workflow instances and Cron are **not** branched — they start from this artifact. That is intentional. [Bindings](/concepts/bindings) · [Preview](/concepts/preview) · [Data fork](/concepts/data-fork)
 
 ## The idea in one sentence
 
-**cellp is the control plane that versions the Worker and its D1, KV, R2, and Queues together**, then gives you a preview URL and a one-shot promote to production.
+**cellp is the control plane that versions the Worker and its D1, KV, R2, and Queues together**, then gives you a preview URL; the first `ready` version serves production, and later changes use promote.
 
 <Flow :steps="[
   'Install (`curl | sh`) and run `cellp dev`, or upload a wrangler bundle to RustFS in CI',
   'POST /versions with parent_version_id — Worker from this artifact, D1 / KV / R2 / Queue branched from the parent',
   'Each version gets its own celld process and preview Host URL',
   'You hit the preview until you are satisfied. Writes stay in that version.',
-  'POST …/promote switches prod Host to that version. Rollback is promote the previous one.'
+  'First ready on a new project becomes prod automatically; POST …/promote switches prod for later versions. Rollback is promote the previous one.'
 ]" />
 
 ## Who this is for
@@ -105,7 +105,7 @@ Workflow instances and Cron are **not** branched — they start from this artifa
 ## Also true (less exciting, still required)
 
 - **Self-hosted.** `curl | sh` then `cellp dev` on a laptop. Docker Compose + RustFS on a VM. No Cloudflare account, no AWS S3.
-- **Promote is explicit.** Production is not “whatever main built last.”
+- **Promote is explicit after bootstrap.** The first `ready` version becomes prod; later production is not “whatever main built last” without promote.
 - **Honest boundary.** No Git hosting, user accounts, DNS, CDN, or TLS. Your CI pushes versions. Your load balancer terminates HTTPS.
 - **Dashboard.** Projects, versions, D1 browser, KV, queues — same REST API as CI.
 

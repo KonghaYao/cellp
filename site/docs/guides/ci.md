@@ -4,6 +4,8 @@ You already have a Worker folder (`wrangler.jsonc` + `main`). cellp never watche
 
 If you have not written the app yet, start at [Write a Worker](/build/) and [Configure bindings](/build/wrangler).
 
+API field reference: [REST API](/reference/api). Machine-readable contract: [`cellp/api/openapi.yaml`](https://github.com/KonghaYao/cellp/blob/main/cellp/api/openapi.yaml).
+
 ## Artifact layout
 
 Upload the wrangler bundle so cellpd can fetch it:
@@ -14,9 +16,11 @@ s3://cellp-artifacts/{project}/{version}/
 
 Use path-style S3 against **RustFS** (`AWS_ENDPOINT` / `--endpoint-url`). Not AWS S3, not Cloudflare R2.
 
+Upload **before** calling create-version, or finish upload immediately after — the orchestrator fetches from this prefix.
+
 ## Create the version
 
-`POST /v1/projects/{project}/versions` with `DEPLOY_TOKEN`.
+`POST /v1/projects/{project}/versions` with **`CELLP_DEPLOY_TOKEN`** (not admin when tokens are split).
 
 Child (PR) example body:
 
@@ -30,7 +34,9 @@ Child (PR) example body:
 }
 ```
 
-Poll `GET` on the version until `status` is `ready` or `failed`. Use **`ADMIN_TOKEN`** for GET (deploy token is 403 if the two secrets differ). Locally they are the same `dev-local-token`.
+**202 Accepted** body includes `poll_url`. Poll `GET` on that version until `status` is `ready` or `failed`. Use **`CELLP_ADMIN_TOKEN`** for GET (deploy token returns **403** when deploy ≠ admin). Locally both are often `dev-local-token`.
+
+If the queue is saturated, POST returns **503** `queue_full` — back off and retry.
 
 ## GitHub Actions (PR preview)
 
@@ -51,7 +57,7 @@ Sketch:
       -H "Authorization: Bearer $CELLP_DEPLOY_TOKEN" \
       -H "Content-Type: application/json" \
       -d "$BODY"
-    # poll until ready with ADMIN_TOKEN, print preview_url
+    # poll until ready with CELLP_ADMIN_TOKEN, print preview_url
 ```
 
 Secrets you need:
@@ -91,8 +97,4 @@ PR previews inherit the parent’s data **at fork time** only. Orders or config 
 
 ## Local stand-in
 
-```bash
-./dev/scripts/simulate-cd.sh my-shop v-local1 path/to/worker
-```
-
-Default third argument is `dev/examples/counter`. The script always creates a **root** version. Laptop copy-into-`artifacts/` + `POST /versions` is the path that matches CI.
+Copy artifacts into your dev layout and call the same `POST /versions` with curl, or use `cellp dev` in a Worker directory for a laptop loop. For a scripted CD rehearsal, see `dev/scripts/simulate-cd.sh` in the repository (creates a **root** version from an example Worker).

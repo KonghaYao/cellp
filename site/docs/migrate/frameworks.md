@@ -1,25 +1,25 @@
 # Framework tiers (detail)
 
-How cellp classifies front-end stacks relative to Cloudflare Workers — **AD-13**.
+How cellp classifies front-end stacks relative to Cloudflare Workers.
 
 ## Tier 1 — first-class
 
-cellp documents, recommends, and validates (support IDs **S22–S25**) these stacks when they deploy as **one Worker + assets** per version:
+cellp documents, recommends, and validates these stacks when they deploy as **one Worker + assets** per version (one **celld** process per [version](/concepts/versions)):
 
-| Stack | Cloudflare | cellp validation |
-|-------|------------|------------------|
-| React + Vite SPA | [React + Vite guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/react/) | Community apps S15+ |
-| Vue + Vite SPA | [Vue guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/vue/) | e.g. S17 |
-| Astro | [Astro guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/astro/) | **S22** |
-| SvelteKit | [SvelteKit guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/sveltekit/) | **S23** (single Worker only) |
-| Remix | [Remix / React Router on Workers](https://developers.cloudflare.com/workers/framework-guides/web-apps/) | **S24** |
-| Nuxt | [Nuxt on Workers](https://developers.cloudflare.com/workers/framework-guides/web-apps/nuxt/) | **S25** |
+| Stack | Cloudflare | cellp |
+|-------|------------|--------|
+| React + Vite SPA | [React + Vite guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/react/) | Default for new apps |
+| Vue + Vite SPA | [Vue guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/vue/) | Same SPA + Worker pattern |
+| Astro | [Astro guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/astro/) | Single Worker / static + server |
+| SvelteKit | [SvelteKit guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/sveltekit/) | **Single Worker only** |
+| Remix | [Remix / React Router on Workers](https://developers.cloudflare.com/workers/framework-guides/web-apps/) | `@remix-run/cloudflare` bundle |
+| Nuxt | [Nuxt on Workers](https://developers.cloudflare.com/workers/framework-guides/web-apps/nuxt/) | Nitro `cloudflare` preset |
 
 ### What “first-class” means
 
-- Documented on this site and in [Supported stacks](./stacks.md).
-- Expected path: **CI builds** the framework output → you upload the wrangler bundle → cellp runs **one celld** per version (AD-1).
-- **Not** a guarantee that every GitHub template works without a `dev/examples/<project>/` overlay.
+- Documented on this site and in [Supported stacks](/migrate/stacks).
+- Expected path: **CI builds** the framework output → you upload the wrangler bundle → cellp runs **one celld** per version.
+- **Not** a guarantee that every GitHub template works without a project-specific overlay or `prepare-artifact` script.
 
 ### What it does **not** mean
 
@@ -43,9 +43,9 @@ This matches Cloudflare’s **Workers + Static assets** model and avoids celld r
 Cloudflare documents Next.js via **OpenNext** (and related tooling). cellp:
 
 - Does **not** list Next as tier 1.
-- Does **not** use Next for the Dashboard (`web/` is Vite SPA).
-- Allows **experimental** OpenNext artifacts if you pre-build a single Worker entry and static assets (see repo doc `docs/plans/NEXT-OPENNEXT-CELLP.md`).
-- The S30 lab artifact passed preview and production `GET /` on 2026-09-04. A separate S40 fixture based on pinned `vercel/next.js` `examples/hello-world` then passed static assets, dynamic App Router SSR, a Route Handler, and Next’s 404 on 2026-09-05. Both are fixed-version artifact evidence—not tier-1 support or a promise that arbitrary Next/OpenNext versions work unchanged.
+- Does **not** use Next for the Dashboard (`web/` is a **Vite SPA**, not Next.js).
+- Allows **experimental** OpenNext artifacts if you pre-build a single Worker entry and static assets.
+- **Lab only:** minimal OpenNext and pinned App Router fixtures have passed lab fixture checks (static assets, dynamic SSR route, Route Handler, 404). That is not tier-1 support or a promise that arbitrary Next/OpenNext versions work unchanged.
 
 | Approach | cellp |
 |----------|--------|
@@ -53,12 +53,13 @@ Cloudflare documents Next.js via **OpenNext** (and related tooling). cellp:
 | OpenNext **Worker** bundle + assets | Experimental; prebuild required |
 | Next **Edge Middleware** as Next defines it | Not a goal |
 
-## Other CF frameworks (Solid, Waku, …)
+## Other CF frameworks (Solid, Waku, Hono, Qwik, …)
 
-Cloudflare may publish guides for additional frameworks. cellp does not assign tier-1 status until there is a validation slot and matrix entry. You can still deploy if the output is a standard Workers bundle.
+Cloudflare may publish guides for additional frameworks. cellp assigns **tier 1** only to the table above. **Hono**, **SolidStart**, **Qwik City**, and **Waku** have passed community validation as single-Worker deploys — see [Supported stacks](/migrate/stacks). Others may still work if the output is a standard Workers bundle; judge against [celld compatibility](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md).
 
 ## Related
 
-- [From Cloudflare](./cloudflare.md) — deploy path and bindings
-- [Supported stacks](./stacks.md) — short summary
-- Contributor matrix: [framework-coverage-cellp.md](https://github.com/KonghaYao/cellp/blob/main/docs/framework-coverage-cellp.md) · [support-matrix.md](https://github.com/KonghaYao/cellp/blob/main/docs/support-matrix.md)
+- [Migrate overview](/migrate/) — where to start
+- [From Cloudflare](/migrate/cloudflare) — deploy path and bindings
+- [Supported stacks](/migrate/stacks) — short summary
+- [Binding guides](/bindings/) — celld vs cellp per binding

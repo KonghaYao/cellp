@@ -1,6 +1,8 @@
 # KV
 
-Workers KV on `env.<binding>`.
+Workers KV on `env.<binding>`. **celld** stores keys in the version bucket; **cellp** **branches** namespaces on child versions and exposes key operator APIs.
+
+[Bindings overview](/concepts/bindings) · [Binding guides](./index) · [Platform data](/build/data)
 
 ## 1. Declare it
 
@@ -52,15 +54,23 @@ Root versions start **empty**. There is no “create namespace” button besides
 
 ## Operator API
 
+Prefix: `/v1/projects/{project}/versions/{version}/`
+
 ```
 GET    …/kv
-GET    …/kv/{ns}                 # {ns} is the wrangler id
-GET    …/kv/{ns}/keys
+GET    …/kv/{ns}                 # namespace info (wrangler `id`)
+GET    …/kv/{ns}/keys?prefix=&cursor=&limit=
 GET    …/kv/{ns}/keys/{key}
-PUT    …/kv/{ns}/keys/{key}
+PUT    …/kv/{ns}/keys/{key}      # JSON body: value, optional ttl/metadata
 DELETE …/kv/{ns}/keys/{key}
 ```
 
-## Gaps
+Dashboard and API require the version to be **ready**. `503` when celld is stopped.
 
-celld KV is **partial** vs Cloudflare. Check list/metadata/limits against [celld compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md) if you depend on them.
+## celld vs Cloudflare
+
+- No edge cache — `cacheTtl` has no effect; `cacheStatus` is `null`.
+- Values above **1 MiB** need the version fleet bucket (normal on cellp).
+- One writer per namespace; scale writes with more namespaces.
+
+Full list: [celld cloudflare-compat — KV](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md#kv).

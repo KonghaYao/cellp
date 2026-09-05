@@ -43,7 +43,7 @@ You still write the same Worker + `wrangler.jsonc`. [Write a Worker](/build/).
 
 `cellp dev` does **not** start RustFS. Object storage is a local Bolt-backed S3 on `:19000`. Offshoot uses a **directory** under `~/.cellp/data`. That is the laptop path.
 
-For a production-like disk (RustFS), use [Docker Compose](/guides/self-hosting).
+For a production-like disk (RustFS + S3-backed offshoot), use [Docker Compose](/guides/self-hosting) or the [contributor local stack](/get-started/local).
 
 ## Doctor
 
@@ -56,3 +56,5 @@ Checks `celld`, `offshoot`, `esbuild`, and ports `8787` / `8790` / `19000`. Rele
 ## Tokens
 
 Local defaults match the rest of the docs: deploy and admin are `dev-local-token`. [Auth](/reference/auth).
+
+Repository layout and where docs live in the monorepo: [Repository map](/reference/repo).

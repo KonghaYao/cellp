@@ -19,12 +19,16 @@ curl -sS -X POST \
   "$CELLP_URL/v1/projects/$PROJECT/versions/$OLD_VERSION/promote"
 ```
 
-Verify:
+`CELLP_URL` must include `/v1`. Promote returns **202** while the saga runs; poll project or version state until `prod_version_id` updates.
+
+Verify production Host routing (not deprecated path URLs):
 
 ```bash
-curl -sS "$GATEWAY/$PROJECT/" | head
-# or GET /v1/projects/$PROJECT → prod_version_id
+curl -sS -H "Host: ${PROJECT}.ingress.local" "http://127.0.0.1:8787/" | head
+# or GET /v1/projects/$PROJECT → prod_version_id, prod_url
 ```
+
+See [Preview & production](/concepts/preview) for Host patterns in your environment.
 
 ## Archived previous prod
 
@@ -40,8 +44,6 @@ curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## Practice
 
-Pin the previous production for an hour after a risky promote so wake is unnecessary. See [Archive](/concepts/archive).
+After a risky promote, keep the previous production **pinned** for a window (`POST …/pin` or `CELLP_ROLLBACK_KEEP` on cellpd) so wake is unnecessary. See [Archive](/concepts/archive).
 
 Do not destroy versions you might need to roll back to.
-
-Internal runbook in the repo: [`docs/runbooks/rollback.md`](https://github.com/KonghaYao/cellp/blob/main/docs/runbooks/rollback.md).

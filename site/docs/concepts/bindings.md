@@ -24,7 +24,7 @@ When you create a **child** version (`parent_version_id` set):
 | R2 | Yes (overlay + tombstones) |
 | Queue | Yes |
 | Workflow **instances** | **No** — empty |
-| Cron | **No** — follows **this** script; **scheduling** only on **prod** ready version (AD-11) |
+| Cron | **No** branch — follows **this** script; **scheduling** only on the **production** ready version ([Cron](/bindings/cron) · [Data fork](/concepts/data-fork)) |
 | Worker script | **No** — this artifact |
 
 Binding **identities** (`database_id`, KV namespace id, queue name, R2 bucket name) are inherited from the parent wrangler so the Worker code keeps working.
@@ -54,4 +54,4 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 Compatibility matrix: [Supported stacks](/migrate/stacks). Deep runtime gaps: [celld cloudflare-compat](https://github.com/KonghaYao/cellp/blob/main/celld/docs/cloudflare-compat.md).
 
-Per-binding guides: [D1](/bindings/d1) · [KV](/bindings/kv) · [R2](/bindings/r2) · [Queues](/bindings/queues) · [Workflows](/bindings/workflows) · [Cron](/bindings/cron).
+Per-binding guides: [D1](/bindings/d1) · [KV](/bindings/kv) · [R2](/bindings/r2) · [Queues](/bindings/queues) · [Workflows](/bindings/workflows) · [Cron](/bindings/cron) · [Durable Objects](/bindings/durable-objects) · [Images](/bindings/images).

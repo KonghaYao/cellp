@@ -2,6 +2,8 @@
 
 Promote makes a **ready** version the production pointer. It is explicit. Merging to `main` does nothing unless your CI calls this API.
 
+The **first** version on a new project becomes production automatically when it reaches `ready` (empty `prod_version_id`). Every later production change goes through promote.
+
 ## Call
 
 ```bash

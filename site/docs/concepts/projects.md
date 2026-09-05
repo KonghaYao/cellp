@@ -11,13 +11,20 @@ curl -sS -X POST "$CELLP_URL/v1/projects" \
   -d '{"id":"my-shop","git_remote":"https://github.com/acme/my-shop"}'
 ```
 
-`id` is the **project id** used in ingress Host names: `{project}.{base-domain}` (prod) and `{version}.{project}.{base-domain}` (preview). Path prefixes `/{id}/` are **deprecated** (AD-12).
+`id` is the **project id** used in ingress Host names: `{project}.{base-domain}` (prod) and `{version}.{project}.{base-domain}` (preview). Path prefixes `/{id}/` are **deprecated** — use [Host-based routing](/concepts/routing).
 
 `git_remote` is optional **metadata**. cellp never clones it.
 
 ## Production pointer
 
-`GET /v1/projects/{id}` returns `prod_version_id` and `prod_url`. Until you [promote](/concepts/promote) something, there is no production.
+`GET /v1/projects/{id}` returns `prod_version_id` and `prod_url`.
+
+| Situation | Behavior |
+|-----------|----------|
+| **No prod yet** | The **first** version that reaches `ready` is assigned production automatically (prod Host is created). You do not need a separate “bootstrap promote.” |
+| **Prod already set** | New versions are preview-only until you [promote](/concepts/promote) one of them. |
+
+The prod **Host** stays the same across promote; only the backing version changes.
 
 ## Listing
 
@@ -28,8 +35,8 @@ curl -sS -X POST "$CELLP_URL/v1/projects" \
 ```
 project: my-shop
   versions: v-seed, pr-42-abc, v-2026-08-30
-  prod_version_id: v-2026-08-30    →  GET /my-shop/
-  preview:                         →  GET /my-shop/pr-42-abc/
+  prod_version_id: v-2026-08-30    →  Host: my-shop.ingress.local
+  preview (pr-42-abc):             →  Host: pr-42-abc.my-shop.ingress.local
 ```
 
 There are no “Preview / Production / Development” environment records like Vercel env targets. Isolation is **per version**. Env vars are [per version](/guides/environment-variables) as well.

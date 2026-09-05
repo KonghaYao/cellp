@@ -9,7 +9,7 @@ This page is the **closed loop** for a platform operator: deploy a Worker, inspe
 | cellp CLI + celld | [Install](/guides/install) · `cellp doctor` |
 | Local platform | `cellp dev --no-deploy` or [Local stack](/get-started/local) (`./dev/scripts/up.sh`) |
 | Admin token | Same as `CELLP_ADMIN_TOKEN` / `PLATFORM_TOKEN` in dev |
-| Dashboard | `cd web && pnpm run dev` → `http://127.0.0.1:5190` with `VITE_CELLP_*` |
+| Dashboard | From repo root: `pnpm install && pnpm --filter cellp-dashboard dev` → `http://127.0.0.1:5190` with `VITE_CELLP_*` |
 
 There is **no login UI**. The Dashboard sends `Authorization: Bearer` on every API call.
 
@@ -37,17 +37,13 @@ Use this list while you run the loop locally. Check items off in your notes or e
   **Success:** Overview → Deployments → Version detail → Storage (ready version) → Platform (jobs/routes/health).  
   **If it fails:** 401 → fix Bearer token; empty Storage → pick a **ready** version; API down → restart stack.
 
-- [ ] **Promote to production**  
-  **Success:** `prod_version_id` matches promoted version; **prod Host** (`prod_url`) serves prod.  
+- [ ] **Promote to production** (skip if this is still the only / first `ready` version — it is already prod)
+  **Success:** `prod_version_id` matches the version you want live; **prod Host** (`prod_url`) serves it.
   **If it fails:** Only **ready** versions promote; on preview branches read [What promote does not do](/concepts/promote#what-promote-does-not-do) (pointer switch, not merge of post-fork prod writes).
 
 - [ ] **Rollback (when needed)**  
   **Success:** Promote a previous **ready** version again; prod URL reflects the rollback target.  
   **If it fails:** Version must stay `ready` (not archived/destroyed); see [Rollback](/guides/rollback).
-
-- [ ] **Contributor verify**  
-  **Success:** `cd web && pnpm run test` green; optional `./dev/scripts/up.sh` then `cd web && pnpm run test:e2e:live`.  
-  **If it fails:** Vitest logs under `web/`; live skip OK if stack down—use `web/scripts/verify-user-loop.sh` for the standard gate + log in `docs/evidence/`.
 
 ## 1. Register a project (optional)
 
@@ -74,15 +70,18 @@ Or use CI: build artifact → `POST /v1/projects/my-shop/versions` → poll unti
 ## 3. Confirm preview on the gateway
 
 ```bash
+# Preview Host from GET …/versions/<id> → preview_url (not the prod Host)
+curl -sf -H "Host: <version-id>.my-shop.ingress.local" http://127.0.0.1:8787/health
+
+# Prod Host: my-shop.ingress.local (see GET /v1/projects/my-shop → prod_url)
 curl -sf -H "Host: my-shop.ingress.local" http://127.0.0.1:8787/health
-# preview: Host from GET …/versions/<id> → preview_url
 ```
 
-Production uses **prod Host** (`GET /projects/{id}` → `prod_url`) only after promote. Path URLs `/{project}/{version}/` are deprecated.
+**Prod Host** (`GET /projects/{id}` → `prod_url`) serves the current `prod_version_id`. The **first** `ready` version on a project sets that pointer automatically; **later** cutovers require [promote](/concepts/promote). Path URLs `/{project}/{version}/` are deprecated.
 
 ## 4. Walk the Dashboard
 
-Suggested click path (matches live E2E `web/e2e/live/operator-loop.spec.ts`):
+Suggested click path:
 
 1. **Projects** — find `my-shop`
 2. **Overview** — prod pointer, links to prod/preview URLs
@@ -111,30 +110,6 @@ PR pipelines should stop before promote; only `main` (or your release branch) sh
 ## 6. Roll back
 
 Promote a previous **ready** version again, or follow [Rollback](/guides/rollback). Old prod versions remain until archived/destroyed.
-
-## 7. Verify (contributors)
-
-**Fast (Vitest, mock API):**
-
-```bash
-cd web && pnpm run test
-```
-
-Covers create-project, preview snapshot copy, promote confirm, and navigation helpers under `web/src/flows/`.
-
-**Browser mock (Playwright):**
-
-```bash
-cd web && pnpm run test:e2e
-```
-
-**Live cellpd:**
-
-```bash
-cd web && pnpm run test:e2e:live
-```
-
-Uses real `:8790` (not the Playwright mock). Override project id: `CELLP_LIVE_PROJECT=commerce-store`.
 
 ## Related
 

@@ -3,7 +3,7 @@
 cellp is meant to run on **your** machines.
 
 - **Laptop, no Docker:** [Install](/guides/install) then [cellp dev](/guides/dev).
-- **Production-shaped VM:** Docker Compose with **RustFS** + **cellpd** (`cellp serve` / `ghcr.io/konghayo/cellp`). celld processes are spawned by cellpd — not extra Compose services.
+- **Production-shaped VM:** Docker Compose with **RustFS** + **cellpd** (`cellp serve` / `ghcr.io/konghayo/cellp`). celld processes are spawned by cellpd — not extra Compose services. **offshoot** App + Data branches use the same RustFS tier (`OFFSHOOT_STORE`), not the laptop directory store used by `cellp dev`.
 
 ## Quick start
 
@@ -35,19 +35,53 @@ docker compose up -d
 
 Match names in `dev/.env.example`. Compose fills container networking defaults.
 
+### Core
+
 | Variable | Purpose |
 |----------|---------|
-| `CELLP_DEPLOY_TOKEN` | CI `POST /versions` |
+| `CELLP_DEPLOY_TOKEN` | CI `POST /v1/projects/{p}/versions` only |
 | `CELLP_ADMIN_TOKEN` | Admin API + Dashboard |
 | `CELLP_REGISTRY_DB` | SQLite path (volume) |
+| `PLATFORM_PORT` / `GATEWAY_PORT` | `8790` / `8787` |
+| `GATEWAY_URL` | Public gateway origin (used in API URLs; set to what browsers/LB use) |
+
+### Ingress
+
+| Variable | Purpose |
+|----------|---------|
+| `CELLP_INGRESS_BASE_DOMAIN` | Host suffix (`{version}.{project}.{base}` preview, `{project}.{base}` prod) |
+| `CELLP_PUBLIC_SCHEME_PREVIEW` / `CELLP_PUBLIC_SCHEME_PROD` | Schemes in `preview_url` / `prod_url` |
+
+Point DNS or `/etc/hosts` at your gateway for those Host patterns. TLS is **your** reverse proxy.
+
+### Storage
+
+| Variable | Purpose |
+|----------|---------|
 | `S3_ENDPOINT` | RustFS inside the network |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 credentials |
 | `OFFSHOOT_STORE` | e.g. `s3://cellp-offshoot` |
 | `CELLP_ARTIFACTS_BUCKET` | Allowed artifact bucket |
 | `CELLD_BUCKET` | Base prefix for per-version celld data |
-| `GATEWAY_PORT` / `PLATFORM_PORT` | `8787` / `8790` |
+| `ARTIFACTS_DIR` | Local fetch staging |
 
 **Production:** use strong tokens. Put TLS on a reverse proxy in front of `:8787` and `:8790`. Do not expose RustFS console publicly.
+
+## Dashboard (optional)
+
+Build the SPA from `web/` with production API origin:
+
+```bash
+cd web
+cp .env.example .env
+# VITE_CELLP_API_URL=https://cellp-api.internal.example   # no /v1 suffix
+# VITE_CELLP_ADMIN_TOKEN=…
+# VITE_CELLP_GATEWAY_URL=https://workers.example
+# VITE_CELLP_INGRESS_BASE_DOMAIN=workers.example
+pnpm install && pnpm build
+```
+
+Serve `dist/` behind the same access controls as `:8790`. See [Dashboard](/get-started/dashboard).
 
 ## Volumes
 
@@ -75,6 +109,8 @@ Internet → your LB (TLS, WAF) → cellpd :8787  (Workers traffic)
                               → cellpd :8790  (API, locked down)
                               → Dashboard static (optional, locked down)
 ```
+
+Scrape Prometheus at `http://<cellpd>:8790/metrics` (root path, not `/v1`).
 
 cellp will not obtain Let's Encrypt certificates or write DNS records.
 

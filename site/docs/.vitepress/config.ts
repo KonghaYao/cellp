@@ -35,7 +35,7 @@ export default defineConfig({
     logo: { src: '/logo.svg', alt: 'cellp' },
     siteTitle: 'cellp',
     nav: [
-      { text: 'Docs', link: '/guides/install', activeMatch: '^/(build|get-started|concepts|guides|bindings)/' },
+      { text: 'Docs', link: '/get-started/', activeMatch: '^/(build|get-started|concepts|guides|bindings)/' },
       { text: 'Why cellp', link: '/why' },
       { text: 'Migrate', link: '/migrate/cloudflare', activeMatch: '^/migrate/' },
       { text: 'API', link: '/reference/api' },
@@ -59,6 +59,7 @@ export default defineConfig({
           text: 'Get started',
           items: [
             { text: 'Quick start', link: '/get-started/' },
+            { text: 'Architecture', link: '/get-started/architecture' },
             { text: 'Local stack', link: '/get-started/local' },
             { text: 'Example app', link: '/get-started/example' },
             { text: 'Dashboard', link: '/get-started/dashboard' },
@@ -80,6 +81,9 @@ export default defineConfig({
             { text: 'Projects', link: '/concepts/projects' },
             { text: 'Versions', link: '/concepts/versions' },
             { text: 'Preview & production', link: '/concepts/preview' },
+            { text: 'Gateway routing', link: '/concepts/routing' },
+            { text: 'Data fork', link: '/concepts/data-fork' },
+            { text: 'offshoot', link: '/concepts/offshoot' },
             { text: 'Promote', link: '/concepts/promote' },
             { text: 'Archive & wake', link: '/concepts/archive' },
             { text: 'Bindings', link: '/concepts/bindings' },
@@ -100,17 +104,21 @@ export default defineConfig({
         {
           text: 'Bindings',
           items: [
+            { text: 'Binding guides', link: '/bindings/' },
             { text: 'D1', link: '/bindings/d1' },
             { text: 'KV', link: '/bindings/kv' },
             { text: 'R2', link: '/bindings/r2' },
             { text: 'Queues', link: '/bindings/queues' },
             { text: 'Workflows', link: '/bindings/workflows' },
             { text: 'Cron', link: '/bindings/cron' },
+            { text: 'Durable Objects', link: '/bindings/durable-objects' },
+            { text: 'Images', link: '/bindings/images' },
           ],
         },
         {
           text: 'Research',
           items: [
+            { text: 'Overview', link: '/research/' },
             { text: 'Coding Agent on cellp', link: '/research/coding-agent-on-cellp' },
             { text: 'Vercel framework on cellp', link: '/research/vercel-on-cellp' },
           ],
@@ -118,6 +126,7 @@ export default defineConfig({
         {
           text: 'Migrate',
           items: [
+            { text: 'Overview', link: '/migrate/' },
             { text: 'From Cloudflare', link: '/migrate/cloudflare' },
             { text: 'From Vercel', link: '/migrate/vercel' },
             { text: 'Supported stacks', link: '/migrate/stacks' },
@@ -128,6 +137,8 @@ export default defineConfig({
           text: 'Reference',
           items: [
             { text: 'REST API', link: '/reference/api' },
+            { text: 'CLI', link: '/reference/cli' },
+            { text: 'Compatibility', link: '/reference/compatibility' },
             { text: 'Auth & tokens', link: '/reference/auth' },
             { text: 'Limits', link: '/reference/limits' },
             { text: 'Repository map', link: '/reference/repo' },

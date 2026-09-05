@@ -1,13 +1,14 @@
 # Local stack
 
-Two laptop paths:
+Choose how you run cellp on a machine:
 
 | Path | When |
 |------|------|
 | **[cellp dev](/guides/dev)** | Product loop: no Docker, embedded S3, one command |
 | **`./dev/scripts/up.sh`** | Contributor stack: Docker **RustFS** + host `cellpd` (this page) |
+| **Docker Compose** | Production-shaped VM — [Self-hosting](/guides/self-hosting) |
 
-The `dev/` directory is a full cellp on one machine: RustFS, cellpd (API + gateway), celld, offshoot.
+The `dev/` tree is a full cellp on one laptop: RustFS, cellpd (API + gateway), celld, and offshoot. For a component diagram and default ports, see [Architecture at a glance](/get-started/architecture).
 
 ## Bring it up
 
@@ -68,7 +69,7 @@ On a laptop, some gateway behavior may be simulated so you can iterate without a
 - Get preview URLs
 - Inspect D1/KV in the Dashboard
 
-Production-shaped offshoot-on-RustFS is a separate gate (`v0b`). For product usage, the local stack is the right default.
+Full **production offshoot on RustFS** (App + Data branches stored in S3) is what you get with [Self-hosting](/guides/self-hosting) / Docker Compose, not the simplified laptop contributor path. For day-to-day product work, `cellp dev` or this local stack is the right default.
 
 ## Dashboard alongside the stack
 

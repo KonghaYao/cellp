@@ -20,7 +20,7 @@
 | **边缘 / 链路** | **不做**全球边缘 PoP、DNS、CDN、TLS 终止、WAF；入口由**外层其他项目**承担；cellp 提供**分布式**控制面 + Gateway 反代 |
 | **Registry** | SQLite（`cellp-registry.sqlite`，WAL）；**不用 PostgreSQL** |
 | **Gateway** | cellpd **内置** reverse proxy；监听 HTTP，由外部 LB 反代并终止 TLS |
-| **一期范围** | CD + Branch + Version + promote/saga；ready 数量**无硬上限**（AD-9，靠封存回收进程） |
+| **一期范围** | CD + Branch + Version + promote/saga；**首个 ready 可 bootstrap prod**（`prod_version_id` 空时 CAS + prod ingress）；ready 数量**无硬上限**（AD-9，靠封存回收进程） |
 | **Bindings（本期）** | 沿用 celld 0.4.0；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 不 branch |
 
 ---
@@ -33,7 +33,7 @@
 
 | 项 | 实现 |
 |----|------|
-| celld | 每个 **ready version** 独立子进程 + 独立端口（`8792+N`） |
+| celld | 每个 **ready version** 独立子进程；upstream 端口 **`CELLD_PORT`（默认 8792）+ 10 + N**（N 从 1 递增；首版默认 **8803**）。**8792** 为 dev 共享 celld / Manager `basePort`，**不是** per-version 首端口 |
 | bucket | `s3://cellp-celld/{project}/{version}` 每 version 隔离 |
 | Registry `routes` | 每 version 记录 `upstream_host` + `upstream_port` |
 | Gateway | **AD-12：** Host / opt-in listen port → `ingress_bindings` → route 反代（**废弃** path 选 version）；**WebSocket Upgrade**（RFC6455）透传 celld **已支持**（2026-09-03 · [WEBSOCKET-SUPPORT-ANALYSIS.md](./plans/WEBSOCKET-SUPPORT-ANALYSIS.md)） |
@@ -84,7 +84,9 @@ compensate: 任一步失败按逆序 idempotent 回滚
 
 Registry 必交付 `SetProdVersionCAS(project, expected, new)`。
 
-**证据：** `e2e/scripts/v5-saga-compensate.sh` · `e2e/scripts/v4b-promote-offshoot-fail.sh`
+**Bootstrap prod（≠ promote saga）：** 当 `projects.prod_version_id` 为空时，version deploy job 在 `ready` 之后调用 `SetProdVersionCAS(project, "", version_id)` 并注册 prod ingress（`ensureProdIngress`）；**不**执行 drain / `offshoot_promote`。项目已有 prod 后，切换生产版本仍须 `POST …/versions/{vid}/promote`（上表 forward saga）。
+
+**证据：** `e2e/scripts/v5-saga-compensate.sh` · `e2e/scripts/v4b-promote-offshoot-fail.sh` · `cellp/internal/orch/orchestrator.go`（deploy ready 末段）
 
 ---
 
@@ -217,22 +219,28 @@ flowchart LR
 
 ---
 
-## 12. AD-7 — 无 branch 的绑定空起步（等到 celld 支持再 inherit）
+## 12. AD-7 — 绑定隔离与无 CLI 管理面边界（KV/R2/Queue branch → **AD-8**）
 
-**问题：** D1 有 `celld d1 branch`（子 bucket 指父 LTX）。KV / R2 / Queue / Workflow **没有** 等价命令。若 preview 去读父 version 的 bucket，会破坏 AD-1 隔离，也可能写穿 prod。
+**问题（2026-08 前）：** D1 有 `celld d1 branch`；KV / R2 / Queue 尚无 branch 时，preview 若读父 bucket 会破坏 AD-1 隔离。
 
-**决策：**
+**被 AD-8 取代 / 收窄（勿再按本段执行）：**
+
+| 原 AD-7 表述 | 现行 |
+|--------------|------|
+| KV / R2 / Queue 子 version **空库** | **child branch**（`celld kv/r2/queue branch` · cellp `BindingBranchPlanForVersion` / `runBindingBranches`） |
+| **不做** copy / 挂父桶 / inherit | 仍 **不做** cellp 侧 CopyObject / 挂父桶 / 实时共享；fork 用 celld CoW branch（AD-8） |
+| preview KV/Queue **不携带** parent/prod 数据 | **父 fork 时刻快照 + 子写入**；`parent_version_id` 宜用 **seed/staging**，勿鼓励从 prod 随意 branch |
+
+**仍有效（AD-7 保留）：**
 
 | 绑定 | 子 version 数据 | 本期 |
 |------|-----------------|------|
-| **D1** | `d1 branch`（已落地） | 保持 |
-| **KV / R2 / Queue / Workflow** | **空**（独立 `s3://cellp-celld/{project}/{version}`） | **不做 copy / 挂父桶 / inherit** |
-| R2 对象浏览器 | 无 `celld r2` | **不做管理面**（清单可见） |
-| Workflow 控制 | 无 `celld workflow` | **只读** `cell list` |
-
-等 celld 提供这些资源的 branch / operator CLI 后，**新 ADR** 再开 inherit 专项。产品必须在 UI 标明 preview KV/Queue 不携带 prod 数据。
-
-**修正（2026-08-30）：** AD-8 落地后，KV / R2 / Queue **不再**空起步。AD-7 仅保留 **Workflow 实例**（及 Worker 脚本 / Cron：本就不是可 fork 的数据集）。
+| **D1** | `d1 branch` | 保持（与 AD-8 同构） |
+| **KV / R2 / Queue** | **branch 自父**（非空库） | 见 **[AD-8 §13](#13-ad-8--kv--r2--queue-跨-version-branch)** |
+| **Workflow 实例** | **不 branch** | **只读** `celld cell list` |
+| **Cron / Worker 脚本** | **不 branch** | 空起步或仅 artifact 差异 |
+| R2 对象浏览器 | 无 `celld r2` | **不做管理面**（bindings 清单可见） |
+| Workflow 控制 | 无 `celld workflow` | **只读** list；无 pause/resume/restart |
 
 ---
 
@@ -361,6 +369,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 | **celld** | Gateway 设 `Host: synthetic_host` + `X-Forwarded-*`；ready 门禁 **`CELLD_TRUST_FORWARDED_HEADERS=1`**。 |
 | **Env** | version ready 注入 **`PUBLIC_BASE_URL`** = 对外 `preview_url` / prod URL。 |
 | **Promote** | prod **Host 不变**；切 `prod_version_id` + upstream；preview binding 不因 promote 自动失效。 |
+| **Bootstrap prod** | `prod_version_id == nil` 时**首个** `ready`：`SetProdVersionCAS("", new)` + prod `ingress_bindings`；**非** AD-5 saga（见 [§6](#6-ad-5--promote-saga自动补偿)）。 |
 | **AD-10** | cellp 仍不写 DNS/不签证书；外层 LB 透传 Host。 |
 | **威胁模型** | Gateway HTTP = 应用暴露面；token 不保护 Worker URL。 |
 
@@ -368,15 +377,15 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 **详细契约与 blocking 规则（R-TRUST-* 等）：** [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md)
 
-**Port 部署（台账、稳定 prod 口、promote 不改 prod port）：** [plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md)（P5 待实现）
+**Port 部署（P5 已交付）：** 默认 **Host ingress**（共享 Gateway HTTP 口，如 `:8787`）。Tier B（`dedicated_port` / `prod_port` 等）时：`ingress_bindings.listen_port` 与 SQLite **`port_allocations`** 台账（分配 / 释放 / 稳定 prod 口）；cellpd **`ReconcileIngressListeners`** 按 binding 动态 listen；**promote 不改 prod `listen_port`**。设计细则：[plans/INGRESS-PORT-DEPLOYMENT.md](./plans/INGRESS-PORT-DEPLOYMENT.md)（P5）。
 
 **Dev 本机 / 局域网 / Clash：** [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/clash/README.md](../dev/clash/README.md)
 
 **对抗审查：** 已并入 [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) §10
 
-**证据：** P0–P2 e2e Host + `go test ./...`；**P3（2026-09-01）** Gateway 删除 path handler，仅 Host ingress。
+**证据：** P0–P2 e2e Host + `go test ./...`；**P3（2026-09-01）** Gateway 删除 path handler，仅 Host ingress；**P5c** `port_allocations` + dedicated listener reconcile（`cellp/internal/registry/port_alloc.go` · `cellp/internal/gateway/` · `archive_ingress_listener_test.go`）。
 
-**实现（计划）：** `cellp/internal/gateway/` · `cellp/internal/registry/` · orchestrator env 注入 · `runtime.VerifyGatewayRoute` 改用 `preview_url`。
+**实现：** `cellp/internal/gateway/` · `cellp/internal/registry/` · orchestrator preview/prod ingress · deploy `ready` bootstrap prod · `runtime.VerifyGatewayRouteHost` / `preview_url` 校验。
 
 ---
 

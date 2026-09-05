@@ -1,6 +1,8 @@
 # Quick start
 
-Install the CLI, start a local platform (**no Docker**), deploy a Worker.
+Install the CLI, start a **self-hosted** Workers control plane on your machine (**no Docker** required), and deploy a Worker version with a preview URL.
+
+Routing is **Host-based** on the gateway (`preview_url` / `prod_url` from the API)—not path prefixes. See [Preview & production](/concepts/preview) before you open URLs in a browser.
 
 > **Operator checklist:** Step through deploy → Dashboard inspection → promote with Bearer admin token only (no login). Use the [Operator journey checklist](/get-started/operator-journey#operator-checklist) as your source of truth.
 
@@ -12,7 +14,7 @@ export PATH="$HOME/.local/bin:$PATH"
 cellp doctor
 ```
 
-Details: [Install](/guides/install).
+Details: [Install](/guides/install). Component map: [Architecture at a glance](/get-started/architecture).
 
 ## 2. Run the platform
 
@@ -40,9 +42,11 @@ cellp dev
 
 Opens the version **`preview_url`** from the API (Host on `:8787`) after deploy is ready.
 
-## Ingress / hosts (contributor stack)
+## Ingress / hosts
 
-See [Local stack — ingress](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md): `./dev/scripts/ingress-host-init.sh local|magic`.
+User-facing rules: [Preview & production](/concepts/preview) · [Gateway routing](/concepts/routing).
+
+Contributor stack DNS (`/etc/hosts`, nip.io): [dev/INGRESS-HOST.md](https://github.com/KonghaYao/cellp/blob/main/dev/INGRESS-HOST.md) — `./dev/scripts/ingress-host-init.sh local|magic`.
 
 ## Commerce example (from this repo)
 
@@ -66,6 +70,7 @@ Image `ghcr.io/konghayo/cellp`. [Self-hosting](/guides/self-hosting).
 
 ## Next
 
+- [Architecture at a glance](/get-started/architecture)
 - [Operator journey (CLI → Dashboard → promote)](/get-started/operator-journey)
 - [cellp dev](/guides/dev)
 - [Write a Worker](/build/)
