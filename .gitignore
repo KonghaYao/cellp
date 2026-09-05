@@ -77,6 +77,8 @@ docs/evidence/
 # --- local agent / IDE (workflows & run logs, not product source) ---
 .claude/
 .peri/
+peri/
+.wrangler/
 
 # --- vercel ---
 .vercel
