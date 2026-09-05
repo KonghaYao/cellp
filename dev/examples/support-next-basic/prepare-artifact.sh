@@ -4,6 +4,9 @@ set -euo pipefail
 APP_DIR="${1:?app dir}"
 OVERLAY="$(cd "$(dirname "$0")" && pwd)"
 CORE="${OVERLAY}/../support-opennext/prepare-artifact.sh"
+# shellcheck source=dev/scripts/support-pnpm.sh
+source "${OVERLAY}/../../scripts/support-pnpm.sh"
+cellp_ensure_pnpm
 
 log() { echo "prepare-artifact: $*"; }
 
