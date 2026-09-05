@@ -22,6 +22,11 @@ import (
 	"github.com/cellp/cellp/internal/runtime"
 )
 
+func controllerGuardID() string {
+	host, _ := os.Hostname()
+	return fmt.Sprintf("%s-%d", host, os.Getpid())
+}
+
 // Run starts the cellpd API + gateway until ctx is cancelled.
 func Run(ctx context.Context) error {
 	cfg := config.Load()
@@ -39,7 +44,17 @@ func Run(ctx context.Context) error {
 	defer baseStore.Close()
 	log.Printf("registry: SQLite (%s)", cfg.RegistryDB)
 
+	guardID := controllerGuardID()
+	skipGuard := os.Getenv("CELLP_SKIP_CONTROLLER_GUARD") == "1"
+	if !skipGuard {
+		if err := baseStore.TryAcquireControllerGuard(ctx, guardID, os.Getpid()); err != nil {
+			return fmt.Errorf("singleton controller guard: %w (only one active cellpd writer; set CELLP_SKIP_CONTROLLER_GUARD=1 for tests)", err)
+		}
+		log.Printf("controller guard acquired: %s", guardID)
+	}
+
 	gw := gateway.New(baseStore)
+	gw.StartRouteSnapshotPoller(ctx, 0)
 	store := gateway.WrapStore(baseStore, gw)
 	lm := gateway.NewListenerManager(gw, baseStore, gw.Config())
 
@@ -118,6 +133,11 @@ func Run(ctx context.Context) error {
 	}
 
 	shutdownAll := func() {
+		if !skipGuard {
+			if err := baseStore.ReleaseControllerGuard(context.Background(), guardID); err != nil {
+				log.Printf("controller guard release: %v", err)
+			}
+		}
 		lm.CloseAll(context.Background())
 		_ = apiServer.Shutdown(context.Background())
 		_ = gwServer.Shutdown(context.Background())

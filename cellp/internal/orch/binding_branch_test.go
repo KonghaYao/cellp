@@ -61,4 +61,8 @@ func TestParentBranchable(t *testing.T) {
 	if !parentBranchable(archived) {
 		t.Fatal("archived should branch")
 	}
+	deployReady := &registry.Version{Status: registry.StatusDeployReady}
+	if !parentBranchable(deployReady) {
+		t.Fatal("deploy_ready parent should branch (AD-15)")
+	}
 }

@@ -1,0 +1,26 @@
+{
+  "revision": 1,
+  "policy_revision": 1,
+  "bindings": [
+    {
+      "role": "preview",
+      "host": "preview.example",
+      "listen_port": 19080,
+      "project_id": "demo",
+      "version_id": "v1"
+    }
+  ],
+  "endpoint_sets": [
+    {
+      "project_id": "demo",
+      "version_id": "v1",
+      "endpoints": [
+        {
+          "replica_id": "r0",
+          "address": "127.0.0.1:8792",
+          "state": "ready"
+        }
+      ]
+    }
+  ]
+}

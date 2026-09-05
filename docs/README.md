@@ -34,6 +34,7 @@
 | 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |
 | **社区 Workers 支持矩阵** | [support/README.md](./support/README.md)（索引）· [support-matrix.md](./support-matrix.md) · [support-unsupported-by-capability.md](./support-unsupported-by-capability.md) |
 | **证据目录说明** | [evidence-index.md](./evidence-index.md)（`docs/evidence/` 本地 gitignore） |
+| **SURGE E1 用户验收** | [evidence/surge/e1/ACCEPTANCE.md](./evidence/surge/e1/ACCEPTANCE.md) |
 | **Coding Agent on cellp（前沿）** | [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md) |
 | **Vercel framework on cellp（后续）** | [plans/VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md) · [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) |
 | Prod offshoot × RustFS | [runbooks/prod-offshoot-rustfs.md](./runbooks/prod-offshoot-rustfs.md) |
@@ -57,6 +58,12 @@
 | 文件 | 内容 |
 |------|------|
 | [decisions.md](./decisions.md) | **当前有效**决策摘要（推荐首读） |
+| [plans/SURGE-DESIGN-INDEX.md](./plans/SURGE-DESIGN-INDEX.md) | **SURGE 弹性 Draft 设计包索引**（Proposed AD 文本审查已通过；E0 启动包已就绪，待用户指令；AD 未批准，不授权开发） |
+| [plans/SURGE-E0-START-PACK.md](./plans/SURGE-E0-START-PACK.md) | **SURGE E0 启动总包**（E0 contract/audit/plan 已完成 → `evidence/surge/e0/2026-09-05-e0-01/`；SP 未运行；AD 未批准） |
+| [plans/SURGE-PROPOSED-AD.md](./plans/SURGE-PROPOSED-AD.md) | **Proposed AD-15**：Elastic Serving Fleet（未生效、不授权开发） |
+| [plans/SURGE-PROPOSED-AD-REVIEW.md](./plans/SURGE-PROPOSED-AD-REVIEW.md) | Proposed AD 对抗审查（13/13 finding `CLOSED`；`APPROVE-AS-PROPOSED` 仅为文本结论） |
+| [plans/SURGE-DECISION-BRIEF.md](./plans/SURGE-DECISION-BRIEF.md) | SURGE 已确认设计输入、风险和授权边界 |
+| [plans/SURGE-DESIGN-OPTIONS.md](./plans/SURGE-DESIGN-OPTIONS.md) | 方案 A/B/C 与并发拆分理由 |
 | [plans/REVIEW.md](./plans/REVIEW.md) | AD-1..5 对抗审查原文 |
 | [plans/REVIEW-celld-d1-branch.md](./plans/REVIEW-celld-d1-branch.md) | D1 branch 对抗审查（APPROVE-WITH-CHANGES） |
 | [plans/INGRESS-ROUTING.md](./plans/INGRESS-ROUTING.md) | AD-12 Host / Gateway |

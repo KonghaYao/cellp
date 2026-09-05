@@ -34,6 +34,16 @@ func (g *Gateway) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 	}
 	checks["routes"] = map[string]int{"active": len(routes)}
 
+	if g.snapshots != nil {
+		rev := g.snapshots.LastAppliedRevision()
+		_, hasLKG := g.snapshots.Snapshot()
+		checks["route_snapshot"] = map[string]interface{}{
+			"revision": rev,
+			"lkg":      hasLKG,
+			"errors":   g.snapshots.PollErrors(),
+		}
+	}
+
 	if len(routes) > 0 {
 		route := routes[0]
 		host := route.UpstreamHost

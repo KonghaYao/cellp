@@ -130,7 +130,10 @@ CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
 	if err := s.migratePortAllocations(); err != nil {
 		return err
 	}
-	return s.migrateIngressProjectColumns()
+	if err := s.migrateIngressProjectColumns(); err != nil {
+		return err
+	}
+	return s.migrateElasticServing()
 }
 
 func (s *SQLiteStore) migrateIngressProjectColumns() error {
@@ -625,7 +628,11 @@ func (s *SQLiteStore) SetRoute(ctx context.Context, route Route) error {
 				upstream_host = excluded.upstream_host,
 				upstream_port = excluded.upstream_port`,
 			route.ProjectID, route.VersionID, active, route.UpstreamHost, route.UpstreamPort)
-		return err
+		if err != nil {
+			return err
+		}
+		s.bumpRouteRevisionQuiet(ctx)
+		return nil
 	})
 }
 
@@ -635,10 +642,16 @@ func (s *SQLiteStore) SetRouteActive(ctx context.Context, projectID, versionID s
 		if active {
 			activeInt = 1
 		}
-		_, err := s.db.ExecContext(ctx,
+		res, err := s.db.ExecContext(ctx,
 			`UPDATE routes SET active = ? WHERE project_id = ? AND version_id = ?`,
 			activeInt, projectID, versionID)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			s.bumpRouteRevisionQuiet(ctx)
+		}
+		return nil
 	})
 }
 

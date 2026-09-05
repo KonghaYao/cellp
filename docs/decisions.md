@@ -2,7 +2,7 @@
 
 > **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
 > **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-09-03（含 AD-6 … AD-13 · **AD-14** · OTEL 门面 / 可换后端）
+> **最后更新：** 2026-09-05（含 AD-6 … AD-13 · **AD-14** · **AD-15** 弹性 Serving · OTEL 门面）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -454,4 +454,36 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 **否定：** 自研搜索引擎 · 内嵌 CH · `DEPLOY_TOKEN` 读 telemetry · 按 Host 混 version · 无时间窗全集群搜 · 用 live 冒充 history。
 
 **实现状态：** 架构冻结 · 代码未排期（S0 本文）。默认 `run-all.sh` 不拉观测容器。
+
+---
+
+## 20. AD-15 — Elastic Serving Fleet 与安全 Scale-to-Zero
+
+**状态：** **已正式批准（2026-09-05）** · 分阶段启用 · 默认 `CELLP_ELASTIC_RUNTIME=0`  
+**E0 证据：** [evidence/surge/e0/2026-09-05-e0-01/](./evidence/surge/e0/2026-09-05-e0-01/)  
+**规格全文：** [plans/SURGE-PROPOSED-AD.md](./plans/SURGE-PROPOSED-AD.md) · [SURGE-DESIGN-INDEX.md](./plans/SURGE-DESIGN-INDEX.md)
+
+**问题：** AD-1 每 `ready` Version 单 celld 常驻；无法在自有容量内做 0→1、1→N、pressure 回收，且与 scale-to-zero 目标冲突。
+
+**决策（摘要）：**
+
+| 项 | 实现 |
+|----|------|
+| Version 生命周期 | 保留 `ready` 语义；**additive** `deploy_ready`（可启动、无保证 serving endpoint） |
+| Serving | `0..N` replica；cold/warm 等为 **派生** 视图，不替代 Version 状态 |
+| 控制面 | `ServingPolicy` / `ServingDesire` / `RuntimeReplica` / `RouteSnapshot`；E1/E2 **单 active** `cellpd` writer + singleton guard |
+| Node Agent | 本机/远程统一 **HTTP+mTLS**；secret reference only |
+| Gateway | E1/E2：SQLite revision → 进程内不可变 snapshot 原子替换 |
+| Branch 父版 | `ready` · `deploy_ready` · `archived`（存储证明 fail-closed）；**不改** D1 frozen RPC |
+| Archive vs cold | 互斥；cold **不**隐式 archived；`POST wake` 仍仅 `archived` |
+| Promote | 仍仅 **qualified `ready`** + AD-5 saga |
+| Feature flag | `CELLP_ELASTIC_RUNTIME` 默认 **关闭**；回滚须安全收敛，非瞬时杀 controller |
+| 多 replica / 多 node | 须 **SP-E1..E6** 与 E4 gate；未证明 background 保持 `min>=1,max=1` |
+| 共享 types | `cellp/internal/elastic/contract`（**WP-CONTRACT** 唯一 owner） |
+
+**否定：** PostgreSQL / Redis / 外部 broker；绕过 RustFS·celld fencing；伪造 SP 数值；未批准即改 `docs/test-plan.md` 纳入 TP-E/SP-E。
+
+**实现阶段：** E1 Registry/0·1 本机 → E2 preview 0→1 → E3 remote mTLS → E4 1→N（SP 通过）→ E5 hardening。产品开发按 WP/DAG；**WP-REG** 在 WP-CONTRACT handoff 之后。
+
+**批准记录：** 架构 owner 于 2026-09-05 在开发会话中确认生效；文本审查见 [SURGE-PROPOSED-AD-REVIEW.md](./plans/SURGE-PROPOSED-AD-REVIEW.md)（13/13 CLOSED）。
 

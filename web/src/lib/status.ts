@@ -5,6 +5,7 @@ export const VERSION_STATUSES = [
   "branching",
   "preparing",
   "deploying",
+  "deploy_ready",
   "ready",
   "archived",
   "draining",
@@ -26,7 +27,12 @@ export function isInProgressStatus(status: string): boolean {
   return (IN_PROGRESS_STATUSES as readonly string[]).includes(status);
 }
 
+const STATUS_DISPLAY: Record<string, string> = {
+  deploy_ready: "Deploy ready",
+};
+
 export function statusLabel(status: string): string {
+  if (STATUS_DISPLAY[status]) return STATUS_DISPLAY[status];
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
@@ -36,6 +42,7 @@ export const STATUS_DOT: Record<string, string> = {
   branching: "bg-sky-500",
   preparing: "bg-sky-500",
   deploying: "bg-sky-500 animate-pulse",
+  deploy_ready: "bg-teal-500 ring-1 ring-teal-300/60",
   ready: "bg-emerald-500",
   archived: "bg-slate-400",
   draining: "bg-orange-500",
@@ -49,6 +56,7 @@ export const STATUS_TEXT: Record<string, string> = {
   branching: "text-sky-700",
   preparing: "text-sky-700",
   deploying: "text-sky-700",
+  deploy_ready: "text-teal-700",
   ready: "text-emerald-700",
   archived: "text-slate-600",
   draining: "text-orange-700",
@@ -63,6 +71,7 @@ export const STATUS_TIMELINE: VersionStatus[] = [
   "branching",
   "preparing",
   "deploying",
+  "deploy_ready",
   "ready",
 ];
 

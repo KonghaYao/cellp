@@ -1227,7 +1227,7 @@ components:
             Promote switches prod to this version's isolated bucket; it does not merge writes made on prod after fork.
         status:
           type: string
-          enum: [pending, fetching, branching, preparing, deploying, ready, archived, draining, destroyed, failed]
+          enum: [pending, fetching, branching, preparing, deploying, deploy_ready, ready, archived, draining, destroyed, failed]
         pinned:
           type: boolean
         last_access_at:

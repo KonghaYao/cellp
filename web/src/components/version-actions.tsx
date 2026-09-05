@@ -9,6 +9,8 @@ import {
   unpinVersion,
   CellpApiError,
 } from "@/lib/cellp-api";
+import { STATUS_TEXT } from "@/lib/status";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -125,6 +127,18 @@ export function VersionActions({
           <ExternalLink className="size-3.5" />
           Open preview
         </a>
+      )}
+      {status === "deploy_ready" && (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-xs",
+            STATUS_TEXT.deploy_ready,
+          )}
+          data-testid="deploy-ready-badge"
+        >
+          Deploy ready
+          <span className="text-teal-600/80">(not serving)</span>
+        </span>
       )}
       {status === "archived" && (
         <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">

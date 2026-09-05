@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/cellp/cellp/internal/elastic/contract"
 )
 
 // Version status constants per DESIGN §2.5.
@@ -292,4 +294,18 @@ type Store interface {
 	// PurgeDestroyedVersions deletes destroyed version metadata (and inactive routes)
 	// with updated_at before olderThan; skips prod versions and active routes.
 	PurgeDestroyedVersions(ctx context.Context, olderThan time.Time) (int64, error)
+
+	// AD-15 elastic serving (WP-REG); see ServingStore.
+	GetRouteRevision(ctx context.Context) (int64, error)
+	BumpRouteRevision(ctx context.Context) (int64, error)
+	UpsertServingPolicy(ctx context.Context, row ServingPolicyRow) error
+	GetServingPolicy(ctx context.Context, projectID, versionID string) (*ServingPolicyRow, error)
+	CompareAndSetDesired(ctx context.Context, projectID, versionID string, expectGen int64, desire ServingDesireRow) error
+	GetServingDesire(ctx context.Context, projectID, versionID string) (*ServingDesireRow, error)
+	UpsertRuntimeReplica(ctx context.Context, rep contract.RuntimeReplica) error
+	ListRuntimeReplicas(ctx context.Context, projectID, versionID string) ([]contract.RuntimeReplica, error)
+	TryAcquireControllerGuard(ctx context.Context, holderID string, pid int) error
+	ReleaseControllerGuard(ctx context.Context, holderID string) error
+	GetControllerGuard(ctx context.Context) (*ControllerGuardState, error)
+	BuildLegacyRouteSnapshot(ctx context.Context) (contract.RouteSnapshot, error)
 }

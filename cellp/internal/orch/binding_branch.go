@@ -3,6 +3,7 @@ package orch
 import (
 	"fmt"
 
+	"github.com/cellp/cellp/internal/elastic/contract"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
 )
@@ -17,7 +18,7 @@ func parentBranchable(parent *registry.Version) bool {
 	if parent == nil {
 		return false
 	}
-	return parent.Status == registry.StatusReady || parent.Status == registry.StatusArchived
+	return contract.ParentBranchEligible(parent.Status)
 }
 
 // BindingBranchPlanForVersion decides whether child deploy should branch KV/R2/Queue from parent.

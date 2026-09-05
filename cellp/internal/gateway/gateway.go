@@ -20,6 +20,7 @@ import (
 type Gateway struct {
 	store       registry.Store
 	cache       *RouteCache
+	snapshots   *RouteSnapshotHolder
 	router      chi.Router
 	cfg         GatewayConfig
 	lastTouchMu sync.Mutex
@@ -36,6 +37,7 @@ func NewWithConfig(store registry.Store, cfg GatewayConfig) *Gateway {
 	g := &Gateway{
 		store:       store,
 		cache:       NewRouteCache(),
+		snapshots:   NewRouteSnapshotHolder(),
 		cfg:         cfg,
 		lastTouchAt: make(map[string]time.Time),
 	}
@@ -73,6 +75,16 @@ func (g *Gateway) LookupRoute(ctx context.Context, projectID, versionID string) 
 // LookupProdVersion resolves prod version via cache then registry. Exported for tests.
 func (g *Gateway) LookupProdVersion(ctx context.Context, projectID string) (string, bool) {
 	return g.lookupProdVersion(ctx, projectID)
+}
+
+// RouteSnapshotHolder exposes the AD-15 snapshot read model for tests and health.
+func (g *Gateway) RouteSnapshotHolder() *RouteSnapshotHolder {
+	return g.snapshots
+}
+
+// StartRouteSnapshotPoller begins background revision polling (no-op if store nil).
+func (g *Gateway) StartRouteSnapshotPoller(ctx context.Context, interval time.Duration) {
+	StartSnapshotPoller(ctx, g.store, g.snapshots, interval)
 }
 
 // RouteCacheForTest exposes the route cache for test configuration.
