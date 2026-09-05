@@ -233,6 +233,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if err := o.setStatus(ctx, j, registry.StatusDeploying); err != nil {
 		return err
 	}
+	if err := o.maybeEnterDeployReady(ctx, j); err != nil {
+		return err
+	}
 	bundleDir := filepath.Join("dev", "examples", "counter")
 	if _, err := os.Stat(filepath.Join(destDir, "wrangler.jsonc")); err == nil {
 		bundleDir = destDir
@@ -369,6 +372,9 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 	if v.Status != registry.StatusReady {
 		return fmt.Errorf("version not ready: %s", v.Status)
 	}
+	if err := o.validatePromoteTarget(ctx, projectID, versionID, v); err != nil {
+		return err
+	}
 
 	proj, err := o.store.GetProject(ctx, projectID)
 	if err != nil || proj == nil {
@@ -421,20 +427,15 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		return fmt.Errorf("%w: %v", ErrOffshootPromote, err)
 	}
 
-	// CAS_prod
-	if err := o.store.SetProdVersionCAS(ctx, projectID, oldProd, versionID); err != nil {
+	// CAS_prod + activate_prod_route (single revision bump when elastic runtime is on)
+	if err := o.commitProdPromote(ctx, projectID, oldProd, versionID); err != nil {
 		o.runCompensation(ctx, compensated)
 		return err
 	}
 	compensated = append(compensated, func() {
 		_ = o.store.SetProdVersionCAS(ctx, projectID, versionID, oldProd)
+		_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 	})
-
-	// activate_prod_route
-	if err := o.store.SetRouteActive(ctx, projectID, versionID, true); err != nil {
-		o.runCompensation(ctx, compensated)
-		return err
-	}
 
 	if err := o.ensureProdIngress(ctx, projectID); err != nil {
 		log.Printf("orch: prod ingress warn: %v", err)
@@ -443,7 +444,7 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		log.Printf("orch: prod PUBLIC_BASE_URL warn: %v", err)
 	}
 
-		if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
+	if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
 		log.Printf("orch: cron reconcile after promote warn: %v", err)
 		return err
 	}

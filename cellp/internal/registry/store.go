@@ -281,6 +281,8 @@ type Store interface {
 
 	SetProdVersion(ctx context.Context, projectID, versionID string) error
 	SetProdVersionCAS(ctx context.Context, projectID, expected, new string) error
+	// CommitProdPromote CAS-prods, activates new prod route, bumps route_revision once (elastic promote cutover).
+	CommitProdPromote(ctx context.Context, projectID, expectedProd, newProd string) (int64, error)
 
 	EnqueueJob(ctx context.Context, projectID, versionID, step string) (*Job, error)
 	ClaimJob(ctx context.Context, workerID string, lease time.Duration) (*Job, error)

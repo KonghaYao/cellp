@@ -65,6 +65,21 @@ func (s *invalidatingStore) SetProdVersionCAS(ctx context.Context, projectID, ex
 	return nil
 }
 
+func (s *invalidatingStore) CommitProdPromote(ctx context.Context, projectID, expectedProd, newProd string) (int64, error) {
+	rev, err := s.Store.CommitProdPromote(ctx, projectID, expectedProd, newProd)
+	if err != nil {
+		return rev, err
+	}
+	s.gw.InvalidateProd(projectID)
+	if expectedProd != "" {
+		s.gw.InvalidateRoute(projectID, expectedProd)
+	}
+	if newProd != "" {
+		s.gw.InvalidateRoute(projectID, newProd)
+	}
+	return rev, nil
+}
+
 func (s *invalidatingStore) UpsertIngressBinding(ctx context.Context, b registry.IngressBinding) error {
 	if err := s.Store.UpsertIngressBinding(ctx, b); err != nil {
 		return err
