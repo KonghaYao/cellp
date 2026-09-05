@@ -36,6 +36,13 @@ func TestValidateServingPolicy(t *testing.T) {
 	}
 }
 
+func TestValidateServingPolicyBackground_noneAllowsZeroMin(t *testing.T) {
+	p := ServingPolicy{MinReplicas: 0, MaxReplicas: 1, BackgroundMode: BackgroundModeNone}
+	if err := ValidateServingPolicyBackground(p, BackgroundGuardOptions{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestValidateRouteSnapshot_revision(t *testing.T) {
 	now := time.Now().UTC()
 	future := now.Add(time.Hour)

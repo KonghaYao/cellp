@@ -54,6 +54,7 @@ type ServingStore interface {
 
 	UpsertServingPolicy(ctx context.Context, row ServingPolicyRow) error
 	GetServingPolicy(ctx context.Context, projectID, versionID string) (*ServingPolicyRow, error)
+	ListElasticServingPolicies(ctx context.Context) ([]ServingPolicyRow, error)
 
 	CompareAndSetDesired(ctx context.Context, projectID, versionID string, expectGen int64, desire ServingDesireRow) error
 	GetServingDesire(ctx context.Context, projectID, versionID string) (*ServingDesireRow, error)

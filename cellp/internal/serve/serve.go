@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cellp/cellp/internal/api"
+	"github.com/cellp/cellp/internal/elastic/autoscaler"
 	"github.com/cellp/cellp/internal/artifact"
 	"github.com/cellp/cellp/internal/branch"
 	"github.com/cellp/cellp/internal/config"
@@ -82,6 +83,7 @@ func Run(ctx context.Context) error {
 		log.Printf("reconcile: boot started=%d skipped=%d", started, skipped)
 	}
 	runtime.StartReconciler(ctx, store, rm, reconcileCfg)
+	autoscaler.Start(ctx, baseStore, autoscaler.LoadConfig())
 	metrics.StartCollector(ctx, store, rm, reconcileCfg.Interval)
 	_ = metrics.Collect(ctx, store, rm)
 

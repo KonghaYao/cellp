@@ -36,15 +36,21 @@ func (s *SQLiteStore) bumpRouteRevisionQuiet(ctx context.Context) {
 }
 
 func (s *SQLiteStore) UpsertServingPolicy(ctx context.Context, row ServingPolicyRow) error {
-	if err := contract.ValidateServingPolicy(contract.ServingPolicy{
-		Revision:       row.Revision,
-		MinReplicas:    row.MinReplicas,
-		MaxReplicas:    row.MaxReplicas,
-		Priority:       row.Priority,
-		BackgroundMode: row.BackgroundMode,
+	pol := contract.ServingPolicy{
+		Revision:        row.Revision,
+		MinReplicas:     row.MinReplicas,
+		MaxReplicas:     row.MaxReplicas,
+		Priority:        row.Priority,
+		BackgroundMode:  row.BackgroundMode,
 		ElasticEnrolled: row.ElasticEnrolled,
-	}); err != nil {
+	}
+	if err := contract.ValidateServingPolicy(pol); err != nil {
 		return err
+	}
+	if row.ElasticEnrolled {
+		if err := contract.ValidateServingPolicyBackground(pol, contract.BackgroundGuardOptions{}); err != nil {
+			return err
+		}
 	}
 	now := row.UpdatedAt
 	if now.IsZero() {
@@ -99,6 +105,34 @@ FROM serving_policies WHERE project_id = ? AND version_id = ?`, projectID, versi
 			r.UpdatedAt = t
 		}
 		return &r, nil
+	})
+}
+
+func (s *SQLiteStore) ListElasticServingPolicies(ctx context.Context) ([]ServingPolicyRow, error) {
+	return withRetry(func() ([]ServingPolicyRow, error) {
+		rows, err := s.db.QueryContext(ctx, `
+SELECT project_id, version_id, revision, min_replicas, max_replicas, priority, background_mode, elastic_enrolled, updated_at
+FROM serving_policies WHERE elastic_enrolled = 1 ORDER BY project_id, version_id`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []ServingPolicyRow
+		for rows.Next() {
+			var r ServingPolicyRow
+			var enrolled int
+			var updated string
+			if err := rows.Scan(&r.ProjectID, &r.VersionID, &r.Revision, &r.MinReplicas, &r.MaxReplicas,
+				&r.Priority, &r.BackgroundMode, &enrolled, &updated); err != nil {
+				return nil, err
+			}
+			r.ElasticEnrolled = enrolled == 1
+			if t, err := time.Parse(time.RFC3339Nano, updated); err == nil {
+				r.UpdatedAt = t
+			}
+			out = append(out, r)
+		}
+		return out, rows.Err()
 	})
 }
 
