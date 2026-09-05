@@ -160,6 +160,85 @@ WHERE project_id = ? AND version_id = ?`, projectID, versionID)
 	})
 }
 
+func (s *SQLiteStore) UpsertRuntimeNode(ctx context.Context, node contract.RuntimeNode) error {
+	if strings.TrimSpace(node.NodeID) == "" {
+		return fmt.Errorf("node_id required")
+	}
+	if node.CapacityUnits < 0 {
+		return fmt.Errorf("capacity_units must be non-negative")
+	}
+	return withRetryErr(func() error {
+		cordoned := 0
+		if node.Cordoned {
+			cordoned = 1
+		}
+		expiry := node.LeaseExpiry.UTC()
+		if expiry.IsZero() {
+			expiry = time.Now().UTC().Add(24 * time.Hour)
+		}
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		_, err := s.db.ExecContext(ctx, `
+INSERT INTO runtime_nodes (node_id, capacity_units, cordoned, lease_expiry, generation, updated_at)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(node_id) DO UPDATE SET
+  capacity_units = excluded.capacity_units,
+  cordoned = excluded.cordoned,
+  lease_expiry = excluded.lease_expiry,
+  generation = excluded.generation,
+  updated_at = excluded.updated_at`,
+			node.NodeID, node.CapacityUnits, cordoned, expiry.Format(time.RFC3339Nano), node.Generation, now)
+		return err
+	})
+}
+
+func (s *SQLiteStore) GetRuntimeNode(ctx context.Context, nodeID string) (*contract.RuntimeNode, error) {
+	return withRetry(func() (*contract.RuntimeNode, error) {
+		row := s.db.QueryRowContext(ctx, `
+SELECT capacity_units, cordoned, lease_expiry, generation FROM runtime_nodes WHERE node_id = ?`, nodeID)
+		var n contract.RuntimeNode
+		n.NodeID = nodeID
+		var cordoned int
+		var expiry string
+		if err := row.Scan(&n.CapacityUnits, &cordoned, &expiry, &n.Generation); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		n.Cordoned = cordoned == 1
+		if t, err := time.Parse(time.RFC3339Nano, expiry); err == nil {
+			n.LeaseExpiry = t
+		}
+		return &n, nil
+	})
+}
+
+func (s *SQLiteStore) ListRuntimeNodes(ctx context.Context) ([]contract.RuntimeNode, error) {
+	return withRetry(func() ([]contract.RuntimeNode, error) {
+		rows, err := s.db.QueryContext(ctx, `
+SELECT node_id, capacity_units, cordoned, lease_expiry, generation FROM runtime_nodes ORDER BY node_id`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []contract.RuntimeNode
+		for rows.Next() {
+			var n contract.RuntimeNode
+			var cordoned int
+			var expiry string
+			if err := rows.Scan(&n.NodeID, &n.CapacityUnits, &cordoned, &expiry, &n.Generation); err != nil {
+				return nil, err
+			}
+			n.Cordoned = cordoned == 1
+			if t, err := time.Parse(time.RFC3339Nano, expiry); err == nil {
+				n.LeaseExpiry = t
+			}
+			out = append(out, n)
+		}
+		return out, rows.Err()
+	})
+}
+
 func (s *SQLiteStore) UpsertRuntimeReplica(ctx context.Context, rep contract.RuntimeReplica) error {
 	return withRetryErr(func() error {
 		var validUntil *string

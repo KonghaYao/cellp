@@ -302,6 +302,9 @@ type Store interface {
 	GetServingPolicy(ctx context.Context, projectID, versionID string) (*ServingPolicyRow, error)
 	CompareAndSetDesired(ctx context.Context, projectID, versionID string, expectGen int64, desire ServingDesireRow) error
 	GetServingDesire(ctx context.Context, projectID, versionID string) (*ServingDesireRow, error)
+	UpsertRuntimeNode(ctx context.Context, node contract.RuntimeNode) error
+	GetRuntimeNode(ctx context.Context, nodeID string) (*contract.RuntimeNode, error)
+	ListRuntimeNodes(ctx context.Context) ([]contract.RuntimeNode, error)
 	UpsertRuntimeReplica(ctx context.Context, rep contract.RuntimeReplica) error
 	ListRuntimeReplicas(ctx context.Context, projectID, versionID string) ([]contract.RuntimeReplica, error)
 	TryAcquireControllerGuard(ctx context.Context, holderID string, pid int) error

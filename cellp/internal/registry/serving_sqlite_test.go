@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/cellp/cellp/internal/elastic/contract"
 )
@@ -109,5 +110,37 @@ func TestServingPolicyAndDesiredCAS(t *testing.T) {
 	}
 	if err := store.CompareAndSetDesired(ctx, "demo", "v1", 1, desire); err != ErrDesiredCASConflict {
 		t.Fatalf("want cas conflict, got %v", err)
+	}
+}
+
+func TestRuntimeNodesSQLite(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(t.TempDir() + "/nodes.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	exp := time.Now().UTC().Add(2 * time.Hour)
+	node := contract.RuntimeNode{
+		NodeID:        "local-1",
+		CapacityUnits: 8,
+		Generation:    3,
+		LeaseExpiry:   exp,
+	}
+	if err := store.UpsertRuntimeNode(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.GetRuntimeNode(ctx, "local-1")
+	if err != nil || got == nil || got.CapacityUnits != 8 {
+		t.Fatalf("get: %+v err=%v", got, err)
+	}
+	node.Cordoned = true
+	if err := store.UpsertRuntimeNode(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+	list, err := store.ListRuntimeNodes(ctx)
+	if err != nil || len(list) != 1 || !list[0].Cordoned {
+		t.Fatalf("list: %+v err=%v", list, err)
 	}
 }
