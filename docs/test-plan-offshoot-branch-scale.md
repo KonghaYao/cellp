@@ -1,7 +1,7 @@
 # 单项目大型 offshoot SQLite branch 压测
 
-> **Harness:** `stress/phase6/offshoot-branch-scale.sh`  
-> **V0b-L 入口:** `e2e/scripts/v0b-l-large-fork.sh`  
+> **Harness（唯一）：** [../stress/phase6/README.md](../stress/phase6/README.md) § Offshoot branch scale  
+> **e2e 转发（非第二套）：** `e2e/scripts/v0b-l-large-fork.sh` → `stress/phase6/offshoot-branch-scale.sh`  
 > **证据:** `docs/evidence/offshoot-branch-scale-report.md` · `docs/evidence/offshoot-branch-metrics.jsonl`
 
 ## 范围
@@ -16,7 +16,8 @@
 ./stress/phase6/offshoot-branch-scale.sh
 
 # 仅大库 fork+export（TP-V0b-L）
-./e2e/scripts/v0b-l-large-fork.sh
+OB_SUITE=v0bl ./stress/phase6/offshoot-branch-scale.sh
+# 等价：./e2e/scripts/v0b-l-large-fork.sh
 ```
 
 ## 门禁

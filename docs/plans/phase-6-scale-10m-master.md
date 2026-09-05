@@ -2,7 +2,8 @@
 
 > **代号：** SCALE-10M  
 > **状态：** 6A **IMPLEMENTATION COMPLETE** (SQLite scope) · 2026-08-29  
-> **收尾计划：** [v1-v0b-phase6-plan.md](./v1-v0b-phase6-plan.md)  
+> **Harness（跑压测）：** [../../stress/phase6/README.md](../../stress/phase6/README.md) · 门禁 [../test-plan-phase6.md](../test-plan-phase6.md)  
+> **收尾计划（历史）：** [v1-v0b-phase6-plan.md](./v1-v0b-phase6-plan.md)  
 > **范围约束（2026-08-29）：** **不做 PostgreSQL、不做多租户/RBAC**。Phase 6 仅执行 **6A**（SQLite 分页 + Gateway 缓存 + GC + Dashboard + 压测基线）。6B–6F 标记为 **OUT OF SCOPE**。TP6-A5 ListProjects @10k p99 ~238–262ms：**SQLite waiver**（gate 200ms 未过）。**不宣称** 6F / 千万 sign-off。
 > **前置：** Phase 0–5 完成（M3 压测 sign-off）  
 > **上位文档：** [DESIGN.md](../../DESIGN.md) · [test-plan-phase2.md](../test-plan-phase2.md)  

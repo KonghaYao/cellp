@@ -42,7 +42,7 @@
 
 ### [x] TP-V0b-L — 大库物化 fork
 
-| 命令 | `e2e/scripts/v0b-l-large-fork.sh`（`stress/phase6/offshoot-branch-scale.sh` `OB_SUITE=v0bl`） |
+| 命令 | `stress/phase6/offshoot-branch-scale.sh`（`OB_SUITE=v0bl`；薄封装 `e2e/scripts/v0b-l-large-fork.sh`） |
 | 通过 | ≥100MB 库 fork+export exit 0；证据 `docs/evidence/offshoot-branch-scale-report.md` |
 
 ### [x] TP-V0c — RustFS 多节点条件写（可选）

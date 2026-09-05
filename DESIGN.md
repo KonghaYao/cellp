@@ -733,6 +733,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 ### Phase 6 扩展基线（SQLite 止血 · 2026-08-29）
 
 > 全量路线图：[docs/plans/phase-6-scale-10m-master.md](./docs/plans/phase-6-scale-10m-master.md)  
+> Phase 6 压测入口：[stress/phase6/README.md](./stress/phase6/README.md) · 门禁 [docs/test-plan-phase6.md](./docs/test-plan-phase6.md)  
 > 验收证据：[docs/evidence/scale-report-6A.md](./docs/evidence/scale-report-6A.md)
 
 | 能力 | 一期 + 6A 后 | 千万级需 |

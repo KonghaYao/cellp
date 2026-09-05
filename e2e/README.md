@@ -7,6 +7,7 @@
 - **只打端口**，不用浏览器、不测 Dashboard
 - 依赖 `dev/scripts/up.sh` 或 CI 等价栈
 - exit 0 = VE 通过
+- **Phase 6 大对象/Registry 压测**不在本目录：见 [stress/phase6/README.md](../stress/phase6/README.md)（`e2e/scripts/v0b-l-large-fork.sh` 仅为转发）
 
 ## 端口
 

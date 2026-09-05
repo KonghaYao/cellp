@@ -1,5 +1,6 @@
 # v1 收尾计划 — V0b + Phase 6
 
+> **状态：** 历史收尾记录（2026-08-29 已完成）。**执行与门禁以** [test-plan-phase6.md](../test-plan-phase6.md) **与** [../../stress/phase6/README.md](../../stress/phase6/README.md) **为准。**  
 > **日期：** 2026-08-29  
 > **Goal：** 完成 README v1 交付范围中两项 deferred/后续项的**可验收闭环**
 

@@ -1,3 +1,14 @@
+# cellp Stress Harness
+
+| 阶段 | 脚本目录 | 验收文档 | 用途 |
+|------|----------|----------|------|
+| **Phase 5** | [`stress/scripts/`](./scripts/) | [docs/test-plan-phase2.md](../docs/test-plan-phase2.md) | 单节点生产压测（CD · Gateway · soak · chaos） |
+| **Phase 6** | [`stress/phase6/`](./phase6/) | [docs/test-plan-phase6.md](../docs/test-plan-phase6.md) | 扩展基线（Registry seed · D1/offshoot 大对象 · dev Gateway 基线） |
+
+**Phase 6 唯一入口：** [phase6/README.md](./phase6/README.md)（勿在 `dev/` 或 `e2e/` 下另找 phase6 脚本；`e2e/scripts/v0b-l-large-fork.sh` 仅为转发）。
+
+---
+
 # Phase 5 — Production Stress Harness
 
 Implements [test-plan-phase2.md](../docs/test-plan-phase2.md) against a **single-node** cellpd stack.

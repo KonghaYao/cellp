@@ -24,7 +24,8 @@
 | 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
 | 改 Dashboard | [../web/AGENTS.md](../web/AGENTS.md) |
 | 跑 E2E | [../e2e/README.md](../e2e/README.md) |
-| 跑压测 | [../stress/README.md](../stress/README.md) · [phase6/README.md](../stress/phase6/README.md) |
+| 跑压测（Phase 5） | [../stress/README.md](../stress/README.md) → `stress/scripts/` · [test-plan-phase2.md](./test-plan-phase2.md) |
+| 跑压测（Phase 6） | [../stress/phase6/README.md](../stress/phase6/README.md) · [test-plan-phase6.md](./test-plan-phase6.md) |
 | 查历史 VALIDATION 编号 | [../VALIDATION.md](../VALIDATION.md)（仅索引，执行以 test-plan 为准） |
 | 从 Cloudflare / Vercel 迁移（产品文档） | [Pages: Migrate](https://konghayao.github.io/cellp/migrate/cloudflare) |
 | 从 Cloudflare Workers 迁移（内部对照） | [cloudflare-migration.md](./cloudflare-migration.md) |
@@ -194,6 +195,7 @@ flowchart LR
 2. 必读：[decisions.md](./decisions.md) AD-* + 对应 phase + test-plan TP 列表
 3. Deliverables（路径 + 验证命令）
 4. **禁止：** 改 `go.mod`（除非 deps owner）· PostgreSQL · Caddy · Forgejo · 修改冻结契约
+5. **E2E：** 验证命令写 **`run-all.sh --only …`**，勿默认全量 `run-all.sh`（10–20+ 分钟）；M2 全绿仅用户/CI 明确要求时
 
 **Dashboard 仅 `web/`** — Vite SPA，禁止引入 Next.js / SSR。
 

@@ -1,9 +1,11 @@
 # cellp Phase 6 — 千万级扩展验收计划
 
+> **Harness（唯一脚本目录）：** [../stress/phase6/README.md](../stress/phase6/README.md)  
 > **前置：** Phase 0–5 完成（M3 压测 sign-off）  
-> **计划：** [plans/phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) · [plans/v1-v0b-phase6-plan.md](./plans/v1-v0b-phase6-plan.md)  
+> **历史路线图（只读）：** [plans/phase-6-scale-10m-master.md](./plans/phase-6-scale-10m-master.md) · 收尾记录 [plans/v1-v0b-phase6-plan.md](./plans/v1-v0b-phase6-plan.md)  
 > **范围（2026-08-29）：** **6A 实现完成**（SQLite scope）。**6B–6F OUT OF SCOPE**（无 PG、无多租户）。**不宣称** 6F / 千万 sign-off。  
-> **环境：** 填写 `docs/evidence/scale-env.json`（集群拓扑、节点规格、阈值）
+> **环境：** 填写 `docs/evidence/scale-env.json`（集群拓扑、节点规格、阈值）  
+> **勿混淆：** `dev/data/d1-*` / `offshoot-scale-*` 是跑 `stress/phase6` 时的本地工作区，不是源码目录。
 
 ## 目标
 
@@ -52,7 +54,7 @@
 > **SQLite 结论：** @1k 满足 gate（p99 ~64ms）；@10k 单节点 SQLite 实测上限 ~238–262ms（优化后从 534ms 降至 ~238ms）。完整 200ms gate 需 PG（**6B，OUT OF SCOPE**）。  
 > **未跑：** 10×10k versions 全量 bench · 100k Gateway RPS（需 infra；dev 基线见 `gateway-scale.sh`）。
 
-| 命令 | `stress/phase6/seed-projects.sh` · `seed-versions.sh` · `registry-bench.sh` · `list-api-load.sh` · `registry-size-report.sh` |
+| 命令 | `stress/phase6/seed-projects.sh` · `stress/phase6/seed-versions.sh` · `stress/phase6/registry-bench.sh` · `stress/phase6/list-api-load.sh` · `stress/phase6/registry-size-report.sh` |
 | Track | 6A-T5 |
 | 通过 | 见下表；证据 [scale-report-6A.md](./evidence/scale-report-6A.md) |
 | **豁免** | ListProjects @10k p99 **238–262ms** — 接受为 SQLite 天花板；不阻塞 6A 实现 sign-off |
@@ -138,18 +140,24 @@
 
 ---
 
-## 压测脚本（stress/phase6/）
+## 压测脚本（`stress/phase6/`）
+
+完整用法见 [../stress/phase6/README.md](../stress/phase6/README.md)。
 
 | 脚本 | 维度 | 目标 |
 |------|------|------|
-| `seed-projects.sh` | D2 | N projects via API（默认 1000） |
-| `seed-versions.sh` | D3 | M versions/project（SQLite metadata bulk） |
-| `registry-bench.sh` | D2/D3 | ListProjects/Versions p50/p95/p99 |
-| `list-api-load.sh` | D2/D3 | vegeta/curl cursor pagination load |
-| `seed-orgs.sh` | D2 | 10k org × 100 project（**6B+，OUT OF SCOPE**） |
-| `gateway-scale.sh` | D1 | dev 基线 ~500–2k RPS（**非** 100k gate；6E+ OUT OF SCOPE） |
-| `deploy-storm.sh` | D4 | 5k/min POST（**6C+，OUT OF SCOPE**） |
-| `registry-size-report.sh` | — | SQLite registry 体量 + 行数 + 可选 `EXPLAIN` |
+| `stress/phase6/seed-projects.sh` | D2 | N projects via API（默认 1000） |
+| `stress/phase6/seed-versions.sh` | D3 | M versions/project（SQLite metadata bulk） |
+| `stress/phase6/registry-bench.sh` | D2/D3 | ListProjects/Versions p50/p95/p99 |
+| `stress/phase6/list-api-load.sh` | D2/D3 | vegeta/curl cursor pagination load |
+| `stress/phase6/registry-size-report.sh` | — | SQLite registry 体量 + 行数 + 可选 `EXPLAIN` |
+| `stress/phase6/gateway-scale.sh` | D1 | dev 基线 ~500–2k RPS（**非** 100k gate；6E+ OUT OF SCOPE） |
+| `stress/phase6/d1-import-scale.sh` | D1 存储 | 大对象 `celld d1 import`（见 [test-plan.md](./test-plan.md) TP-D1-IMP） |
+| `stress/phase6/d1-branch-scale.sh` | D1 存储 | D1 branch 对象体积（见 test-plan TP-D1-BRANCH） |
+| `stress/phase6/offshoot-branch-scale.sh` | Offshoot | 大 SQLite CoW（见 [test-plan-offshoot-branch-scale.md](./test-plan-offshoot-branch-scale.md)） |
+| `stress/phase6/offshoot-branch-scale-rustfs.sh` | Offshoot | 同上，RustFS tier |
+| `seed-orgs.sh` | D2 | **未实现**（6B+ OUT OF SCOPE） |
+| `deploy-storm.sh` | D4 | **未实现**（6C+ OUT OF SCOPE） |
 
 ## 证据文件
 

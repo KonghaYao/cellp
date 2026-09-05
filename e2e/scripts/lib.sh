@@ -48,6 +48,20 @@ need() {
 need curl
 need jq
 
+# Remove local staging dirs for e2e versions (registry cleanup does not delete these).
+clean_e2e_artifact_staging() {
+  local project="${1:-}"
+  local base="${ARTIFACTS_DIR:-${E2E_ROOT}/dev/data/artifacts}"
+  [[ -d "$base" ]] || return 0
+  if [[ -n "$project" && -d "${base}/${project}" ]]; then
+    find "${base}/${project}" -maxdepth 1 -type d -name 'v-e2e-*' -print0 2>/dev/null \
+      | xargs -0 rm -rf 2>/dev/null || true
+  else
+    find "$base" -type d -name 'v-e2e-*' -print0 2>/dev/null \
+      | xargs -0 rm -rf 2>/dev/null || true
+  fi
+}
+
 cleanup_e2e_versions() {
   local project="${1:-$DEV_PROJECT}"
   if [[ "${E2E_SKIP_CLEANUP:-0}" == "1" ]]; then
@@ -61,6 +75,7 @@ cleanup_e2e_versions() {
     [[ -z "$vid" ]] && continue
     api_delete "/v1/projects/${project}/versions/${vid}" "$ADMIN_TOKEN" >/dev/null 2>&1 || true
   done
+  clean_e2e_artifact_staging "$project"
 }
 
 log() { echo "==> $*"; }

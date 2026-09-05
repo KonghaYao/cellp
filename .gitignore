@@ -48,6 +48,10 @@ yarn-error.log*
 /dev/data/
 /dev/.env
 
+# --- support / agent local build output (under dev/examples) ---
+**/.mastra/
+**/.cellp-bundle/
+
 # --- cellp build artifacts ---
 cellp/cellpd
 cellp/cellp

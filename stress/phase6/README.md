@@ -1,6 +1,33 @@
-# Phase 6 — Scale Stress Harness (6A-T5)
+# Phase 6 — Scale Stress Harness
 
-Implements **TP6-A5** seed + registry benchmark scripts from [test-plan-phase6.md](../../docs/test-plan-phase6.md).
+> **本目录是 Phase 6 压测的唯一脚本位置**（`stress/phase6/*.sh`）。  
+> **门禁与 TP 编号：** [docs/test-plan-phase6.md](../../docs/test-plan-phase6.md)  
+> **历史路线图（只读）：** [docs/plans/phase-6-scale-10m-master.md](../../docs/plans/phase-6-scale-10m-master.md)  
+> **Offshoot 大库分支（TP-OB / V0b-L）：** 下文 § Offshoot · 细则 [docs/test-plan-offshoot-branch-scale.md](../../docs/test-plan-offshoot-branch-scale.md)  
+> **e2e 薄封装（非第二套 harness）：** `e2e/scripts/v0b-l-large-fork.sh` → `offshoot-branch-scale.sh`
+
+## 文档地图
+
+| 读什么 | 路径 |
+|--------|------|
+| 怎么跑（本文） | `stress/phase6/README.md` |
+| TP6-* / 6A 门禁 | `docs/test-plan-phase6.md` |
+| Phase 5 压测 | `stress/scripts/` + `docs/test-plan-phase2.md` |
+| 总压测索引 | `stress/README.md` |
+| 证据模板 | `docs/evidence/scale-env.json` · `scale-metrics.jsonl` · `scale-report-6A.md` |
+
+## 本地过程目录（`dev/data/`，gitignore）
+
+跑本 harness 会在 **`dev/data/`** 下写工作区（不是仓库里的 `phase6` 文件夹）：
+
+| 脚本 | 典型目录 |
+|------|----------|
+| `d1-import-scale.sh` | `dev/data/d1-import-scale/<run_id>/` |
+| `d1-branch-scale.sh` | `dev/data/d1-branch-scale/<run_id>/` |
+| `offshoot-branch-scale.sh` | `dev/data/offshoot-scale-work/` · `offshoot-scale-store/` |
+| Registry seed | 仅 API/SQLite（`scale-seed-*` 项目前缀） |
+
+清理：`./dev/scripts/reset.sh`（全量）或在确认无栈依赖后删除上表目录。
 
 ## Prerequisites
 
@@ -133,4 +160,20 @@ Install vegeta: `go install github.com/tsenart/vegeta@latest`
 | 100k versions/project (10×10k) | pagination p99 **<100ms** |
 | 100k Gateway RPS (cached) | error rate **<0.1%** (prod gate — use `gateway-scale.sh` for dev baseline only) |
 
-`deploy-storm.sh` and `seed-orgs.sh` are planned for 6C/6B tracks.
+`deploy-storm.sh` and `seed-orgs.sh` are **not implemented** (6C/6B OUT OF SCOPE); listed only in [test-plan-phase6.md](../../docs/test-plan-phase6.md) as future placeholders.
+
+## Offshoot branch scale
+
+```bash
+# 默认 ladder（local offshoot）
+./stress/phase6/offshoot-branch-scale.sh
+
+# RustFS tier
+./stress/phase6/offshoot-branch-scale-rustfs.sh
+
+# TP-V0b-L（100MB fork+export，OB_SUITE=v0bl）
+OB_SUITE=v0bl ./stress/phase6/offshoot-branch-scale.sh
+# 或 e2e 转发：./e2e/scripts/v0b-l-large-fork.sh
+```
+
+证据：`docs/evidence/offshoot-branch-scale-report.md` · `offshoot-branch-metrics.jsonl`
