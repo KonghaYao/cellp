@@ -11,6 +11,11 @@ cp "${OVERLAY}/open-next.config.ts" "${APP_DIR}/"
 node "${OVERLAY}/pin-package.cjs" "${APP_DIR}/package.json"
 rm -f "${APP_DIR}/package-lock.json"
 
+if [[ ! -x "${APP_DIR}/node_modules/.bin/next" ]]; then
+  log "pnpm install (isolated from upstream Next.js workspace)"
+  (cd "${APP_DIR}" && pnpm install --ignore-workspace)
+fi
+
 FIXTURE_SRC="${OVERLAY}/cellp-app"
 if [[ -d "${FIXTURE_SRC}" ]]; then
   log "copy cellp overlay fixtures → ${APP_DIR}"

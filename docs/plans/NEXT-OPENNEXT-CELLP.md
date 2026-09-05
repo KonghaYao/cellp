@@ -84,8 +84,8 @@ S40 与 S30 的 Cloudflare starter 不同：它取自 `vercel/next.js` 的基础
 | 上游源码 | `vercel/next.js` commit `6685283fe8533a469ee1a9455e2bc4047c7453cb` · `examples/hello-world` |
 | artifact 依赖 | Next.js `16.0.7` · React `19.2.1` · `@opennextjs/cloudflare` `1.14.0` · Wrangler `4.123.0` |
 | artifact 形态 | `.cellp-bundle/index.js` + `.cellp-assets` · `no_bundle: true` · `nodejs_compat` |
-| preview gate | v11：`/` 200 + `Hello, Next.js!`；静态 chunk 200；`/dynamic` 两次 SSR 时间戳不同；`/api/health` 200、`pathname=/api/health` 且两次时间戳不同；不存在路由由 Next 返回 404 |
-| promote | 仅在上述 preview gate 全绿后执行；prod v11 再验 200 |
+| preview gate | v12：`/` 200 + `Hello, Next.js!`；静态 chunk 200；`/dynamic` 两次 SSR 时间戳不同；`/api/health` 直接解析 `request.url` 后返回 200、`pathname=/api/health` 且两次时间戳不同；不存在路由由 Next 返回 404 |
+| promote | 仅在上述 preview gate 全绿后执行；prod v12 再验 200 |
 | 证据 | `docs/evidence/support-S40.log` · overlay `dev/examples/support-next-basic/` |
 | AD-13 tier-1 | ❌；这是固定源码、固定依赖、固定 artifact 的实验性兼容证据，未覆盖任意 Next/OpenNext 版本、middleware、image optimizer、缓存或完整 Node API |
 

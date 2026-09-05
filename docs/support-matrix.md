@@ -74,7 +74,7 @@
 | S28 | **Qwik City** | **支持** | http://support-qwik.lvh.me:8787/ | `templates/qwik/workers` · 无 `nodejs_compat`（避免 unenv `process.stdin`）· **v7** · prod **200** ~19 KiB · `Welcome to Qwik` |
 | S29 | **Waku** | **支持** | http://support-waku.lvh.me:8787/ | `create-waku` + C3 overlay · **v9** ready + promote · prod/preview **200** · grep `Waku` / `An internet website!` · celld: sibling `.js`→`EsModule` + relative resolve · `docs/evidence/support-S29.log` |
 | S30 | **Next.js (OpenNext)** | **不支持** | — | **实验 v55**：Cloudflare starter 的 prod 根页与静态资产通过；仅固定单 Worker artifact 证据，不升级 AD-13 tier-1 · [ISSUE-05](./plans/issues/ISSUE-05-opennext-proto-relative-get-root.md) |
-| S40 | **Next.js (OpenNext)** | **不支持** | — | **实验 v11**：固定 `vercel/next.js` commit `6685283fe8533a469ee1a9455e2bc4047c7453cb`、Next `16.0.7`、OpenNext `1.14.0`；preview 验收根页、静态 chunk、动态 App Router SSR、Route Handler 与 Next 404 后才 promote。仍无任意版本/功能矩阵与 tier-1 承诺 · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
+| S40 | **Next.js (OpenNext)** | **不支持** | — | **实验 v12**：固定 `vercel/next.js` commit `6685283fe8533a469ee1a9455e2bc4047c7453cb`、Next `16.0.7`、OpenNext `1.14.0`；preview 验收根页、静态 chunk、动态 App Router SSR、直接解析 `request.url` 的 Route Handler 与 Next 404 后才 promote。仍无任意版本/功能矩阵与 tier-1 承诺 · [NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
 
 ---
 

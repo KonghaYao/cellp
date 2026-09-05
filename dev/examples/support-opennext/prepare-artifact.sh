@@ -74,7 +74,7 @@ if (!j.assets.binding) j.assets.binding = 'ASSETS';
 delete j.no_bundle;
 fs.writeFileSync('wrangler.cellp-dry-run.jsonc', JSON.stringify(j, null, 2) + '\n');
 NODE
-CI=1 WRANGLER_SEND_METRICS=false pnpm exec --yes wrangler@4 deploy --config wrangler.cellp-dry-run.jsonc --dry-run --outdir .cellp-bundle
+CI=1 WRANGLER_SEND_METRICS=false pnpm exec wrangler deploy --config wrangler.cellp-dry-run.jsonc --dry-run --outdir .cellp-bundle
 rm -f wrangler.cellp-dry-run.jsonc
 if [[ -f .cellp-bundle/worker.js && ! -f .cellp-bundle/index.js ]]; then
   cp .cellp-bundle/worker.js .cellp-bundle/index.js
