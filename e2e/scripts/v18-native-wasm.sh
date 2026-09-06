@@ -137,7 +137,7 @@ rm -f "$DENIED_BODY_FILE"
   || fail "undeclared KV expected stable error, got HTTP ${DENIED_CODE}"
 printf '%s' "$DENIED_BODY" | grep -Eq 'capability_denied|guest_trap' \
   || fail "undeclared KV response missing normalized error code: ${DENIED_BODY}"
-printf '%s' "$DENIED_BODY" | grep -Eqi 'wasmtime|webassembly|backtrace|rustfsadmin' \
+printf '%s' "$DENIED_BODY" | grep -Eqi 'wasmtime|webassembly|backtrace|aws_secret_access_key|authorization:[[:space:]]*bearer' \
   && fail "undeclared KV response leaked engine or credential detail" || true
 wait_http_200_version "$PROJECT" "$VA" "/${KEY}" 30
 api_status GET "/v1/runtime/routes"
