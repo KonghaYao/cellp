@@ -22,16 +22,27 @@ func CronShouldArm(proj *registry.Project, versionID string) bool {
 	return *proj.ProdVersionID == versionID
 }
 
+// shouldSkipInactiveDisarmCronReconcile reports whether cron disarm redeploy can be
+// skipped after promote drain: inactive route and unreachable upstream (AD-11).
+func shouldSkipInactiveDisarmCronReconcile(arm, routeActive, upstreamHealthy bool) bool {
+	return !arm && !routeActive && !upstreamHealthy
+}
+
 // ReconcileCronAfterProdChange redeploys fleet manifests so only the new prod arms cron triggers.
 func (o *Orchestrator) ReconcileCronAfterProdChange(ctx context.Context, projectID, oldProd, newProd string) error {
 	proj, err := o.store.GetProject(ctx, projectID)
 	if err != nil || proj == nil {
 		return fmt.Errorf("project not found")
 	}
-	for _, vid := range []string{oldProd, newProd} {
-		if vid == "" {
-			continue
-		}
+	// Arm new prod before disarming old prod so a drained predecessor cannot block cutover.
+	reconcileOrder := make([]string, 0, 2)
+	if newProd != "" {
+		reconcileOrder = append(reconcileOrder, newProd)
+	}
+	if oldProd != "" && oldProd != newProd {
+		reconcileOrder = append(reconcileOrder, oldProd)
+	}
+	for _, vid := range reconcileOrder {
 		v, err := o.store.GetVersion(ctx, projectID, vid)
 		if err != nil {
 			return fmt.Errorf("version %s: %w", vid, err)
@@ -54,6 +65,10 @@ func (o *Orchestrator) ReconcileCronAfterProdChange(ctx context.Context, project
 		}
 		if route == nil {
 			return fmt.Errorf("cron reconcile route %s: not configured", vid)
+		}
+		if shouldSkipInactiveDisarmCronReconcile(arm, route.Active, o.runtime.Health(ctx, route.UpstreamHost, route.UpstreamPort)) {
+			log.Printf("orch: cron reconcile skip %s/%s disarm: upstream unavailable with inactive route", projectID, vid)
+			continue
 		}
 		if err := o.runtime.DeployForCronReconcile(ctx, projectID, vid, bundleDir, arm, route.UpstreamHost, route.UpstreamPort); err != nil {
 			return fmt.Errorf("cron reconcile deploy %s: %w", vid, err)
