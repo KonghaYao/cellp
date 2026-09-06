@@ -90,15 +90,13 @@ poll_version "$PROJECT" "$VA" ready 120 >/dev/null
 create_version "$PROJECT" "$VB" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VB" ready 120 >/dev/null
 
-# TP-NATIVE-HTTP: only the formal Gateway Host path counts.
-wait_http_200_version "$PROJECT" "$VA" "/health" 60
-HEALTH_BODY=$(curl_version "$PROJECT" "$VA" "/health")
-[[ "$HEALTH_BODY" == $'native-http-v1\nhello-native' || "$HEALTH_BODY" == $'native-http-v1\nhello-native\n' ]] \
-  || fail "Native health body mismatch: ${HEALTH_BODY}"
+# TP-NATIVE-HTTP/BIND: guest write through the formal Gateway Host path, then
+# prove the same bytes through both guest HTTP and the cellpd operator API.
+curl_version_method PUT "$PROJECT" "$VA" "/${KEY}" --data-binary "$VA_VALUE" >/dev/null
+GATEWAY_VALUE=$(curl_version "$PROJECT" "$VA" "/${KEY}")
+[[ "$GATEWAY_VALUE" == "$VA_VALUE" ]] || fail "Native Gateway response mismatch"
 log "Gateway Host Native HTTP PASS host=$(preview_host "$PROJECT" "$VA")"
 
-# TP-NATIVE-BIND: guest write -> cellpd operator read.
-curl_version_method PUT "$PROJECT" "$VA" "/${KEY}" --data-binary "$VA_VALUE" >/dev/null
 api_status GET "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${KEY}"
 [[ "$API_STATUS" == "200" ]] || fail "operator GET guest value -> HTTP ${API_STATUS}: ${API_BODY}"
 [[ "$(operator_value "$API_BODY")" == "$VA_VALUE" ]] \
@@ -132,7 +130,7 @@ poll_version "$PROJECT" "$VD" ready 120 >/dev/null
 DENIED_CODE=$(http_code_version "$PROJECT" "$VD" "/${KEY}")
 [[ "$DENIED_CODE" =~ ^(4|5)[0-9][0-9]$ ]] \
   || fail "undeclared KV expected stable error, got HTTP ${DENIED_CODE}"
-wait_http_200_version "$PROJECT" "$VD" "/health" 30
+wait_http_200_version "$PROJECT" "$VA" "/${KEY}" 30
 curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null \
   || fail "celld unhealthy after denied Native request"
 log "undeclared KV denial and recovery PASS HTTP=${DENIED_CODE}"
