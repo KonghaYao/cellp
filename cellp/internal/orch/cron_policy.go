@@ -48,7 +48,14 @@ func (o *Orchestrator) ReconcileCronAfterProdChange(ctx context.Context, project
 			return err
 		}
 		arm := CronShouldArm(proj, vid)
-		if err := o.runtime.Deploy(ctx, projectID, vid, bundleDir, arm); err != nil {
+		route, err := o.store.GetRoute(ctx, projectID, vid)
+		if err != nil {
+			return fmt.Errorf("cron reconcile route %s: %w", vid, err)
+		}
+		if route == nil {
+			return fmt.Errorf("cron reconcile route %s: not configured", vid)
+		}
+		if err := o.runtime.DeployForCronReconcile(ctx, projectID, vid, bundleDir, arm, route.UpstreamHost, route.UpstreamPort); err != nil {
 			return fmt.Errorf("cron reconcile deploy %s: %w", vid, err)
 		}
 		if err := o.runtime.Restart(ctx, projectID, vid); err != nil {
