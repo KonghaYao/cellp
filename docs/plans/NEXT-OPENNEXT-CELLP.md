@@ -99,9 +99,16 @@ Playwright `--list` 是分母权威：**119 declarations，5 个上游 `test.ski
 
 | Fixture | Runnable | Build | Preview deploy | Playwright 结果 |
 |---------|---------:|:-----:|:--------------:|-----------------|
-| App Router | 58 | ✅ | ❌ | **未运行**；no-patch artifact 在 celld warm isolate 的 module linking 阶段 `stateless Worker failed to load` / `instantiate: <none>`；失败 version 保留 |
+| App Router | 58 | ✅ | ✅ | **52 passed / 5 failed / 1 flaky / 3 skipped**；失败集中在 ISR/cache 与 middleware redirect；最新证据 `docs/evidence/opennext-official-e2e-20260906-134943-81233.log` |
 | Pages Router | 36 | ✅ | ✅ | **33 passed / 3 failed**；失败集中在带 query 的 rewrite 与 trailing-slash redirect query 保留；no-patch 新 preview 稳定复现 |
 | App + Pages Router | 20 | ✅ | ✅ | **17 passed / 3 failed**；失败为 request Host、middleware redirect、Server Actions；主套件 ISR 首轮通过，后续同 preview 无 retry repeat-3 复现 1 次失败，确认 flaky |
+
+2026-09-06 增量（仍 **experimental / tier-1 不支持**）：
+
+- **R2 bulk import 证据链已补齐：** `celld r2 bulk put` 接受官方 `{key,file}` manifest，写入真实 RustFS fleet bucket；`e2e/scripts/v13-r2-branch.sh` 证明 child overlay 下 delete→put 与 operator bulk import 后 Worker R2 binding 可 byte-for-byte 读回。
+- **OpenNext harness 安全修复：** preview 部署前必须已有 production，且 `set +e` 下 fail-closed，不再在拒绝 first-ready 后继续 staging/deploy。
+- **OpenNext cache 导入路径已接入 harness：** 使用 pinned `@opennextjs/cloudflare@1.14.0` 的 `getCacheAssets()` + `computeCacheKey()` 生成 canonical `{key,file}` 清单，再导入目标 version 的 `NEXT_INC_CACHE_R2_BUCKET`。
+- **App Router 最新实测：** 58 runnable 中 **52 passed / 5 failed / 1 flaky / 3 skipped**（约 **91.4% runnable pass rate**）。这 **不是** tier-1 或整体 OpenNext 支持率声明；Pages / App+Pages 仍保留既有失败项，且 App Router 尚未按修复后的 cache 导入路径重跑。
 
 两个成功部署 fixture 的主套件合计实际执行 56 个 runnable：最终结果为 **50 passed / 6 failed，已执行断言通过率 89.3%（50/56）**；其中一个 pass 已被后续 repeat-3 再次复现为 flaky，因此严格稳定通过为 **49/56（87.5%）**。相对全部 114 runnable，主套件最终通过覆盖为 **43.9%（50/114）**，严格稳定通过覆盖为 **43.0%（49/114）**，另有 **58/114（50.9%）因 App Router 部署阻塞而未执行 assertion**。因此不能把 89.3% 宣称为“OpenNext 整体支持率”，也不能把未运行的 58 个伪装成断言失败或从总分母隐藏；当前结论仍是 **AD-13 experimental / tier-1 不支持**。
 

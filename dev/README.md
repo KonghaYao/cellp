@@ -83,7 +83,10 @@ pnpm install   # web / site / dev/examples/*
 | `logs.sh` | 看日志 |
 | `gc.sh` | 一次性 Registry GC（jobs + destroyed versions） |
 | `deploy-support-app.sh` | 拉取 Support corpus 并用 **pnpm** 构建（`cellp_pnpm_install`） |
+| `run-opennext-official-e2e.sh` | 固定 `@opennextjs/cloudflare@1.14.0` 官方 Playwright 验收；`--fast` 只复用依赖，不跳过 build/deploy/runtime |
 | `clean-support-node-modules.sh` | 删除 corpus/examples 下全部 `node_modules`（释放重复 **workerd** 占用） |
+
+OpenNext 官方 runtime 验收默认 **preview only**，且要求 fixture 项目已有 production，避免 first-ready 自动 promote。当前 App Router 最新实测为 **52/58 runnable 通过**（仍 experimental，不是 tier-1 支持声明）。
 
 ## Registry GC（Phase 6A-T3）
 

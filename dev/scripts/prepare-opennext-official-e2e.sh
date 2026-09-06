@@ -42,8 +42,24 @@ oncf_fixture_dir() {
 }
 
 oncf_project_id() {
-  local fixture="$1"
-  echo "opennext-e2e-${fixture}"
+  case "$1" in
+    app-router) echo "${ONCF_PROJECT_APP_ROUTER:-opennext-e2e-app-router}" ;;
+    pages-router) echo "${ONCF_PROJECT_PAGES_ROUTER:-opennext-e2e-pages-router}" ;;
+    app-pages-router) echo "${ONCF_PROJECT_APP_PAGES_ROUTER:-opennext-e2e-app-pages-router}" ;;
+    *) return 1 ;;
+  esac
+}
+
+oncf_require_existing_prod() {
+  local project="$1"
+  local prod
+  prod="$(api_get "/v1/projects/${project}" "$ADMIN_TOKEN" 2>/dev/null \
+    | jq -r '.prod_version_id // empty' 2>/dev/null || true)"
+  if [[ -z "$prod" ]]; then
+    echo "FAIL: official preview acceptance requires an existing production for ${project}; refusing first-ready bootstrap" >&2
+    return 1
+  fi
+  oncf_log "preview safety: preserve existing production ${project}/${prod}"
 }
 
 oncf_valid_fixture() {
@@ -144,11 +160,11 @@ oncf_build_fixture() {
     return 0
   fi
   oncf_log "${fixture}: official build:worker (clean Next + OpenNext build)"
-  rm -rf "${app_dir}/.open-next" "${app_dir}/.next"
+  rm -rf "${app_dir}/.open-next" "${app_dir}/.next" || return $?
   (
-    cd "${ONCF_CLONE_DIR}"
+    cd "${ONCF_CLONE_DIR}" || exit $?
     pnpm --filter "${fixture}" run build:worker
-  )
+  ) || return $?
   [[ -f "${app_dir}/.open-next/worker.js" ]] || { echo "FAIL: missing .open-next/worker.js after build" >&2; return 1; }
 }
 
@@ -213,7 +229,7 @@ oncf_playwright_list_file() {
   local app_dir base_url list_out err_out rc
   app_dir="$(oncf_fixture_dir "$fixture")"
   base_url="http://preview.example.lvh.me:8787"
-  oncf_write_playwright_config "$app_dir" "$base_url"
+  oncf_write_playwright_config "$app_dir" "$base_url" || return $?
   list_out="$(mktemp)"
   err_out="$(mktemp)"
   set +e
@@ -351,6 +367,64 @@ fs.writeFileSync(p, out);
 " "$wrangler_path" "$deploy_url"
 }
 
+# Generate the exact {key,file} objects used by the pinned OpenNext
+# populateCache command, then import them into this version's real fleet bucket.
+oncf_populate_r2_cache() (
+  local app_dir="$1"
+  local project="$2"
+  local version="$3"
+  local bucket_name manifest_dir manifest objects
+
+  bucket_name="$(jq -er '
+    [.r2_buckets[]? | select(.binding == "NEXT_INC_CACHE_R2_BUCKET") | .bucket_name]
+    | if length == 1 and (.[0] | type == "string") and (.[0] | length > 0)
+      then .[0]
+      else error("expected exactly one NEXT_INC_CACHE_R2_BUCKET binding")
+      end
+  ' "${app_dir}/.cellp-wrangler.jsonc")" || exit $?
+  manifest_dir="$(mktemp -d "${TMPDIR:-/tmp}/cellp-oncf-r2-cache.XXXXXX")" || exit $?
+  trap 'rm -rf "$manifest_dir"' EXIT
+  manifest="${manifest_dir}/r2-bulk-list.json"
+
+  objects="$({
+    cd "$ONCF_CLONE_DIR" || exit $?
+    node --input-type=module - "$ONCF_CLONE_DIR" "$app_dir" "$manifest" <<'NODE'
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const [cloneDir, appDir, manifest] = process.argv.slice(2);
+const populateUrl = pathToFileURL(
+  path.join(cloneDir, "packages/cloudflare/dist/cli/commands/populate-cache.js")
+).href;
+const internalUrl = pathToFileURL(
+  path.join(cloneDir, "packages/cloudflare/dist/api/overrides/internal.js")
+).href;
+const { getCacheAssets } = await import(populateUrl);
+const { computeCacheKey } = await import(internalUrl);
+const assets = getCacheAssets({ outputDir: path.join(appDir, ".open-next") });
+if (assets.length === 0) throw new Error("OpenNext emitted no incremental cache assets");
+const objects = assets.map(({ fullPath, key, buildId, isFetch }) => ({
+  key: computeCacheKey(key, {
+    prefix: undefined,
+    buildId,
+    cacheType: isFetch ? "fetch" : "cache",
+  }),
+  file: fullPath,
+}));
+fs.writeFileSync(manifest, JSON.stringify(objects));
+process.stdout.write(String(objects.length));
+NODE
+  })" || exit $?
+
+  rustfs_s3_env || exit $?
+  celld r2 bulk put "$bucket_name" --filename "$manifest" \
+    --bucket "s3://cellp-celld/${project}/${version}" \
+    --endpoint "${S3_ENDPOINT:-http://127.0.0.1:19000}" \
+    --region "${AWS_REGION:-us-east-1}" --json >/dev/null || exit $?
+  oncf_log "official R2 cache manifest imported ${objects} object(s) into ${project}/${version}/${bucket_name}"
+)
+
 oncf_celld_log_path() {
   local project="$1"
   local version="$2"
@@ -400,35 +474,39 @@ oncf_poll_preview() {
 oncf_stage_and_register_preview() {
   local fixture="$1"
   local version="$2"
-  local project app_dir dest prepare deploy_url
-  project="$(oncf_project_id "$fixture")"
-  app_dir="$(oncf_fixture_dir "$fixture")"
+  local project app_dir dest deploy_url
+  project="$(oncf_project_id "$fixture")" || return $?
+  app_dir="$(oncf_fixture_dir "$fixture")" || return $?
   dest="${ARTIFACTS_DIR}/${project}/${version}"
-  deploy_url="$(oncf_preview_base_url "$project" "$version")"
+  deploy_url="$(oncf_preview_base_url "$project" "$version")" || return $?
+
+  # The caller intentionally disables errexit to collect per-fixture results.
+  # Check every safety precondition before staging and propagate every required
+  # command failure explicitly so a failed preview can never bootstrap prod.
+  oncf_require_existing_prod "$project" || return $?
+  if [[ -e "$dest" ]]; then
+    echo "FAIL: refuse to overwrite existing version artifact ${dest}" >&2
+    return 1
+  fi
 
   export CELLP_ONCF_PROJECT="$project"
   export CELLP_ONCF_DEPLOY_URL="$deploy_url"
   export SUPPORT_RSYNC_NO_NODE=1
 
   oncf_log "prepare cellp artifact ${project}/${version}"
-  bash "${E2E_ROOT}/dev/examples/support-opennext-official/prepare-artifact.sh" "$app_dir"
+  bash "${E2E_ROOT}/dev/examples/support-opennext-official/prepare-artifact.sh" "$app_dir" || return $?
 
-  cd "$app_dir"
-  oncf_inject_deploy_url ./.cellp-wrangler.jsonc "$deploy_url"
+  cd "$app_dir" || return $?
+  oncf_inject_deploy_url ./.cellp-wrangler.jsonc "$deploy_url" || return $?
 
-  if [[ -e "$dest" ]]; then
-    echo "FAIL: refuse to overwrite existing version artifact ${dest}" >&2
-    return 1
-  fi
-  mkdir -p "$dest"
-  cp ./.cellp-wrangler.jsonc "$dest/wrangler.jsonc"
-  rsync -a ./.cellp-bundle/ "$dest/.cellp-bundle/"
-  rsync -a ./.cellp-assets/ "$dest/.cellp-assets/"
+  mkdir -p "$dest" || return $?
+  cp ./.cellp-wrangler.jsonc "$dest/wrangler.jsonc" || return $?
+  rsync -a ./.cellp-bundle/ "$dest/.cellp-bundle/" || return $?
+  rsync -a ./.cellp-assets/ "$dest/.cellp-assets/" || return $?
 
-  ensure_project "$project"
-  sync_artifact_to_rustfs "$project" "$version"
-  create_version "$project" "$version" "" "{\"artifact_uri\":\"s3://cellp-artifacts/${project}/${version}/\"}" \
-    | jq -r .preview_url >/dev/null
+  sync_artifact_to_rustfs "$project" "$version" || return $?
+  oncf_populate_r2_cache "$app_dir" "$project" "$version" || return $?
+  create_version "$project" "$version" >/dev/null || return $?
 
   if ! oncf_poll_preview "$project" "$version" "${ONCF_POLL_SECS:-300}"; then
     echo "FAIL: deploy ${project}/${version} not ready; version retained" >&2
@@ -441,21 +519,19 @@ oncf_run_playwright() {
   local fixture="$1"
   local version="$2"
   local project app_dir base_url pw_log result_dir rc
-  project="$(oncf_project_id "$fixture")"
-  app_dir="$(oncf_fixture_dir "$fixture")"
-  base_url="$(oncf_preview_base_url "$project" "$version")"
+  project="$(oncf_project_id "$fixture")" || return $?
+  app_dir="$(oncf_fixture_dir "$fixture")" || return $?
+  base_url="$(oncf_preview_base_url "$project" "$version")" || return $?
   result_dir="${app_dir}/e2e/.cellp-runs/${version}"
-  mkdir -p "$result_dir"
-  oncf_write_playwright_config "$app_dir" "$base_url"
+  mkdir -p "$result_dir" || return $?
+  oncf_write_playwright_config "$app_dir" "$base_url" || return $?
   pw_log="${EVIDENCE_DIR}/opennext-official-${fixture}-${version}.log"
   oncf_log "playwright ${fixture} → ${pw_log}; traces=${result_dir}"
-  set +e
   (
-    cd "${ONCF_CLONE_DIR}"
+    cd "${ONCF_CLONE_DIR}" || exit $?
     CELLP_ONCF_BASE_URL="$base_url" CELLP_ONCF_OUTPUT_DIR="$result_dir" CI=1 \
       pnpm --filter "${fixture}" exec playwright test -c e2e/playwright.cellp.config.ts --workers=1 2>&1 | tee "$pw_log"
   )
-  rc=${PIPESTATUS[0]}
-  set -e
+  rc=$?
   return "$rc"
 }

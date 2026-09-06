@@ -108,7 +108,10 @@ require_platform
 
   OVERALL=0
   for fixture in "${SELECTED[@]}"; do
-    VERSION="v-oncf-${fixture}-$(date +%s)-${RANDOM}"
+    # The pinned official fixtures model local Workers preview as an HTTP host
+    # whose name starts with `localhost` (not as public HTTPS). Keep the cellp
+    # preview route/version unique while preserving that upstream test contract.
+    VERSION="localhost-oncf-${fixture}-$(date +%s)-${RANDOM}"
     PROJECT="$(oncf_project_id "$fixture")"
     BUILD_RC=0
     DEPLOY_RC=0
