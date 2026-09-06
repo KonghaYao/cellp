@@ -8,6 +8,7 @@ use cellp::kv::kv::{self, AccessError, KvError, Namespace};
 use wstd::http::{Body, Method, Request, Response, StatusCode};
 
 const KV_BINDING: &str = "VALUES";
+const E2E_HOSTCALL_FAIL_KEY: &str = "__e2e_probe_hostcall_fail";
 
 #[wstd::http_server]
 async fn main(req: Request<Body>) -> Result<Response<Body>, wstd::http::Error> {
@@ -20,6 +21,10 @@ async fn main(req: Request<Body>) -> Result<Response<Body>, wstd::http::Error> {
         return Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::from(body))?);
+    }
+
+    if let Some(probe) = path.strip_prefix("/probe/") {
+        return handle_probe(probe, method, req).await;
     }
 
     let key = path.trim_start_matches('/').to_string();
@@ -49,6 +54,65 @@ async fn main(req: Request<Body>) -> Result<Response<Body>, wstd::http::Error> {
             None => text_response(StatusCode::NOT_FOUND, "Not found.\n"),
         },
         _ => text_response(StatusCode::METHOD_NOT_ALLOWED, "Method not allowed.\n"),
+    }
+}
+
+async fn handle_probe(
+    probe: &str,
+    method: Method,
+    req: Request<Body>,
+) -> Result<Response<Body>, wstd::http::Error> {
+    match probe {
+        "trap" => {
+            let _ = method;
+            let _ = req;
+            core::arch::wasm32::unreachable();
+        }
+        "deadline" => {
+            let _ = method;
+            let _ = req;
+            loop {
+                core::hint::spin_loop();
+            }
+        }
+        "memory" => {
+            let _ = method;
+            let _ = req;
+            let mut chunks: Vec<Vec<u8>> = Vec::new();
+            loop {
+                chunks.push(vec![0_u8; 1024 * 1024]);
+            }
+        }
+        "kv-hostcall-fail" => {
+            if method != Method::PUT {
+                return text_response(StatusCode::METHOD_NOT_ALLOWED, "Use PUT.\n");
+            }
+            let ns = open_kv()?;
+            ns.put(E2E_HOSTCALL_FAIL_KEY, b"probe")
+                .map_err(kv_err)?;
+            Ok(Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())?)
+        }
+        "hostcall-flood" => {
+            let _ = method;
+            let _ = req;
+            let ns = open_kv()?;
+            for i in 0..16_u8 {
+                let key = format!("flood-{i}");
+                let _ = ns.get(&key).map_err(kv_err)?;
+            }
+            text_response(StatusCode::OK, "unexpected\n")
+        }
+        "kv-spin" => {
+            let _ = method;
+            let _ = req;
+            let ns = open_kv()?;
+            loop {
+                let _ = ns.get("warm-key").map_err(kv_err)?;
+            }
+        }
+        _ => text_response(StatusCode::NOT_FOUND, "Unknown probe.\n"),
     }
 }
 
