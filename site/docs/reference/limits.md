@@ -20,6 +20,7 @@ Intentional constraints so you do not plan on a Cloudflare-shaped roadmap that w
 | Workers AI, Vectorize, Hyperdrive | **No** |
 | Browser Rendering, Email Workers, Python Workers | **No** |
 | Full Cloudflare KV/R2/Queue/DO/Workflows | **Partial** — see [Compatibility](/reference/compatibility) |
+| **Native Component** (`native-http-v1`) | **Experimental 0.x** — Wasmtime only; inbound HTTP + vars + KV; no D1/R2/Queue/DO/outbound HTTP/Native WebSocket — [Native Component](/build/native-component) |
 | `wrangler tail` | **No** |
 | R2 object manager | **No** |
 | Workflow pause/resume/restart | **No** |

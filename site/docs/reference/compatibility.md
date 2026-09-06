@@ -9,6 +9,7 @@ cellp runs Workers on **celld** (Rust runtime in the repo submodule). This table
 | Service | Status | cellp notes |
 |---------|--------|-------------|
 | Workers (`fetch`, runtime APIs) | Partial | See celld runtime table |
+| **Native Component HTTP** (`native-http-v1`) | **Experimental** | Wasmtime-only; stateless inbound HTTP + vars + KV WIT @0.1 — [Native Component](/build/native-component). Not workers-rs compatible |
 | Static assets (wrangler `assets`) | Yes | SPA / Workers Sites-style bundles |
 | D1 | Partial | Root **import** on first version; preview **branch** on child versions |
 | KV · R2 · Queues | Partial | **Branch** from parent on child versions |

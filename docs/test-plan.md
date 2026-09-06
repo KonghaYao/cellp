@@ -380,13 +380,14 @@
 | 通过 | 子 version fork 后仅在 prod 写入的行；promote 子 version 后 prod D1 **不含**该行（证明未 merge fork 后 prod 写入） |
 | 证据 | `docs/evidence/v17-promote-no-merge-e2e.log` |
 
-### [ ] TP-NATIVE — Experimental Native Component HTTP + KV
+### [x] TP-NATIVE — Experimental Native Component HTTP + KV
 
 | 命令 | `e2e/scripts/run-all.sh --only v18-native-wasm` |
 | 通过 | 正式 Gateway preview Host 返回确定 `native-http-v1` 响应；guest KV 写可由 cellpd 读，cellpd 写可由 guest 读；未授权 KV 请求失败后 Gateway/celld 仍健康；两个 sibling version 同 namespace/key 隔离；既有 JS/V8 Worker smoke 仍成功 |
 | 契约 | Wasmtime-only；`native-http-v1` + `cellp:config@0.1` / `cellp:kv@0.1` experimental；不以 mock 或直连 celld 作为唯一证据 |
-| 证据 | `docs/evidence/native-wasm-e2e.log` · `native-wasm-e2e.json` · `native-e2e.md` |
-| 待补 | guest trap/hostcall failure 的端口级触发与恢复；bounded stop/deadline/memory 已由 qualification gate 覆盖，但发布仍须完整 G-E2E/G-REL 证据 |
+| 文档 | [Native Component](../site/docs/build/native-component.md) · [AD-16](./decisions.md#21-ad-16--experimental-native-component-http-native-http-v1) |
+| 证据 | `docs/evidence/native-wasm-e2e.log` · `native-wasm-e2e.json`（`exit: 0` · 2026-09-06） |
+| 备注 | bounded stop / deadline / memory / trap 由 qualification gate（WP-Q）覆盖；完整 **G-REL** 仍须 `RUN_GATES=1` 全 MANIFEST + site build |
 
 ### [x] TP-UI-15 — Dashboard 监控与巡检
 

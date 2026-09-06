@@ -2,6 +2,8 @@
 
 You ship a **Cloudflare-style Worker**: a JavaScript module plus a `wrangler.jsonc` that names your data. cellp does not host Next.js and does not generate the Worker for you.
 
+**Experimental:** Wasmtime **Native Component** HTTP (`native-http-v1`) without JS is documented separately — [Native Component (experimental)](/build/native-component). Default deploys remain JS/V8.
+
 This page is the developer path: **code → config → first version → URL**.
 
 ## What you create
@@ -119,6 +121,7 @@ If this is the **first** ready version on the project, the **prod Host** already
 | You want to | Page |
 |-------------|------|
 | Attach D1 / KV / R2 / queues in wrangler | [Configure bindings](/build/wrangler) |
+| Native Component + KV (Wasmtime, experimental) | [Native Component](/build/native-component) |
 | Seed tables, banners, forks | [Platform data](/build/data) |
 | `scheduled`, queues, workflows, Durable Objects | [Handlers](/build/handlers) |
 | Copy a full store | [Commerce example](/get-started/example) |

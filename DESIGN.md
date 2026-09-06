@@ -492,6 +492,21 @@ celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Work
 - KV：无 edge cache；`cacheTtl` 无效；大 value（>1 MiB）走 fleet bucket；一 namespace 一 writer
 - Queue：一 queue 一 writer；**一个 consumer script，且 consumer 不能再 export `fetch()`**；消息保留 4 天不可配；无 pull / HTTP API
 - Workflow：无 `delete` / rollback；step / event / params 各 1 MiB
+
+### 8.3 Native Component execution（experimental · AD-16）
+
+除默认 **JS/V8** 与既有 **`wasm-v1`（JS 导入 core wasm）** 外，celld 支持可选 profile **`native-http-v1`**：
+
+| 项 | 行为 |
+|---|---|
+| 选型 | wrangler **`cellp.execution`** + **`cellp.component`**；manifest 记录 digest · baseline · world · capabilities |
+| 运行时 | celld 进程内 **Wasmtime** Component adapter；**WASIp2** `wasi:http/proxy` + **`cellp:config@0.1`** / **`cellp:kv@0.1`** |
+| 入口 | 与 JS 相同：**Gateway Host** → 该 version 的 celld upstream |
+| KV | 与 §8.2 KV 同一 semantic path（branch · operator API 共用） |
+| 级别 | **experimental 0.x**；Wasmtime-only；非 workers-rs 二进制兼容；非 hostile multi-tenant 保证 |
+
+R1 不支持 Native 上的 D1/R2/Queue/Workflow/Cron/DO/assets/outbound HTTP/Native WebSocket。公开说明见 [site: Native Component](https://konghayao.github.io/cellp/build/native-component.html) · 内部 [NATIVE-WASM-RUNTIME-DELIVERY.md](./docs/plans/NATIVE-WASM-RUNTIME-DELIVERY.md)。
+
 - R2：绑定使用本 fleet bucket 前缀；multipart 不能跨节点恢复
 - Cron：fleet 内每 occurrence 跑一次；downtime 后只补最近一次 missed
 

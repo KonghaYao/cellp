@@ -1,5 +1,7 @@
 # Native Wasm Runtime — R1 Market Scan Ledger
 
+> **产品交付（experimental）：** 见 [NATIVE-WASM-RUNTIME-DELIVERY.md](./NATIVE-WASM-RUNTIME-DELIVERY.md) 与 [AD-16](../decisions.md#21-ad-16--experimental-native-component-http-native-http-v1)。本 R1 desk 文档仍为 research ledger，不替代交付 AD。
+
 > **状态：** R1 desk research deliverable **VERIFIED — R1 deliverable PASS**（非实验 PASS，非 M2）
 > **日期：** 2026-09-05
 > **授权：** 用户已批准 R1 Market Scan；本文件**不是** Architecture Decision、runtime 选型、冻结产品 ABI 或实现授权
