@@ -68,6 +68,40 @@ d1_execute() {
 
 log "V17 promote no-merge project=${PROJECT} parent=${PARENT} child=${CHILD}"
 
+# Safe JSON snippet for promote failure diagnostics (no tokens/secrets).
+api_body_diag() {
+  local raw="${1:-}"
+  if [[ -z "$raw" ]]; then
+    echo "(empty)"
+    return 0
+  fi
+  echo "$raw" | jq -c 'if type == "object" then del(.token, .access_token, .refresh_token, .password, .secret) else . end' 2>/dev/null \
+    || echo "$raw" | head -c 1024
+}
+
+assert_promote_ok() {
+  local vid="$1"
+  local label="$2"
+  api_status POST "/v1/projects/${PROJECT}/versions/${vid}/promote" '{}'
+  local promote_http="$API_STATUS"
+  local promote_body="$API_BODY"
+  if [[ "$promote_http" == "200" ]]; then
+    api_status GET "/v1/projects/${PROJECT}/versions/${vid}"
+    log "promote ${label} ${vid} HTTP ${promote_http} version_GET HTTP ${API_STATUS}"
+    echo "$promote_body" >>"${EVIDENCE_DIR}/v17-promote-no-merge.log"
+    return 0
+  fi
+  api_status GET "/v1/projects/${PROJECT}/versions/${vid}"
+  local ver_get_http="$API_STATUS"
+  local ver_snapshot
+  ver_snapshot=$(echo "$API_BODY" | jq -c '{id,status,error: (.error // empty)}' 2>/dev/null || api_body_diag "$API_BODY")
+  {
+    echo "DIAG: project=${PROJECT} promote ${label} version=${vid} POST HTTP ${promote_http} body=$(api_body_diag "$promote_body")"
+    echo "DIAG: GET /versions/${vid} HTTP ${ver_get_http} ${ver_snapshot}"
+  } | tee -a "${EVIDENCE_DIR}/v17-promote-no-merge.log" >&2
+  fail "promote ${label} ${vid} HTTP ${promote_http}"
+}
+
 if ! celld d1 import --help >/dev/null 2>&1; then
   fail "celld d1 import not available"
 fi
@@ -97,9 +131,7 @@ poll_version "$PROJECT" "$PARENT" ready 180 >/dev/null
 
 wait_http_200_version "$PROJECT" "$PARENT" "/count" 60
 
-curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${PARENT}/promote" \
-  -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' \
-  >>"${EVIDENCE_DIR}/v17-promote-no-merge.log" 2>&1 || fail "promote parent to prod"
+assert_promote_ok "$PARENT" "parent to prod"
 
 wait_http_200_prod "$PROJECT" "/count" 60
 PROD_BEFORE=$(curl_prod "$PROJECT" "/count" | jq -r '.count // empty')
@@ -141,9 +173,7 @@ if [[ "$CHILD_AFTER" != "$((EXPECTED + 1))" ]]; then
   fail "child after insert=${CHILD_AFTER:-?} expected $((EXPECTED + 1))"
 fi
 
-curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${CHILD}/promote" \
-  -H "$(api_auth "$ADMIN_TOKEN")" -H "Content-Type: application/json" -d '{}' \
-  >>"${EVIDENCE_DIR}/v17-promote-no-merge.log" 2>&1 || fail "promote child"
+assert_promote_ok "$CHILD" "child"
 
 wait_http_200_prod "$PROJECT" "/count" 60
 PROD_FINAL=$(curl_prod "$PROJECT" "/count" | jq -r '.count // empty')
