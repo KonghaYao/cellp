@@ -24,14 +24,14 @@ const (
 
 // Orchestrator drives version lifecycle state machine (DESIGN §2.5).
 type Orchestrator struct {
-	store               registry.Store
-	queue               *job.SQLiteQueue
-	branch              *branch.Manager
-	runtime             *runtime.Manager
-	artifact            *artifact.Store
-	cfg                 config.Config
-	workerID            string
-	ingressReconciler   IngressListenerReconciler
+	store             registry.Store
+	queue             *job.SQLiteQueue
+	branch            *branch.Manager
+	runtime           *runtime.Manager
+	artifact          *artifact.Store
+	cfg               config.Config
+	workerID          string
+	ingressReconciler IngressListenerReconciler
 }
 
 // New creates an orchestrator.
@@ -236,16 +236,12 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if err := o.maybeEnterDeployReady(ctx, j); err != nil {
 		return err
 	}
-	bundleDir := filepath.Join("dev", "examples", "counter")
-	if _, err := os.Stat(filepath.Join(destDir, "wrangler.jsonc")); err == nil {
-		bundleDir = destDir
-	} else if alt := filepath.Join(o.cfg.ArtifactsDir, "..", "examples", "counter"); alt != bundleDir {
-		if _, err := os.Stat(filepath.Join(alt, "wrangler.jsonc")); err == nil {
-			bundleDir = alt
-		}
+	bundleDir, err := runtime.ResolveVersionBundleDir(o.cfg.ArtifactsDir, j.ProjectID, j.VersionID)
+	if err != nil {
+		return fmt.Errorf("bundle dir: %w", err)
 	}
-	if abs, err := filepath.Abs(bundleDir); err == nil {
-		bundleDir = abs
+	if err := runtime.ValidateDeployBundle(bundleDir); err != nil {
+		return fmt.Errorf("bundle: %w", err)
 	}
 	proj, perr := o.store.GetProject(ctx, j.ProjectID)
 	if perr != nil {

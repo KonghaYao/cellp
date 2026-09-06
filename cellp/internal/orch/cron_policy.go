@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 
 	"github.com/cellp/cellp/internal/config"
 	"github.com/cellp/cellp/internal/registry"
+	"github.com/cellp/cellp/internal/runtime"
 )
 
 // CronShouldArm reports whether celld should receive triggers.crons on deploy for this version.
@@ -61,20 +60,5 @@ func (o *Orchestrator) ReconcileCronAfterProdChange(ctx context.Context, project
 }
 
 func versionBundleDir(cfg config.Config, projectID, versionID string) (string, error) {
-	destDir := filepath.Join(cfg.ArtifactsDir, projectID, versionID)
-	bundleDir := filepath.Join("dev", "examples", "counter")
-	if _, err := os.Stat(filepath.Join(destDir, "wrangler.jsonc")); err == nil {
-		bundleDir = destDir
-	} else if _, err := os.Stat(filepath.Join(destDir, "wrangler.json")); err == nil {
-		bundleDir = destDir
-	} else if alt := filepath.Join(cfg.ArtifactsDir, "..", "examples", "counter"); alt != bundleDir {
-		if _, err := os.Stat(filepath.Join(alt, "wrangler.jsonc")); err == nil {
-			bundleDir = alt
-		}
-	}
-	abs, err := filepath.Abs(bundleDir)
-	if err != nil {
-		return "", err
-	}
-	return abs, nil
+	return runtime.ResolveVersionBundleDir(cfg.ArtifactsDir, projectID, versionID)
 }
