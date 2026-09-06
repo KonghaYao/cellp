@@ -127,13 +127,25 @@ log "two-version same-key isolation PASS"
 # subsequent request that does not open KV must still pass through the Gateway.
 create_version "$PROJECT" "$VD" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VD" ready 120 >/dev/null
-DENIED_CODE=$(http_code_version "$PROJECT" "$VD" "/${KEY}")
+DENIED_BODY_FILE=$(mktemp)
+DENIED_CODE=$(curl -sS -o "$DENIED_BODY_FILE" -w '%{http_code}' \
+  $(gateway_curl_tls_flags) -H "Host: $(preview_host "$PROJECT" "$VD")" \
+  "${GATEWAY_URL}/${KEY}" 2>/dev/null || echo "000")
+DENIED_BODY=$(<"$DENIED_BODY_FILE")
+rm -f "$DENIED_BODY_FILE"
 [[ "$DENIED_CODE" =~ ^(4|5)[0-9][0-9]$ ]] \
   || fail "undeclared KV expected stable error, got HTTP ${DENIED_CODE}"
+printf '%s' "$DENIED_BODY" | grep -Eq 'capability_denied|guest_trap' \
+  || fail "undeclared KV response missing normalized error code: ${DENIED_BODY}"
+printf '%s' "$DENIED_BODY" | grep -Eqi 'wasmtime|webassembly|backtrace|rustfsadmin' \
+  && fail "undeclared KV response leaked engine or credential detail" || true
 wait_http_200_version "$PROJECT" "$VA" "/${KEY}" 30
-curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null \
-  || fail "celld unhealthy after denied Native request"
-log "undeclared KV denial and recovery PASS HTTP=${DENIED_CODE}"
+api_status GET "/v1/runtime/routes"
+[[ "$API_STATUS" == "200" ]] || fail "runtime routes -> HTTP ${API_STATUS}"
+printf '%s' "$API_BODY" | jq -e --arg project "$PROJECT" --arg version "$VD" \
+  '.routes[] | select(.project_id==$project and .version_id==$version and .celld_health=="ok")' >/dev/null \
+  || fail "denied Native version is not healthy after error: ${API_BODY}"
+log "undeclared KV denial and per-version recovery PASS HTTP=${DENIED_CODE}"
 
 # TP-NATIVE-SMOKE: prove the historical JS/V8 path still deploys and serves.
 create_version "$PROJECT" "$VJ" | jq -r .id >/dev/null
