@@ -1,0 +1,23 @@
+package cellp:kv@0.1.0;
+
+interface kv {
+  resource namespace {
+    get: func(key: string) -> result<option<list<u8>>, kv-error>;
+    put: func(key: string, value: list<u8>) -> result<_, kv-error>;
+    delete: func(key: string) -> result<_, kv-error>;
+  }
+
+  variant kv-error {
+    invalid-key,
+    resource-exhausted,
+    unavailable,
+  }
+
+  /// Open only a binding name authorized by the deployment manifest. The host
+  /// never accepts a namespace id from guest input.
+  open: func(binding: string) -> result<namespace, access-error>;
+
+  enum access-error {
+    denied,
+  }
+}
