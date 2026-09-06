@@ -104,12 +104,16 @@ func (g *Gateway) Handler() http.Handler {
 }
 
 func (g *Gateway) routes() {
-	g.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("gateway ok"))
-	})
+	g.router.Get("/health", g.handleHealth)
 	g.router.Get("/health/deep", g.handleHealthDeep)
 	g.router.Handle("/*", http.HandlerFunc(g.handleIngress))
+}
+
+func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if !g.tryServeIngress(w, r, true) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("gateway ok"))
+	}
 }
 
 func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
@@ -117,42 +121,55 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	g.tryServeIngress(w, r, false)
+}
 
+// tryServeIngress proxies a Host-bound request to the resolved version upstream.
+// When allowGatewayFallback is true and no ingress binding matches, it returns
+// false so callers can answer with gateway-local health.
+func (g *Gateway) tryServeIngress(w http.ResponseWriter, r *http.Request, allowGatewayFallback bool) bool {
 	binding, err := g.resolveIngressBinding(r.Context(), r)
 	if err != nil {
 		http.Error(w, "ingress lookup failed", http.StatusInternalServerError)
-		return
+		return true
 	}
 	if binding == nil || !binding.Active {
+		if allowGatewayFallback {
+			return false
+		}
 		http.Error(w, "ingress_unknown", http.StatusNotFound)
-		return
+		return true
 	}
 
 	projectID, versionID, ok := g.versionForBinding(r.Context(), binding)
 	if !ok {
+		if allowGatewayFallback {
+			return false
+		}
 		http.Error(w, "ingress_unknown", http.StatusNotFound)
-		return
+		return true
 	}
 
 	if g.tryColdActivator(w, r, projectID, versionID) {
-		return
+		return true
 	}
 
 	route, ok := g.lookupRoute(r.Context(), projectID, versionID)
 	if !ok || route == nil {
 		http.Error(w, "route not found", http.StatusNotFound)
-		return
+		return true
 	}
 	if !route.Active {
 		if g.versionInactiveBody(r.Context(), projectID, versionID) == "version_archived" {
 			http.Error(w, "version_archived", http.StatusServiceUnavailable)
-			return
+			return true
 		}
 		http.Error(w, "route draining", http.StatusServiceUnavailable)
-		return
+		return true
 	}
 
 	g.proxyIngress(w, r, route, binding, projectID, versionID)
+	return true
 }
 
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {

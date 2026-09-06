@@ -440,10 +440,14 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		log.Printf("orch: prod PUBLIC_BASE_URL warn: %v", err)
 	}
 
-	if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
-		log.Printf("orch: cron reconcile after promote warn: %v", err)
-		return err
-	}
+	// Cron manifest reconcile is best-effort after prod CAS; it must not extend the
+	// promote cutover / dual-write window measured by TP-V4.
+	go func(projectID, oldProd, newProd string) {
+		cronCtx := context.WithoutCancel(ctx)
+		if err := o.ReconcileCronAfterProdChange(cronCtx, projectID, oldProd, newProd); err != nil {
+			log.Printf("orch: cron reconcile after promote warn: %v", err)
+		}
+	}(projectID, oldProd, versionID)
 
 	return nil
 }

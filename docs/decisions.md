@@ -500,8 +500,8 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 ## 21. AD-16 — Experimental Native Component HTTP (`native-http-v1`)
 
-**状态：** **已落地（experimental 0.x · 2026-09-06）** · qualification Wasmtime **48.0.1** · celld `44a3259`  
-**公开文档：** [site: Native Component](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../celld/docs/runtime-bindings.md)  
+**状态：** **已落地（experimental 0.x · 2026-09-06）** · qualification Wasmtime **48.0.1** · celld `44a3259`
+**公开文档：** [site: Native Component](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../celld/docs/runtime-bindings.md)
 **交付摘要：** [plans/NATIVE-WASM-RUNTIME-DELIVERY.md](./plans/NATIVE-WASM-RUNTIME-DELIVERY.md)
 
 **问题：** 部分 workload 希望 **不经 JS/V8** 直接跑 Wasm Component，但仍走 cellp 正式 Gateway Host 与 version 隔离；不能与 workers-rs 产物混为一谈。

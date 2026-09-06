@@ -67,17 +67,51 @@ NEW_PREVIEW="$(version_preview_url "$PROJECT" "$V_NEW")"
 # Prefer API preview_url (scheme + host); fall back to Host header on gateway.
 wait_http_200_host "$NEW_HOST" "/" 60
 NEW_BODY=$(curl_gateway_host "$NEW_HOST" "/")
+OLD_PROD_BODY=$(curl_gateway_host "$PROD_H" "/" 2>/dev/null || echo "")
+
+project_prod_version() {
+  api_status GET "/v1/projects/${PROJECT}"
+  [[ "$API_STATUS" == "200" ]] || fail "GET project -> HTTP ${API_STATUS}: ${API_BODY}"
+  echo "$API_BODY" | jq -r '.prod_version_id // empty'
+}
 
 START_MS=$(($(date +%s%N)/1000000))
-assert_promote_ok "$V_NEW" "cutover"
+DUAL_END_MS=""
+(
+  api_status POST "/v1/projects/${PROJECT}/versions/${V_NEW}/promote" '{}'
+  promote_http="$API_STATUS"
+  promote_body="$API_BODY"
+  if [[ "$promote_http" != "200" && "$promote_http" != "202" && "$promote_http" != "204" ]]; then
+    echo "DIAG: promote cutover ${V_NEW} POST HTTP ${promote_http} body=$(api_body_diag "$promote_body")" >&2
+    exit 1
+  fi
+) &
+PROMOTE_PID=$!
+
+while kill -0 "$PROMOTE_PID" 2>/dev/null; do
+  if [[ "$(project_prod_version)" == "$V_NEW" ]]; then
+    DUAL_END_MS=$(($(date +%s%N)/1000000))
+    break
+  fi
+  sleep 0.02
+done
+if ! wait "$PROMOTE_PID"; then
+  fail "promote cutover ${V_NEW} failed"
+fi
+if [[ -z "$DUAL_END_MS" ]]; then
+  if [[ "$(project_prod_version)" == "$V_NEW" ]]; then
+    DUAL_END_MS=$(($(date +%s%N)/1000000))
+  else
+    fail "promote cutover ${V_NEW} did not update prod_version_id"
+  fi
+fi
+ELAPSED=$((DUAL_END_MS - START_MS))
 
 for _ in $(seq 1 30); do
   PROD_BODY=$(curl_gateway_host "$PROD_H" "/" 2>/dev/null || echo "")
-  [[ -n "$PROD_BODY" ]] && break
+  [[ -n "$PROD_BODY" && "$PROD_BODY" != "$OLD_PROD_BODY" ]] && break
   sleep 0.2
 done
-END_MS=$(($(date +%s%N)/1000000))
-ELAPSED=$((END_MS - START_MS))
 
 wait_http_200_host "$PROD_H" "/" 60
 PROD_BODY=$(curl_gateway_host "$PROD_H" "/")
@@ -95,7 +129,7 @@ if [[ "$OLD_PATH_CODE" != "404" ]]; then
 fi
 
 if [[ "$ELAPSED" -gt "$MAX_DUAL_MS" ]]; then
-  echo "WARN: cutover took ${ELAPSED}ms > ${MAX_DUAL_MS}ms" >&2
+  fail "V4 dual-write/cutover window ${ELAPSED}ms > ${MAX_DUAL_MS}ms"
 fi
 
 if [[ -n "$PROD_BODY" ]]; then

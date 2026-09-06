@@ -18,8 +18,12 @@ OP_KEY="native-operator-key"
 VA_VALUE="native-va"
 VB_VALUE="native-vb"
 OP_VALUE="operator-to-native"
-SAFETY_DEADLINE_MS="${NATIVE_E2E_DEADLINE_MS:-3000}"
+GREETING_EXPECTED="hello-native"
+DELETE_KEY="native-delete-key"
+SAFETY_DEADLINE_MS="${NATIVE_E2E_DEADLINE_MS:-400}"
 SAFETY_GRACE_MS="${NATIVE_E2E_GRACE_MS:-250}"
+CANCEL_SLACK_MS="${NATIVE_E2E_CANCEL_SLACK_MS:-150}"
+CANCEL_BOUND_MS=$((SAFETY_GRACE_MS + CANCEL_SLACK_MS))
 SAFETY_MEMORY_BYTES="${NATIVE_E2E_MEMORY_BYTES:-8388608}"
 SAFETY_MAX_HOSTCALLS="${NATIVE_E2E_MAX_HOSTCALLS:-4}"
 SAFETY_EVIDENCE="${EVIDENCE_DIR}/native-wasm-safety-e2e.md"
@@ -116,6 +120,43 @@ assert_recovery() {
   wait_http_200_version "$project" "$version" "$path" 15
 }
 
+assert_native_health() {
+  local project="$1" version="$2"
+  local body
+  body=$(curl_version "$project" "$version" "/health")
+  printf '%s' "$body" | grep -Fq "native-http-v1" \
+    || fail "health missing native-http-v1 marker: ${body}"
+  printf '%s' "$body" | grep -Fq "$GREETING_EXPECTED" \
+    || fail "health missing admitted GREETING=${GREETING_EXPECTED}: ${body}"
+}
+
+# Measure from client disconnect (curl abort) until a fresh /health succeeds.
+measure_disconnect_recovery_ms() {
+  local host="$1" probe_path="$2"
+  curl -sS -o /dev/null -w '%{http_code}' --max-time 0.12 \
+    $(gateway_curl_tls_flags) -H "Host: ${host}" "${GATEWAY_URL}${probe_path}" 2>/dev/null || true
+  local t_disconnect t_now deadline code body
+  t_disconnect=$(now_ms)
+  deadline=$((t_disconnect + CANCEL_BOUND_MS))
+  while true; do
+    t_now=$(now_ms)
+    if (( t_now > deadline )); then
+      echo "$((t_now - t_disconnect))"
+      return 1
+    fi
+    code=$(http_code_gateway_host "$host" "/health")
+    if [[ "$code" == "200" ]]; then
+      body=$(curl_gateway_host "$host" "/health" 2>/dev/null || echo "")
+      if printf '%s' "$body" | grep -Fq "native-http-v1"; then
+        t_now=$(now_ms)
+        echo "$((t_now - t_disconnect))"
+        return 0
+      fi
+    fi
+    sleep 0.01
+  done
+}
+
 record_safety_line() {
   printf '%s\n' "$1" >>"$SAFETY_EVIDENCE"
 }
@@ -165,7 +206,8 @@ poll_version "$PROJECT" "$VS" ready 120 >/dev/null
 curl_version_method PUT "$PROJECT" "$VA" "/${KEY}" --data-binary "$VA_VALUE" >/dev/null
 GATEWAY_VALUE=$(curl_version "$PROJECT" "$VA" "/${KEY}")
 [[ "$GATEWAY_VALUE" == "$VA_VALUE" ]] || fail "Native Gateway response mismatch"
-log "Gateway Host Native HTTP PASS host=$(preview_host "$PROJECT" "$VA")"
+assert_native_health "$PROJECT" "$VA"
+log "Gateway Host Native HTTP PASS host=$(preview_host "$PROJECT" "$VA") vars=${GREETING_EXPECTED}"
 
 api_status GET "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${KEY}"
 [[ "$API_STATUS" == "200" ]] || fail "operator GET guest value -> HTTP ${API_STATUS}: ${API_BODY}"
@@ -180,6 +222,25 @@ api_status PUT "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}" 
 GUEST_VALUE=$(curl_version "$PROJECT" "$VA" "/${OP_KEY}")
 [[ "$GUEST_VALUE" == "$OP_VALUE" ]] || fail "guest did not observe operator KV write"
 log "real KV guest/operator bidirectional PASS"
+
+# Guest DELETE -> operator miss; operator DELETE -> guest miss.
+curl_version_method PUT "$PROJECT" "$VA" "/${DELETE_KEY}" --data-binary "delete-me" >/dev/null
+curl_version_method DELETE "$PROJECT" "$VA" "/${DELETE_KEY}" >/dev/null
+api_status GET "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${DELETE_KEY}"
+[[ "$API_STATUS" == "404" ]] \
+  || fail "operator GET after guest DELETE expected 404, got ${API_STATUS}: ${API_BODY}"
+[[ "$(http_code_version "$PROJECT" "$VA" "/${DELETE_KEY}")" == "404" ]] \
+  || fail "guest GET after guest DELETE expected 404"
+api_status PUT "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${DELETE_KEY}" \
+  "$(jq -n --arg value "operator-delete" '{value:$value}')"
+[[ "$API_STATUS" == "200" || "$API_STATUS" == "204" ]] \
+  || fail "operator PUT before DELETE -> HTTP ${API_STATUS}: ${API_BODY}"
+api_status DELETE "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${DELETE_KEY}"
+[[ "$API_STATUS" == "200" || "$API_STATUS" == "204" ]] \
+  || fail "operator DELETE -> HTTP ${API_STATUS}: ${API_BODY}"
+[[ "$(http_code_version "$PROJECT" "$VA" "/${DELETE_KEY}")" == "404" ]] \
+  || fail "guest GET after operator DELETE expected 404"
+log "real KV delete guest/operator PASS"
 
 # TP-NATIVE-ISOL: sibling starts empty, may use the same key, and cannot mutate VA.
 api_status GET "/v1/projects/${PROJECT}/versions/${VB}/kv/${NS}/keys/${KEY}"
@@ -202,6 +263,8 @@ record_safety_line "- safety version: ${VS}"
 record_safety_line "- gateway host: $(preview_host "$PROJECT" "$VS")"
 record_safety_line "- request_deadline_ms: ${SAFETY_DEADLINE_MS}"
 record_safety_line "- cancellation_grace_ms: ${SAFETY_GRACE_MS}"
+record_safety_line "- cancel_bound_ms: ${CANCEL_BOUND_MS} (grace + slack ${CANCEL_SLACK_MS})"
+record_safety_line "- cancel_measurement_start: client_disconnect"
 record_safety_line "- max_memory_bytes: ${SAFETY_MEMORY_BYTES}"
 record_safety_line ""
 
@@ -218,8 +281,8 @@ gateway_error_request "$PROJECT" "$VS" GET "/probe/deadline" 20
 t1=$(now_ms)
 DEADLINE_ELAPSED=$((t1 - t0))
 assert_gateway_error "deadline" '^(4|5)[0-9][0-9]$' 'deadline_exceeded'
-[[ "$DEADLINE_ELAPSED" -ge $((SAFETY_DEADLINE_MS - 1500)) && "$DEADLINE_ELAPSED" -le $((SAFETY_DEADLINE_MS + 6000)) ]] \
-  || fail "deadline elapsed ${DEADLINE_ELAPSED}ms outside [${SAFETY_DEADLINE_MS}-1500, ${SAFETY_DEADLINE_MS}+6000]"
+[[ "$DEADLINE_ELAPSED" -ge $((SAFETY_DEADLINE_MS - 200)) && "$DEADLINE_ELAPSED" -le $((SAFETY_DEADLINE_MS + 2000)) ]] \
+  || fail "deadline elapsed ${DEADLINE_ELAPSED}ms outside [${SAFETY_DEADLINE_MS}-200, ${SAFETY_DEADLINE_MS}+2000]"
 assert_recovery "$PROJECT" "$VS" "/health"
 record_safety_line "| deadline + recovery | PASS | elapsed_ms=${DEADLINE_ELAPSED} bound~${SAFETY_DEADLINE_MS} |"
 log "Native deadline/recovery PASS elapsed=${DEADLINE_ELAPSED}ms"
@@ -244,29 +307,19 @@ log "Native hostcall quota/recovery PASS"
 
 curl_version_method PUT "$PROJECT" "$VS" "/warm-key" --data-binary "warm" >/dev/null
 
-t0=$(now_ms)
-GATEWAY_ERR_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 0.25 \
-  $(gateway_curl_tls_flags) -H "Host: ${SAFETY_HOST}" "${GATEWAY_URL}/probe/deadline" 2>/dev/null || echo "000")
-sleep 0.35
-assert_recovery "$PROJECT" "$VS" "/health"
-t1=$(now_ms)
-CPU_CANCEL_ELAPSED=$((t1 - t0))
-[[ "$CPU_CANCEL_ELAPSED" -lt $((SAFETY_DEADLINE_MS + 500)) ]] \
-  || fail "client disconnect CPU cancel recovery too slow: ${CPU_CANCEL_ELAPSED}ms"
-record_safety_line "| client disconnect CPU bounded stop | PASS | recovery_ms=${CPU_CANCEL_ELAPSED} grace=${SAFETY_GRACE_MS} |"
-log "Native client-disconnect CPU bounded stop PASS elapsed=${CPU_CANCEL_ELAPSED}ms"
+CPU_CANCEL_ELAPSED=$(measure_disconnect_recovery_ms "$SAFETY_HOST" "/probe/deadline") \
+  || fail "client disconnect CPU cancel recovery too slow: ${CPU_CANCEL_ELAPSED}ms > bound ${CANCEL_BOUND_MS}ms"
+[[ "$CPU_CANCEL_ELAPSED" -le "$CANCEL_BOUND_MS" ]] \
+  || fail "client disconnect CPU cancel exceeded grace bound: ${CPU_CANCEL_ELAPSED}ms > ${CANCEL_BOUND_MS}ms"
+record_safety_line "| client disconnect CPU bounded stop | PASS | recovery_from_disconnect_ms=${CPU_CANCEL_ELAPSED} grace=${SAFETY_GRACE_MS} bound=${CANCEL_BOUND_MS} |"
+log "Native client-disconnect CPU bounded stop PASS elapsed=${CPU_CANCEL_ELAPSED}ms (from disconnect, bound=${CANCEL_BOUND_MS}ms)"
 
-t0=$(now_ms)
-GATEWAY_ERR_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 0.25 \
-  $(gateway_curl_tls_flags) -H "Host: ${SAFETY_HOST}" "${GATEWAY_URL}/probe/kv-spin" 2>/dev/null || echo "000")
-sleep 0.35
-assert_recovery "$PROJECT" "$VS" "/health"
-t1=$(now_ms)
-KV_CANCEL_ELAPSED=$((t1 - t0))
-[[ "$KV_CANCEL_ELAPSED" -lt $((SAFETY_DEADLINE_MS + 500)) ]] \
-  || fail "client disconnect KV hostcall recovery too slow: ${KV_CANCEL_ELAPSED}ms"
-record_safety_line "| client disconnect KV hostcall bounded stop | PASS | recovery_ms=${KV_CANCEL_ELAPSED} grace=${SAFETY_GRACE_MS} |"
-log "Native client-disconnect KV hostcall bounded stop PASS elapsed=${KV_CANCEL_ELAPSED}ms"
+KV_CANCEL_ELAPSED=$(measure_disconnect_recovery_ms "$SAFETY_HOST" "/probe/kv-spin") \
+  || fail "client disconnect KV hostcall recovery too slow: ${KV_CANCEL_ELAPSED}ms > bound ${CANCEL_BOUND_MS}ms"
+[[ "$KV_CANCEL_ELAPSED" -le "$CANCEL_BOUND_MS" ]] \
+  || fail "client disconnect KV hostcall exceeded grace bound: ${KV_CANCEL_ELAPSED}ms > ${CANCEL_BOUND_MS}ms"
+record_safety_line "| client disconnect KV hostcall bounded stop | PASS | recovery_from_disconnect_ms=${KV_CANCEL_ELAPSED} grace=${SAFETY_GRACE_MS} bound=${CANCEL_BOUND_MS} |"
+log "Native client-disconnect KV hostcall bounded stop PASS elapsed=${KV_CANCEL_ELAPSED}ms (from disconnect, bound=${CANCEL_BOUND_MS}ms)"
 
 # TP-NATIVE-ERR: undeclared capability is denied without killing celld; a
 # subsequent request that does not open KV must still pass through the Gateway.

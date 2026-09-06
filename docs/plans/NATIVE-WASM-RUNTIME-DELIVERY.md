@@ -1,8 +1,8 @@
 # Native Wasm Runtime — R1 delivery (experimental)
 
-> **Status:** Shipped **experimental** in celld/cellp worktree (qualification **WP-Q3 PASS** @ celld `44a3259`).  
-> **Public docs:** [Native Component Worker](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../../celld/docs/runtime-bindings.md)  
-> **Decision:** [AD-16](../decisions.md#21-ad-16--experimental-native-component-http-native-http-v1)  
+> **Status:** Shipped **experimental** in celld/cellp worktree (qualification **WP-Q3 PASS** @ celld `44a3259`).
+> **Public docs:** [Native Component Worker](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../../celld/docs/runtime-bindings.md)
+> **Decision:** [AD-16](../decisions.md#21-ad-16--experimental-native-component-http-native-http-v1)
 > **E2E:** `e2e/scripts/v18-native-wasm.sh` · evidence `docs/evidence/native-wasm-e2e.*`
 
 ## Product outcome (R1)
