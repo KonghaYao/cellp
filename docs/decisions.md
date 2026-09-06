@@ -347,7 +347,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 - 仅当 `versions.id == projects.prod_version_id`（或项目尚无 prod、首版 deploy 前）时，cellp 对 celld 的 deploy **保留** `triggers.crons`。
 - 其余 ready preview：deploy 使用**临时** wrangler 视图（剥离 `triggers.crons`），**不修改** artifact 原件；`GET …/bindings` 仍反映 artifact 声明。
-- **Promote：** `CAS_prod` 成功后对旧 prod / 新 prod（若仍 ready）分别 **redeploy + Restart**，使仅新 prod manifest 含 crons。
+- **Promote：** `CAS_prod` 成功后对旧 prod / 新 prod（若仍 ready）分别 **redeploy + Restart**，使仅新 prod manifest 含 crons；**先** reconcile 新 prod、**后**旧 prod。旧 prod 已在 promote drain 中 `route.active=false` 且其 registry upstream 不可达时，**跳过** disarm redeploy（进程已不可调度 cron，不得阻断 cutover）；新 prod 配置的 upstream 不可达仍 **fail-closed**。
 - **Defer：** 分布式 cron 选举；`CELLP_PREVIEW_CRON=1` 双 arm；celld `CELLD_CRON_ARM=0` 补强。
 
 **实现：** `cellp/internal/orch/cron_policy.go` · `cellp/internal/runtime/wrangler_cron.go` · e2e `v17-cron-prod-only.sh`。
