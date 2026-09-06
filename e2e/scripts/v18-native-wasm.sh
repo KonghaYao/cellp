@@ -47,8 +47,10 @@ stage_native() {
   cp "${NATIVE_EXAMPLE}/wrangler.jsonc" "$dest/wrangler.jsonc"
   cp "${NATIVE_EXAMPLE}/component.wasm" "$dest/component.wasm"
   cp "${NATIVE_EXAMPLE}/component.wasm.sha256" "$dest/component.wasm.sha256"
-  (cd "$dest" && shasum -a 256 -c component.wasm.sha256 >/dev/null) \
-    || fail "Native fixture digest mismatch"
+  local expected actual
+  expected=$(tr -d '[:space:]' <"$dest/component.wasm.sha256")
+  actual=$(shasum -a 256 "$dest/component.wasm" | cut -d ' ' -f 1)
+  [[ "$actual" == "$expected" ]] || fail "Native fixture digest mismatch"
 }
 
 operator_value() {
