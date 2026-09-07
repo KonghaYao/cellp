@@ -179,14 +179,14 @@ prepare 在 `dist/_worker.js/index.js` 头部注入最小 `globalThis.caches` �
 |--|--|
 | **层级** | celld / deploy module publication |
 | **严重度** | blocker（App Router version 无法 ready，58 runnable 未执行） |
-| **状态** | `open` |
-| **置信度** | 高；漏收 sidecar 已证实，是否存在后续 blocker 待修复后复验 |
+| **状态** | `fixed`（celld 子模块；cellp 指针与子模块发布待对齐） |
+| **置信度** | 高；`deploy::no_bundle_wasm_tests`（含 `no_bundle_preserves_wasm_module_query_suffix`）与 2026-09-07 官方 App Router deploy/og 用例支持「侧车已收录」 |
 | **Owner** | celld deploy/module owner |
 
 ### 证据与责任边界
 
 - 固定 OpenNext `1.14.0` no-patch artifact 的 `index.js` 静态 import `77d9…-resvg.wasm?module` 与 `ef48…-yoga.wasm?module`，同目录还有动态使用的 `*.ttf.bin`。
-- `celld/crates/celld/deploy.rs` 的 no-bundle 路径调用 `read_wasm_modules_from_dir`，但只接受 `Path::extension() == "wasm"`；文件名 `*.wasm?module` 的扩展名不是 `wasm`。JS sibling 收集也只接受 `.js/.mjs/.cjs`。
+- **历史根因：** 旧 no-bundle 收集用 `Path::extension() == "wasm"`，漏掉 `*.wasm?module`。**当前代码：** `collect_no_bundle_siblings` + `is_wasm_module_name` 按 import specifier 全名收录（见 `celld/crates/celld/deploy.rs`）。
 - no-patch version `v-oncf-app-router-1788616744-24413` 的 OpenNext build、Wrangler dry-run 与 cellp staging 成功；celld warm isolate 报 `stateless Worker failed to load` / `instantiate: <none>`，最终 health timeout。该阶段尚未进入 binding/DO 实例或 HTTP assertion，不能写成 cache DO 失败。
 
 ### 补救与复验门禁
@@ -249,19 +249,19 @@ AD-10 明确 cellp 不负责 TLS 终止，故补救应由外层 TLS preview orig
 |--|--|
 | **层级** | celld HTTP/self-fetch 与 OpenNext routing 兼容路径 |
 | **严重度** | major（3 个官方 assertion 稳定失败） |
-| **状态** | `open` |
-| **置信度** | 中高；平台责任边界已确定，具体函数待定位 |
-| **Owner** | celld HTTP/self-fetch owner；OpenNext integration owner协查 |
+| **状态** | `open`（根因轨道已收窄） |
+| **置信度** | 高：**官方 e2e 强制 `CELLP_OPENNEXT_SKIP_PATCH=1`**，与 S30 `prepare-artifact.sh` 中针对 celld 的 Location/query/slash 补丁互斥；症状与未补丁 bundle 一致 |
+| **Owner** | OpenNext integration owner（compat patch tier 或 celld 语义下沉）；celld HTTP owner 协查 |
 
 ### 证据与排除项
 
 no-patch Pages Router 新 preview稳定复现：rewrite 页面无 `SSR`；`/rewriteWithQuery?b=2` 结果只有 `q=1`；`/ssr?happy=true` 的最终 URL 为 `/ssr/?`。Gateway、direct celld + forwarded、direct celld + public Host 三条路径结果一致；直接 `/api/query?b=2&q=1` control 三条均保留两个参数。同 commit、同 build 的官方 Wrangler localhost baseline 对 rewrite/trailing 文件 **7/7 通过**。
 
-因此已排除 Gateway、celld 的**一般性** query 截断，以及 upstream fixture/assertion 在官方 runtime 上的独立失败。差异确定落在 celld 执行 OpenNext artifact 时的 rewrite/trailing URL 兼容路径；目前证据尚不能在 self-fetch、absolute `Request.url` 构造和 redirect normalization 之间精确到单一函数。
+已排除 Gateway、celld 的**一般性** query 截断。**2026-09-07 排查：** `dev/examples/support-opennext/prepare-artifact.sh` 在 `SKIP_PATCH=1` 时跳过 `normalizeLocationHeader` / `normalizeRepeatedSlashes2` / trailing-slash 等补丁（官方套件经 `support-opennext-official/prepare-artifact.sh` 固定 skip）。待验证：Pages 在 **允许 patch** 的 lab 路径是否 3/3 绿。
 
 ### 补救与复验门禁
 
-对相同 raw target 在 celld URL 构造、OpenNext internal request 和最终 `Location` 处记录非敏感 path/query 元数据并与 Wrangler 对照，再修正差异。门禁：两个 rewrite 与 trailing 用例全绿，control 继续保留 query。
+优先：**Pages 去 SKIP_PATCH 对照 run**；长期：补丁语义迁入 celld 或文档化 compat tier。门禁：rewrite merge query + trailing search 全绿，control 保留 query。
 
 **证据：** `docs/evidence/opennext-official-pages-router-v-oncf-pages-router-1788614929-19670.log` · `docs/evidence/opennext-official-wrangler-pages-baseline-20260905.log`
 

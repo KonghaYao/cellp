@@ -114,6 +114,21 @@ Playwright `--list` 是分母权威：**119 declarations，5 个上游 `test.ski
 
 运行入口：`./dev/scripts/run-opennext-official-e2e.sh`；可用 `--collect-only` 验证固定分母，或以 `--only` 单独运行 fixture。证据为 `docs/evidence/opennext-official-*.log`。
 
+#### 根因排查（2026-09-07，不含 data/tag/fetch cache 三项）
+
+| 主题 | 结论 | 建议修复轨道 |
+|------|------|----------------|
+| **PD-01 `*.wasm?module` deploy** | **celld 已修**（`deploy.rs`：`is_wasm_module_name` / `collect_no_bundle_siblings` 保留 `abc-resvg.wasm?module` 等 specifier；`cargo test -p celld no_bundle` 15/15）。2026-09-07 App Router 含 `next/og` 已绿，说明当前 lab `celld` 可加载 wasm sidecar。`platform-defects-log` 仍写旧 `Path::extension()==wasm` 描述，需与代码对齐；cellp 子模块指针需指向含修复的 commit。 | bump `celld` submodule；关闭或改写 PD-01 |
+| **PD-04 Pages rewrite/trailing** | **高置信：官方 harness 故意 no-patch**。`dev/examples/support-opennext-official/prepare-artifact.sh` 固定 `CELLP_OPENNEXT_SKIP_PATCH=1`，而 S30/`prepare-artifact.sh` 的 bundle 补丁正是为 celld 上 **绝对 `request.url`**、**`normalizeLocationHeader`**（trailing `?` / query）、**`normalizeRepeatedSlashes2`（绝对 URL pathname）** 等写的。no-patch 下症状与 PD-04 一致（merge query 缺 `b=2`、trailing 丢 `happy=true`）。**不是** Gateway 一般性 query 丢包（`/api/query` control 仍全参）。 | **A.** 把等效语义下沉 celld `request_url` / redirect 跟随（长期） · **B.** 官方套件增加 **cellp-compat patch tier**（文档化、非改 upstream 源码） · **C.** 用 `support-opennext`（允许 patch）跑 Pages 作 **lab 门禁**，与 official no-patch 分轨 |
+| **PD-02 Host + PD-03 redirect + Server Actions** | Gateway `applyUpstreamHeaders` 已发 public `X-Forwarded-Host`；celld `--trust-forwarded-headers` 可把 `request.url` 设为 public authority（`main.rs` `request_url` + `worker_request_headers`）。**断点在 OpenNext bundle**：`@opennextjs/aws` edge converter middleware handoff 用 `internalEvent.headers.host`（synthetic）覆盖 `x-forwarded-host`（见 PD-02 证据路径）。`prepare-artifact.sh` **没有** forwarded-host 补丁。App Router redirect 已用 `localhost-oncf-*` 绕过 HTTPS（PD-03 局部缓解）；App+Pages 仍受 synthetic + `lvh.me`→`https` 影响。 | patch edge converter（仅 compat tier）或 cellp 内部 ingress 不向 Worker 暴露 synthetic `Host`；HTTPS preview 环境满足 middleware 假设 |
+| **wasm 旧表行「deployment-blocked」** | 历史 version `v-oncf-app-router-1788616744-24413` 仍作 no-patch 未 bump celld 的证据；**不能**再当作当前 App Router 的 blocker（2026-09-07 run 已 deploy+playwright）。 | 归因表注明「已修复于 celld ≥ 含 no_bundle wasm?module 提交」 |
+
+**验证待办（低成本）：**
+
+1. Pages fixture：临时去掉 `SKIP_PATCH` 重跑 3 个失败用例 → 若全绿则确认 PD-04 为 patch-gap 而非未知 celld bug。  
+2. App+Pages：`curl` `/api/host` 对比 Gateway vs public Host，抓 celld 日志里 `Invalid Server Actions request`。  
+3. cellp 仓库：`git submodule status celld` 与 `~/.local/bin/celld` 是否同一 lab 构建。
+
 #### 失败归因与责任边界
 
 归因前先消除两类 harness 污染：生成的 Playwright `baseURL` 不再带末尾 `/`；官方 fixture 显式设置 `CELLP_OPENNEXT_SKIP_PATCH=1` 与 `CELLP_OPENNEXT_SKIP_NEXT_CONFIG_PATCH=1`，因此不继承 S30 的生成 bundle 或 `next.config.ts` patch。上游 assertion 与应用源码未修改。no-patch 新 preview 结果：
@@ -124,7 +139,7 @@ Playwright `--list` 是分母权威：**119 declarations，5 个上游 `test.ski
 
 | 项目 | 可复现证据 | 责任边界与排除项 | 置信度 | Owner | 补救与复验门禁 |
 |------|------------|------------------|--------|-------|----------------|
-| App Router 58 项 deployment-blocked | artifact 的 `index.js` 静态 import 两个 `*.wasm?module`，并带一个动态 `.ttf.bin`；`celld/deploy.rs` 的 no-bundle 收集只接受扩展名恰为 `.wasm` 或 `.js/.mjs/.cjs`；version 在 warm isolate 报 `stateless Worker failed to load` / `instantiate: <none>` | OpenNext build 与 Wrangler dry-run已成功；celld publication 会漏掉 `?module` sidecar，随后在 activation 的 V8 module linking 停止。尚未进入 binding/DO 实例化或 HTTP，不能归因为 cache DO assertion 失败。漏收 sidecar 是**已证实的 deploy 缺陷**；它是否为唯一 blocker 需修复后复验 | 高 | celld deploy/module owner | 按 import specifier 原名发布 `*.wasm?module`，补 no-bundle module-closure 校验与 `.bin` 策略；门禁为 version `ready`、无 instantiate 错误、58 runnable 全部真正进入 Playwright，且不删除 DO/R2/service binding |
+| App Router 58 项 deployment-blocked（**历史**） | 旧 celld 漏收 `*.wasm?module`；version `v-oncf-app-router-1788616744-24413` 在 instantiate 阶段失败 | **celld 已补** no-bundle closure（`*.wasm?module`、`.bin`；见 `deploy::no_bundle_wasm_tests`）。2026-09-07 `localhost-oncf-app-router-…` 已 ready 且 55/58 Playwright。剩余风险：cellp 未 bump 子模块时仍可能复现旧行为 | 高（历史）/ 中（指针漂移） | celld deploy owner + cellp submodule | bump `celld`；门禁：no_bundle 单测 + 官方 App Router deploy |
 | `Request.url is host` | Gateway、direct celld + forwarded 两条请求都返回 synthetic URL；direct celld + public Host 返回 public URL。managed celld 的单项环境核对为 `CELLD_TRUST_FORWARDED_HEADERS=1`；Gateway 测试也证明最初会发送 public `X-Forwarded-Host`；官方 Wrangler localhost baseline 通过 | 已排除 baseURL 末尾 `/`、manager 未设 trust flag、陈旧 celld、Gateway 未发 public forwarded authority，以及 upstream fixture 的独立失败。OpenNext `@opennextjs/aws` edge converter 在 middleware handoff 无条件执行 `"x-forwarded-host": result.internalEvent.headers.host`，把 cellp synthetic Host 覆盖回 forwarded header | 高 | OpenNext integration owner；cellp ingress owner协同 | 上游/适配层保留已有 public forwarded authority，或定义不暴露 synthetic Host 的内部 ingress 契约；门禁为 `/api/host` JSON URL 与 public preview baseURL（含 `:8787`）完全相等 |
 | Server Actions | 同一 no-patch celld 日志明确记录 synthetic `x-forwarded-host` 与 public `Origin` 不一致，随后 `Invalid Server Actions request`；Playwright 点击后目标文案未出现；官方 Wrangler localhost baseline 通过 | 与 Host 项同一 converter 覆盖链；Next 的 CSRF/Origin 校验按设计 fail-closed。已排除 upstream fixture 的独立失败和测试环境随机超时，也没有证据指向 cache/DO | 高 | OpenNext integration owner；cellp ingress owner协同 | 修复 public authority 保留后重跑；门禁为 `serverActions.test.ts` 绿，日志无 forwarded-host/Origin mismatch 与 `Invalid Server Actions request` |
 | middleware redirect | 三条 A/B 均返回 307；Gateway/direct-forwarded 的 `Location` 是 `https://synthetic...`，direct-public 是 `https://public...:8787`。官方 middleware 对非 `localhost` Host 固定选 `https`；官方 Wrangler `http://localhost` baseline 通过 | synthetic authority 来自上述 converter；即使 public Host 正确，`lvh.me` 仍触发 HTTPS，而本地 `:8787` 只提供 HTTP。AD-10 明确 TLS 由外层入口负责，不能修改官方 middleware 制造 PASS | 高 | dev acceptance environment / 外层 TLS owner；OpenNext integration owner处理 synthetic Host | 在真实 HTTPS public origin 或带 TLS 终止的 preview 环境运行官方用例；门禁为 307 `Location` 使用 public authority，浏览器成功到达 `/redirect-destination` |
