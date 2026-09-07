@@ -132,23 +132,24 @@ assert_native_health() {
 # Measure from client disconnect (curl abort) until a fresh /health succeeds.
 measure_disconnect_recovery_ms() {
   local host="$1" probe_path="$2"
-  curl -sS -o /dev/null -w '%{http_code}' --max-time 0.12 \
+  curl -sS -o /dev/null --max-time 0.12 \
     $(gateway_curl_tls_flags) -H "Host: ${host}" "${GATEWAY_URL}${probe_path}" 2>/dev/null || true
-  local t_disconnect t_now deadline code body
+  local t_disconnect t_now deadline code body elapsed
   t_disconnect=$(now_ms)
   deadline=$((t_disconnect + CANCEL_BOUND_MS))
   while true; do
     t_now=$(now_ms)
     if (( t_now > deadline )); then
-      echo "$((t_now - t_disconnect))"
+      elapsed=$((t_now - t_disconnect))
+      echo "$elapsed"
       return 1
     fi
     code=$(http_code_gateway_host "$host" "/health")
     if [[ "$code" == "200" ]]; then
       body=$(curl_gateway_host "$host" "/health" 2>/dev/null || echo "")
       if printf '%s' "$body" | grep -Fq "native-http-v1"; then
-        t_now=$(now_ms)
-        echo "$((t_now - t_disconnect))"
+        elapsed=$((t_now - t_disconnect))
+        echo "$elapsed"
         return 0
       fi
     fi
