@@ -36,7 +36,7 @@
 | **社区 Workers 支持矩阵** | [support/README.md](./support/README.md)（索引）· [support-matrix.md](./support-matrix.md) · [support-unsupported-by-capability.md](./support-unsupported-by-capability.md) |
 | **证据目录说明** | [evidence-index.md](./evidence-index.md)（`docs/evidence/` 本地 gitignore） |
 | **SURGE E1 用户验收** | [evidence/surge/e1/ACCEPTANCE.md](./evidence/surge/e1/ACCEPTANCE.md) |
-| **Native Wasm research** | [研究纲领](./plans/NATIVE-WASM-RUNTIME-RESEARCH.md) · [R0 审查](./plans/NATIVE-WASM-RUNTIME-REVIEW.md) · [R1 Market Scan](./plans/NATIVE-WASM-RUNTIME-R1.md) · **[R1 交付（experimental）](./plans/NATIVE-WASM-RUNTIME-DELIVERY.md)** |
+| **Native Wasm research** | [研究纲领](./plans/NATIVE-WASM-RUNTIME-RESEARCH.md) · [R0 审查](./plans/NATIVE-WASM-RUNTIME-REVIEW.md) · [R1 Market Scan](./plans/NATIVE-WASM-RUNTIME-R1.md) · **[R1 交付（experimental）](./plans/NATIVE-WASM-RUNTIME-DELIVERY.md)** · [R2 HTTP fixture（Proposed）](./plans/NATIVE-WASM-RUNTIME-R2.md) |
 | **Coding Agent on cellp（前沿）** | [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md) |
 | **Vercel framework on cellp（后续）** | [plans/VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md) · [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) |
 | Prod offshoot × RustFS | [runbooks/prod-offshoot-rustfs.md](./runbooks/prod-offshoot-rustfs.md) |
