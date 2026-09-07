@@ -7,17 +7,30 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/cellp/cellp/internal/config"
+	"github.com/cellp/cellp/internal/elastic/contract"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
+	moderncsqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 const (
 	maxRetries = 30
 	retryBase  = 50 * time.Millisecond
 	retryMax   = 2 * time.Second
+
+	// Migration open uses a very short per-statement busy wait so lock contention fails fast;
+	// total wait is bounded by the migration context deadline (withMigrateRetry) and ExecContext cancellation.
+	migrateBusyTimeoutMs    = 50
+	productionBusyTimeoutMs = 60000
+	migrateRetryMaxAttempts = 16
+	migrateRetryMaxDuration = 40 * time.Second
+	migrateRetryBase        = 25 * time.Millisecond
+	migrateRetryMaxBackoff  = 1 * time.Second
 )
 
 // SQLiteStore implements Store with WAL mode and busy timeout.
@@ -25,6 +38,10 @@ type SQLiteStore struct {
 	db             *sql.DB
 	ingressPortMin int
 	ingressPortMax int
+	commandLease   time.Duration
+
+	// compensatingTakeoverScanOffset is process-local advisory fairness for Phase-2 takeover scan rotation (not durable).
+	compensatingTakeoverScanOffset atomic.Int64
 }
 
 // Open opens or creates a SQLite registry database.
@@ -32,9 +49,16 @@ func Open(path string) (*SQLiteStore, error) {
 	return OpenWithOptions(path, OpenOptions{})
 }
 
+func registryDSN(path string, busyTimeoutMs int) string {
+	return fmt.Sprintf(
+		"file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(%d)&_pragma=foreign_keys(ON)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_pragma=mmap_size(268435456)",
+		path, busyTimeoutMs,
+	)
+}
+
 // OpenWithOptions opens the registry with optional test-oriented settings.
 func OpenWithOptions(path string, opts OpenOptions) (*SQLiteStore, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(60000)&_pragma=foreign_keys(ON)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_pragma=mmap_size(268435456)", path)
+	dsn := registryDSN(path, migrateBusyTimeoutMs)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
@@ -51,10 +75,31 @@ func OpenWithOptions(path string, opts OpenOptions) (*SQLiteStore, error) {
 		db.Close()
 		return nil, fmt.Errorf("ingress port pool invalid: min %d > max %d", minP, maxP)
 	}
-	s := &SQLiteStore{db: db, ingressPortMin: minP, ingressPortMax: maxP}
-	if err := s.migrate(); err != nil {
-		db.Close()
+	commandLease := agentCommandLease
+	if opts.AgentCommandLease > 0 {
+		commandLease = opts.AgentCommandLease
+	}
+	s := &SQLiteStore{db: db, ingressPortMin: minP, ingressPortMax: maxP, commandLease: commandLease}
+	// migrate is re-entrant: DDL uses IF NOT EXISTS / duplicate-column guards;
+	// migrateElasticServing rolls back on failure and re-checks columns before ALTER.
+	// Worst-case migrate lock wait is bounded by the migration context deadline (migrateRetryMaxDuration by default).
+	migrateBudget := migrateRetryMaxDuration
+	if opts.MigrateTimeout > 0 {
+		migrateBudget = opts.MigrateTimeout
+	}
+	migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), migrateBudget)
+	defer cancelMigrate()
+	if err := withMigrateRetry(migrateCtx, func(ctx context.Context) error { return s.migrate(ctx) }); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("registry database close failed: %w", closeErr))
+		}
 		return nil, err
+	}
+	if _, err := db.ExecContext(context.Background(), fmt.Sprintf("PRAGMA busy_timeout=%d", productionBusyTimeoutMs)); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(fmt.Errorf("set registry busy_timeout: %w", err), fmt.Errorf("registry database close failed: %w", closeErr))
+		}
+		return nil, fmt.Errorf("set registry busy_timeout: %w", err)
 	}
 	return s, nil
 }
@@ -63,7 +108,7 @@ func (s *SQLiteStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *SQLiteStore) migrate() error {
+func (s *SQLiteStore) migrate(ctx context.Context) error {
 	schema := `
 CREATE TABLE IF NOT EXISTS projects (
 	id TEXT PRIMARY KEY,
@@ -117,32 +162,32 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_versions_status ON versions(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at, id);
 `
-	_, err := s.db.Exec(schema)
+	_, err := s.db.ExecContext(ctx, schema)
 	if err != nil {
 		return err
 	}
-	if err := s.migrateArchiveColumns(); err != nil {
+	if err := s.migrateArchiveColumns(ctx); err != nil {
 		return err
 	}
-	if err := s.migrateIngress(); err != nil {
+	if err := s.migrateIngress(ctx); err != nil {
 		return err
 	}
-	if err := s.migratePortAllocations(); err != nil {
+	if err := s.migratePortAllocations(ctx); err != nil {
 		return err
 	}
-	if err := s.migrateIngressProjectColumns(); err != nil {
+	if err := s.migrateIngressProjectColumns(ctx); err != nil {
 		return err
 	}
-	return s.migrateElasticServing()
+	return s.migrateElasticServing(ctx)
 }
 
-func (s *SQLiteStore) migrateIngressProjectColumns() error {
+func (s *SQLiteStore) migrateIngressProjectColumns(ctx context.Context) error {
 	alters := []string{
 		`ALTER TABLE projects ADD COLUMN ingress_tier_b TEXT`,
 		`ALTER TABLE projects ADD COLUMN prod_listen_port INTEGER`,
 	}
 	for _, q := range alters {
-		if _, err := s.db.Exec(q); err != nil {
+		if _, err := s.db.ExecContext(ctx, q); err != nil {
 			if !strings.Contains(err.Error(), "duplicate column") {
 				return err
 			}
@@ -151,8 +196,8 @@ func (s *SQLiteStore) migrateIngressProjectColumns() error {
 	return nil
 }
 
-func (s *SQLiteStore) migratePortAllocations() error {
-	_, err := s.db.Exec(`
+func (s *SQLiteStore) migratePortAllocations(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS port_allocations (
   allocation_id   TEXT PRIMARY KEY,
   port            INTEGER NOT NULL,
@@ -178,8 +223,8 @@ CREATE INDEX IF NOT EXISTS idx_port_alloc_owner_active
 	return err
 }
 
-func (s *SQLiteStore) migrateIngress() error {
-	_, err := s.db.Exec(`
+func (s *SQLiteStore) migrateIngress(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS ingress_bindings (
 	binding_id TEXT PRIMARY KEY,
 	project_id TEXT NOT NULL,
@@ -207,7 +252,7 @@ CREATE INDEX IF NOT EXISTS idx_ingress_project_version ON ingress_bindings(proje
 	return err
 }
 
-func (s *SQLiteStore) migrateArchiveColumns() error {
+func (s *SQLiteStore) migrateArchiveColumns(ctx context.Context) error {
 	alters := []string{
 		`ALTER TABLE versions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE versions ADD COLUMN last_access_at TEXT`,
@@ -215,7 +260,7 @@ func (s *SQLiteStore) migrateArchiveColumns() error {
 		`ALTER TABLE projects ADD COLUMN previous_prod_at TEXT`,
 	}
 	for _, q := range alters {
-		if _, err := s.db.Exec(q); err != nil {
+		if _, err := s.db.ExecContext(ctx, q); err != nil {
 			if !strings.Contains(err.Error(), "duplicate column") {
 				return err
 			}
@@ -255,12 +300,93 @@ func withRetryErr(fn func() error) error {
 	return err
 }
 
+func withMigrateRetry(ctx context.Context, fn func(context.Context) error) error {
+	delay := migrateRetryBase
+	var lastBusy error
+	for attempt := 0; attempt < migrateRetryMaxAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			if lastBusy != nil {
+				return fmt.Errorf("sqlite migrate busy after retries: %w", errors.Join(err, lastBusy))
+			}
+			return err
+		}
+		err := fn(ctx)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		if !isBusy(err) {
+			return err
+		}
+		lastBusy = err
+		if attempt+1 >= migrateRetryMaxAttempts {
+			break
+		}
+		if delay > migrateRetryMaxBackoff {
+			delay = migrateRetryMaxBackoff
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if lastBusy != nil {
+				return fmt.Errorf("sqlite migrate busy after retries: %w", errors.Join(ctx.Err(), lastBusy))
+			}
+			return ctx.Err()
+		case <-timer.C:
+		}
+		if delay < migrateRetryMaxBackoff {
+			delay *= 2
+			if delay > migrateRetryMaxBackoff {
+				delay = migrateRetryMaxBackoff
+			}
+		}
+	}
+	if lastBusy != nil {
+		return fmt.Errorf("sqlite migrate busy after retries: %w", lastBusy)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return fmt.Errorf("sqlite migrate retry attempts exhausted")
+}
+
+func sqlitePrimaryResultCode(code int) int {
+	return code & 0xff
+}
+
+func sqliteCodeBusyOrLocked(code int) bool {
+	switch sqlitePrimaryResultCode(code) {
+	case sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED:
+		return true
+	default:
+		return false
+	}
+}
+
 func isBusy(err error) bool {
 	if err == nil {
 		return false
 	}
+	var sawSQLite bool
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		var se *moderncsqlite.Error
+		if errors.As(e, &se) {
+			sawSQLite = true
+			if sqliteCodeBusyOrLocked(se.Code()) {
+				return true
+			}
+		}
+	}
+	if sawSQLite {
+		return false
+	}
 	msg := err.Error()
-	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY")
+	return strings.Contains(msg, "database is locked") ||
+		strings.Contains(msg, "SQLITE_BUSY") ||
+		strings.Contains(msg, "SQLITE_LOCKED")
 }
 
 func (s *SQLiteStore) CreateProject(ctx context.Context, in CreateProjectInput) (*Project, error) {
@@ -585,13 +711,29 @@ func (s *SQLiteStore) SetVersionPreviewURL(ctx context.Context, projectID, versi
 func (s *SQLiteStore) UpdateVersionStatus(ctx context.Context, projectID, versionID, status string, errMsg *string) error {
 	return withRetryErr(func() error {
 		now := time.Now().UTC().Format(time.RFC3339Nano)
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		var oldStatus string
+		err = tx.QueryRowContext(ctx,
+			`SELECT status FROM versions WHERE project_id = ? AND id = ?`, projectID, versionID).Scan(&oldStatus)
+		if err == sql.ErrNoRows {
+			return tx.Commit()
+		}
+		if err != nil {
+			return err
+		}
+
 		var readyAt interface{}
 		var lastAccess interface{}
 		if status == StatusReady {
 			readyAt = now
 			lastAccess = now
 		}
-		_, err := s.db.ExecContext(ctx, `
+		_, err = tx.ExecContext(ctx, `
 			UPDATE versions SET status = ?, error = ?, updated_at = ?,
 				ready_at = COALESCE(?, ready_at),
 				last_access_at = COALESCE(?, last_access_at, ready_at),
@@ -600,7 +742,16 @@ func (s *SQLiteStore) UpdateVersionStatus(ctx context.Context, projectID, versio
 			status, nullStr(errMsg), now, readyAt, lastAccess,
 			fmt.Sprintf("%s/%s", projectID, versionID),
 			projectID, versionID)
-		return err
+		if err != nil {
+			return err
+		}
+		if contract.IsServingQualifiedReady(oldStatus) != contract.IsServingQualifiedReady(status) {
+			if _, err = tx.ExecContext(ctx,
+				`UPDATE control_plane_meta SET route_revision = route_revision + 1 WHERE id = 1`); err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
 	})
 }
 
@@ -616,42 +767,60 @@ func (s *SQLiteStore) CountReadyVersions(ctx context.Context, projectID string) 
 
 func (s *SQLiteStore) SetRoute(ctx context.Context, route Route) error {
 	return withRetryErr(func() error {
-		active := 0
-		if route.Active {
-			active = 1
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
 		}
-		_, err := s.db.ExecContext(ctx, `
+		defer tx.Rollback()
+		if err := s.setRouteInTx(ctx, tx, route); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE control_plane_meta SET route_revision = route_revision + 1 WHERE id = 1`); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+}
+
+func (s *SQLiteStore) setRouteInTx(ctx context.Context, tx *sql.Tx, route Route) error {
+	active := 0
+	if route.Active {
+		active = 1
+	}
+	_, err := tx.ExecContext(ctx, `
 			INSERT INTO routes (project_id, version_id, active, upstream_host, upstream_port)
 			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(project_id, version_id) DO UPDATE SET
 				active = excluded.active,
 				upstream_host = excluded.upstream_host,
 				upstream_port = excluded.upstream_port`,
-			route.ProjectID, route.VersionID, active, route.UpstreamHost, route.UpstreamPort)
-		if err != nil {
-			return err
-		}
-		s.bumpRouteRevisionQuiet(ctx)
-		return nil
-	})
+		route.ProjectID, route.VersionID, active, route.UpstreamHost, route.UpstreamPort)
+	return err
 }
 
 func (s *SQLiteStore) SetRouteActive(ctx context.Context, projectID, versionID string, active bool) error {
 	return withRetryErr(func() error {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
 		activeInt := 0
 		if active {
 			activeInt = 1
 		}
-		res, err := s.db.ExecContext(ctx,
+		res, err := tx.ExecContext(ctx,
 			`UPDATE routes SET active = ? WHERE project_id = ? AND version_id = ?`,
 			activeInt, projectID, versionID)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n > 0 {
-			s.bumpRouteRevisionQuiet(ctx)
+			if _, err := tx.ExecContext(ctx, `UPDATE control_plane_meta SET route_revision = route_revision + 1 WHERE id = 1`); err != nil {
+				return err
+			}
 		}
-		return nil
+		return tx.Commit()
 	})
 }
 
@@ -797,7 +966,10 @@ func (s *SQLiteStore) CountPendingJobs(ctx context.Context) (int, error) {
 }
 
 func (s *SQLiteStore) ClaimJob(ctx context.Context, workerID string, lease time.Duration) (*Job, error) {
-	_ = workerID
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" || lease <= 0 {
+		return nil, errors.New("invalid job claim")
+	}
 	return withRetry(func() (*Job, error) {
 		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -807,33 +979,81 @@ func (s *SQLiteStore) ClaimJob(ctx context.Context, workerID string, lease time.
 
 		now := time.Now().UTC()
 		nowStr := now.Format(time.RFC3339Nano)
-		row := tx.QueryRowContext(ctx, `
-			SELECT id, project_id, version_id, step, status, lease_until, updated_at
+		rows, err := tx.QueryContext(ctx, `
+			SELECT id, project_id, version_id, step, status, lease_until, updated_at, claimed_worker_id, claim_epoch
 			FROM jobs
-			WHERE status = 'pending'
-			   OR (status = 'claimed' AND lease_until < ?)
-			ORDER BY updated_at LIMIT 1`, nowStr)
-		var j Job
-		var leaseUntil sql.NullString
-		var updated string
-		if err := row.Scan(&j.ID, &j.ProjectID, &j.VersionID, &j.Step, &j.Status, &leaseUntil, &updated); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, nil
-			}
+			WHERE status = 'pending' OR status = 'claimed'
+			ORDER BY updated_at`)
+		if err != nil {
 			return nil, err
+		}
+		defer rows.Close()
+
+		var j Job
+		var pickedLease sql.NullString
+		var found bool
+		for rows.Next() {
+			var leaseUntil sql.NullString
+			var updated string
+			var claimedWorker sql.NullString
+			if err := rows.Scan(&j.ID, &j.ProjectID, &j.VersionID, &j.Step, &j.Status, &leaseUntil, &updated, &claimedWorker, &j.ClaimEpoch); err != nil {
+				return nil, err
+			}
+			if j.Status == "claimed" {
+				if strings.HasPrefix(j.Step, compensatingStepPrefix) {
+					continue
+				}
+				if jobWorkerLeaseIsLive(leaseUntil, now) {
+					continue
+				}
+			}
+			j.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
+			if claimedWorker.Valid {
+				j.ClaimedWorkerID = strings.TrimSpace(claimedWorker.String)
+			}
+			pickedLease = leaseUntil
+			found = true
+			break
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, nil
 		}
 
 		until := now.Add(lease)
-		_, err = tx.ExecContext(ctx, `
-			UPDATE jobs SET status = 'claimed', lease_until = ?, updated_at = ? WHERE id = ?`,
-			until.Format(time.RFC3339Nano), nowStr, j.ID)
+		var res sql.Result
+		if j.Status == "pending" {
+			res, err = tx.ExecContext(ctx, `
+			UPDATE jobs SET status = 'claimed', lease_until = ?, updated_at = ?,
+			  claimed_worker_id = ?, claim_epoch = claim_epoch + 1
+			WHERE id = ? AND status = 'pending'`, until.Format(time.RFC3339Nano), nowStr, workerID, j.ID)
+		} else {
+			leaseWhere, leaseArg := jobLeaseExactMatchSQL(pickedLease)
+			query := `
+			UPDATE jobs SET status = 'claimed', lease_until = ?, updated_at = ?,
+			  claimed_worker_id = ?, claim_epoch = claim_epoch + 1
+			WHERE id = ? AND status = 'claimed' AND ` + leaseWhere
+			args := []any{until.Format(time.RFC3339Nano), nowStr, workerID, j.ID}
+			if leaseArg != nil {
+				args = append(args, leaseArg)
+			}
+			res, err = tx.ExecContext(ctx, query, args...)
+		}
 		if err != nil {
 			return nil, err
+		}
+		n, _ := res.RowsAffected()
+		if n != 1 {
+			return nil, nil
 		}
 		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
+		j.ClaimEpoch++
 		j.Status = "claimed"
+		j.ClaimedWorkerID = workerID
 		j.LeaseUntil = &until
 		j.UpdatedAt, _ = time.Parse(time.RFC3339Nano, nowStr)
 		return &j, nil
@@ -850,6 +1070,7 @@ func (s *SQLiteStore) CompleteJob(ctx context.Context, jobID string) error {
 	})
 }
 
+// UpdateJobStep is an unfenced legacy helper for non-worker deploy steps; compensation must use UpdateJobStepForAttempt.
 func (s *SQLiteStore) UpdateJobStep(ctx context.Context, jobID, step string) error {
 	return withRetryErr(func() error {
 		now := time.Now().UTC().Format(time.RFC3339Nano)
@@ -863,7 +1084,7 @@ func (s *SQLiteStore) FailJob(ctx context.Context, jobID string) error {
 	return withRetryErr(func() error {
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		_, err := s.db.ExecContext(ctx,
-			`UPDATE jobs SET status = 'failed', lease_until = NULL, updated_at = ? WHERE id = ?`,
+			`UPDATE jobs SET status = 'failed', lease_until = NULL, claimed_worker_id = NULL, updated_at = ? WHERE id = ?`,
 			now, jobID)
 		return err
 	})
@@ -1020,14 +1241,6 @@ func nullIfEmpty(s string) interface{} {
 		return nil
 	}
 	return s
-}
-
-// ExecTestSQL runs arbitrary SQL (tests only).
-func (s *SQLiteStore) ExecTestSQL(ctx context.Context, query string, args ...any) error {
-	return withRetryErr(func() error {
-		_, err := s.db.ExecContext(ctx, query, args...)
-		return err
-	})
 }
 
 func (s *SQLiteStore) SetVersionPinned(ctx context.Context, projectID, versionID string, pinned bool) error {

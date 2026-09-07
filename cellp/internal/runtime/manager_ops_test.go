@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cellp/cellp/internal/registry"
 )
@@ -52,6 +53,27 @@ func TestDiagnoseWithFakeCelld(t *testing.T) {
 	m := New(8792, "http://127.0.0.1:9000", "us-east-1", "s3://cellp-celld/demo", "k", "s")
 	if err := m.Diagnose(context.Background(), "demo", "v1"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDiagnoseHonorsCallerContext(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "celld"), []byte("#!/bin/sh\ntrap '' TERM\nsleep 60\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	m := New(8792, "", "us-east-1", "s3://cellp-celld", "k", "s")
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	if err := m.Diagnose(ctx, "demo", "v1"); err == nil {
+		t.Fatal("expected context deadline error")
+	}
+	if time.Since(started) > 3*time.Second {
+		t.Fatal("diagnose did not stop with caller context")
 	}
 }
 

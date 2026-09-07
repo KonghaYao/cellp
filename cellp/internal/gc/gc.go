@@ -81,12 +81,15 @@ func RunOnce(ctx context.Context, store registry.Store, retention time.Duration)
 }
 
 // Start launches a background GC loop; no-op when cfg.Enabled is false.
-func Start(ctx context.Context, store registry.Store, cfg Config) {
+func Start(ctx context.Context, store registry.Store, cfg Config) <-chan struct{} {
+	done := make(chan struct{})
 	if !cfg.Enabled {
 		log.Println("gc: background GC disabled (CELLP_GC_INTERVAL=0)")
-		return
+		close(done)
+		return done
 	}
 	go func() {
+		defer close(done)
 		log.Printf("gc: background GC every %v, retention %v", cfg.Interval, cfg.Retention)
 		ticker := time.NewTicker(cfg.Interval)
 		defer ticker.Stop()
@@ -101,6 +104,7 @@ func Start(ctx context.Context, store registry.Store, cfg Config) {
 			}
 		}
 	}()
+	return done
 }
 
 func runAndLog(ctx context.Context, store registry.Store, retention time.Duration) {

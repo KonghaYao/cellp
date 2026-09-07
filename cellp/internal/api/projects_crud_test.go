@@ -69,6 +69,10 @@ func TestProjectAndVersionCRUD(t *testing.T) {
 	}
 
 	_ = store.UpdateVersionStatus(ctx, "demo", "v1", registry.StatusReady, nil)
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v1", Active: true,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
+	})
 	req = httptest.NewRequest(http.MethodPost, "/v1/projects/demo/versions/v1/promote", nil)
 	req.Header.Set("Authorization", "Bearer admin")
 	w = httptest.NewRecorder()

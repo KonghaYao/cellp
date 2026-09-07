@@ -43,6 +43,9 @@ func (s *SQLiteStore) AttachIngressListenPort(ctx context.Context, binding Ingre
 		if err := upsertIngressBindingExec(ctx, tx, binding); err != nil {
 			return err
 		}
+		if err := bumpRouteRevisionInTx(ctx, tx); err != nil {
+			return err
+		}
 		return tx.Commit()
 	})
 }
@@ -81,6 +84,9 @@ func (s *SQLiteStore) DetachIngressListenPort(ctx context.Context, bindingID, re
 			b.Active = false
 		}
 		if err := upsertIngressBindingExec(ctx, tx, *b); err != nil {
+			return err
+		}
+		if err := bumpRouteRevisionInTx(ctx, tx); err != nil {
 			return err
 		}
 		if releaseErr != nil && releaseErr != ErrPortAllocationNotFound {
@@ -145,6 +151,9 @@ func (s *SQLiteStore) AdoptStableIngressPortForBinding(ctx context.Context, bind
 			return err
 		}
 		if err := upsertIngressBindingExec(ctx, tx, binding); err != nil {
+			return err
+		}
+		if err := bumpRouteRevisionInTx(ctx, tx); err != nil {
 			return err
 		}
 		return tx.Commit()

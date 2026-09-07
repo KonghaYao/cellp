@@ -49,8 +49,10 @@ Use pin for:
 
 Unpin when that job is done so the reaper can reclaim the process.
 
-## Elastic serving (future)
+## Elastic serving (unsupported internal scaffold)
 
-When **elastic serving** is enabled (operator feature flag, off by default today), a version may be **cold**—no live serving replica—while object storage is still retained. That is **not** the same as **archived** in the v1 API: archive still means celld stopped and preview returns `503` until [wake](/concepts/archive#wake). Cold vs archived mutual exclusion and wake rules will apply only when elastic serving ships.
+`CELLP_ELASTIC_RUNTIME` is off by default and currently exposes only an **unsupported internal E1–E5 scaffold**. It does not provide a remote HTTP+mTLS Node Agent, real celld lifecycle management, a Scheduler or complete 0→N scaling, and it is not production-ready. Do not enable it to operate workloads.
 
-Until then, use **archive** and **wake** to stop and restart processes. See [Versions — one process per ready version](/concepts/versions#one-process-per-ready-version).
+A future productized elastic runtime may let a version be **cold**—no live serving replica—while object storage is retained. That is **not** the same as **archived** in the v1 API: archive means celld stopped and preview returns `503` until [wake](/concepts/archive#wake).
+
+For supported releases, use **archive** and **wake** to stop and restart processes. See [Versions — one process per ready version](/concepts/versions#one-process-per-ready-version).

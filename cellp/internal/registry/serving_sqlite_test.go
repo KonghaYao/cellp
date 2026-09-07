@@ -162,3 +162,125 @@ func TestRuntimeNodesSQLite(t *testing.T) {
 		t.Fatalf("list: %+v err=%v", list, err)
 	}
 }
+
+func TestServingPolicyBumpsPolicyRevision(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(t.TempDir() + "/policy-rev.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	_, _ = store.CreateProject(ctx, CreateProjectInput{ID: "demo"})
+	_, _ = store.CreateVersion(ctx, CreateVersionInput{ID: "v1", ProjectID: "demo"})
+
+	snap0, err := store.BuildLegacyRouteSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertServingPolicy(ctx, ServingPolicyRow{
+		ProjectID: "demo", VersionID: "v1", Revision: 1,
+		MinReplicas: 0, MaxReplicas: 1, BackgroundMode: contract.BackgroundModeNone,
+		ElasticEnrolled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	snap1, err := store.BuildLegacyRouteSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap1.PolicyRevision <= snap0.PolicyRevision {
+		t.Fatalf("policy revision: before=%d after=%d", snap0.PolicyRevision, snap1.PolicyRevision)
+	}
+}
+
+func TestUpdateVersionStatusServingBoundaryBumpsRouteRevision(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(t.TempDir() + "/status-rev.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	mustSeedElasticClaimBase(t, ctx, store, "n1")
+	if err := store.UpsertServingPolicy(ctx, ServingPolicyRow{
+		ProjectID: "demo", VersionID: "v1", Revision: 1,
+		MinReplicas: 0, MaxReplicas: 2, ElasticEnrolled: true,
+		BackgroundMode: contract.BackgroundModeNone,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	valid := time.Now().UTC().Add(time.Hour)
+	mustClaimAssignment(t, ctx, store, AssignmentClaim{
+		ReplicaID: "r1", ProjectID: "demo", VersionID: "v1", NodeID: "n1",
+		Generation: 1, ExpectedNodeGeneration: 1, ValidUntil: valid,
+	})
+	epUntil := time.Now().UTC().Add(time.Hour)
+	mustRecordObservation(t, ctx, store, ReplicaObservation{
+		ReplicaID: "r1", ProjectID: "demo", VersionID: "v1", NodeID: "n1",
+		Generation: 1, State: contract.ReplicaStarting,
+	})
+	mustRecordObservation(t, ctx, store, ReplicaObservation{
+		ReplicaID: "r1", ProjectID: "demo", VersionID: "v1", NodeID: "n1",
+		Generation: 1, State: contract.ReplicaReady,
+		ListenHost: "127.0.0.1", ListenPort: 9940,
+		EndpointState: contract.EndpointReady, EndpointValidUntil: &epUntil,
+	})
+	if err := store.UpdateVersionStatus(ctx, "demo", "v1", StatusDeployReady, nil); err != nil {
+		t.Fatal(err)
+	}
+	pub, err := store.BuildLegacyRouteSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pub.EndpointSets) != 0 {
+		t.Fatalf("deploy_ready must stay off public snapshot: %+v", pub.EndpointSets)
+	}
+	q, ok, err := store.BuildQualificationViewAfter(ctx, -1)
+	if err != nil || !ok || len(q.EndpointSets) != 1 {
+		t.Fatalf("qualification view: ok=%v err=%v sets=%+v", ok, err, q.EndpointSets)
+	}
+	revDeployReady, err := store.GetRouteRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateVersionStatus(ctx, "demo", "v1", StatusReady, nil); err != nil {
+		t.Fatal(err)
+	}
+	revReady, err := store.GetRouteRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revReady != revDeployReady+1 {
+		t.Fatalf("deploy_ready->ready bump: had=%d got=%d", revDeployReady, revReady)
+	}
+	pub, err = store.BuildLegacyRouteSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pub.EndpointSets) != 1 {
+		t.Fatalf("ready must appear on public snapshot: %+v", pub.EndpointSets)
+	}
+	if err := store.UpdateVersionStatus(ctx, "demo", "v1", StatusReady, nil); err != nil {
+		t.Fatal(err)
+	}
+	revReplay, err := store.GetRouteRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revReplay != revReady {
+		t.Fatalf("ready replay must not bump: had=%d got=%d", revReady, revReplay)
+	}
+	if err := store.UpdateVersionStatus(ctx, "demo", "v1", StatusFailed, nil); err != nil {
+		t.Fatal(err)
+	}
+	revFailed, err := store.GetRouteRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revFailed != revReplay+1 {
+		t.Fatalf("ready->failed bump: had=%d got=%d", revReplay, revFailed)
+	}
+	if err := store.UpdateVersionStatus(ctx, "demo", "missing", StatusReady, nil); err != nil {
+		t.Fatal(err)
+	}
+}

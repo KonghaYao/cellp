@@ -39,7 +39,7 @@ func TestPromoteSuccessNoCelld(t *testing.T) {
 		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
 	})
 	_ = store.SetRoute(ctx, registry.Route{
-		ProjectID: "demo", VersionID: "v-new", Active: false,
+		ProjectID: "demo", VersionID: "v-new", Active: true,
 		UpstreamHost: "127.0.0.1", UpstreamPort: 8793,
 	})
 	artDir := filepath.Join(artifactsDir, "demo", "v-new")

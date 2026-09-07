@@ -15,7 +15,7 @@ cellp is often measured against Cloudflare Workers and Vercel. Use this page to 
 | Git | External. CI calls the API | Wrangler / dashboard / Git integration | First-class Git app |
 | Accounts / SSO | **None** (two tokens) | Cloudflare account + members | Vercel teams |
 | Runtime | celld (Workers APIs, partial) | Cloudflare edge isolates | Node / Edge (framework-defined) |
-| Next.js SSR | **No** (experimental OpenNext Worker only) | Pages / not the Workers-only path | **Yes** (home turf) |
+| Next.js SSR | **No** (experimental OpenNext Worker only; pinned `1.14.0` official core suite currently has 49 stable passes out of 56 executed, with 58 more runnable tests blocked before execution) | Pages / not the Workers-only path | **Yes** (home turf) |
 | Hosting | **Your** machines | Cloudflare network | Vercel cloud |
 | DNS / TLS / CDN | Your LB | Built in | Built in |
 | Object store | RustFS (private S3) | R2 (Cloudflare) | Blob / external |

@@ -15,11 +15,11 @@ const defaultSnapshotPollInterval = 2 * time.Second
 
 // RouteSnapshotHolder keeps the last-known-good immutable route snapshot (AD-15 E1).
 type RouteSnapshotHolder struct {
-	mu              sync.RWMutex
-	snap            contract.RouteSnapshot
-	hasLKG          bool
-	lastAppliedRev  int64
-	pollErrors      atomic.Uint64
+	mu             sync.RWMutex
+	snap           contract.RouteSnapshot
+	hasLKG         bool
+	lastAppliedRev int64
+	pollErrors     atomic.Uint64
 }
 
 // NewRouteSnapshotHolder returns an empty holder.
@@ -77,14 +77,17 @@ func (h *RouteSnapshotHolder) PollOnce(ctx context.Context, store registry.Store
 }
 
 // StartSnapshotPoller runs PollOnce on an interval until ctx is done.
-func StartSnapshotPoller(ctx context.Context, store registry.Store, h *RouteSnapshotHolder, interval time.Duration) {
+func StartSnapshotPoller(ctx context.Context, store registry.Store, h *RouteSnapshotHolder, interval time.Duration) <-chan struct{} {
+	done := make(chan struct{})
 	if h == nil || store == nil {
-		return
+		close(done)
+		return done
 	}
 	if interval <= 0 {
 		interval = defaultSnapshotPollInterval
 	}
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		h.PollOnce(ctx, store)
@@ -97,6 +100,7 @@ func StartSnapshotPoller(ctx context.Context, store registry.Store, h *RouteSnap
 			}
 		}
 	}()
+	return done
 }
 
 // LookupUpstreamFromSnapshot returns host:port for ready legacy route if snapshot contains an endpoint.
@@ -112,6 +116,27 @@ func (h *RouteSnapshotHolder) LookupUpstreamFromSnapshot(projectID, versionID st
 		}
 		for _, ep := range es.Endpoints {
 			if ep.State == contract.EndpointReady && ep.Address != "" {
+				return ep.Address, true
+			}
+		}
+	}
+	return "", false
+}
+
+// LookupElasticUpstream returns only a lease-bounded ready elastic endpoint.
+func (h *RouteSnapshotHolder) LookupElasticUpstream(projectID, versionID string) (string, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if !h.hasLKG {
+		return "", false
+	}
+	now := time.Now().UTC()
+	for _, es := range h.snap.EndpointSets {
+		if es.ProjectID != projectID || es.VersionID != versionID {
+			continue
+		}
+		for _, ep := range es.Endpoints {
+			if ep.State == contract.EndpointReady && ep.Address != "" && ep.ValidUntil != nil && ep.ValidUntil.After(now) {
 				return ep.Address, true
 			}
 		}

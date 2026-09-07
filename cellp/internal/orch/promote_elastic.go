@@ -10,9 +10,6 @@ import (
 
 // validatePromoteTarget applies AD-15 promote gates when elastic runtime is enabled.
 func (o *Orchestrator) validatePromoteTarget(ctx context.Context, projectID, versionID string, v *registry.Version) error {
-	if !contract.ElasticRuntimeEnabled() {
-		return nil
-	}
 	if !contract.PromoteEligible(v.Status) {
 		return fmt.Errorf("version not ready: %s", v.Status)
 	}
@@ -29,12 +26,6 @@ func (o *Orchestrator) validatePromoteTarget(ctx context.Context, projectID, ver
 }
 
 func (o *Orchestrator) commitProdPromote(ctx context.Context, projectID, oldProd, versionID string) error {
-	if contract.ElasticRuntimeEnabled() {
-		_, err := o.store.CommitProdPromote(ctx, projectID, oldProd, versionID)
-		return err
-	}
-	if err := o.store.SetProdVersionCAS(ctx, projectID, oldProd, versionID); err != nil {
-		return err
-	}
-	return o.store.SetRouteActive(ctx, projectID, versionID, true)
+	_, err := o.store.CommitProdPromote(ctx, projectID, oldProd, versionID)
+	return err
 }

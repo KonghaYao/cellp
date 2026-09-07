@@ -112,11 +112,13 @@ By default, deploy is **fail-closed**: if offshoot fork/checkpoint/export, D1 im
 | `CELLP_ARCHIVE_REAPER=0` | Disable idle archive ticker |
 | `CELLP_ROLLBACK_KEEP` | Pin previous prod after promote (see [Archive](/concepts/archive)) |
 
-### Elastic serving (planned default off)
+### Elastic serving (unsupported internal scaffold; default off)
+
+`CELLP_ELASTIC_RUNTIME` is not a supported operator feature. It exposes only an internal E1–E5 scaffold: no remote HTTP+mTLS Node Agent, real celld lifecycle management, Scheduler or complete 0→N scaling, and no production-readiness.
 
 | Variable | Purpose |
 |----------|---------|
-| `CELLP_ELASTIC_RUNTIME` | When truthy, enables elastic replica machinery (**not** the default v1 path) |
+| `CELLP_ELASTIC_RUNTIME` | Internal development scaffold only; leave unset in supported deployments |
 
 ## Compared to Vercel
 

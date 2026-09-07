@@ -60,7 +60,7 @@ func testScope() contract.CommandScope {
 		ProjectID:   "demo",
 		VersionID:   "v1",
 		ReplicaID:   "rep-1",
-		Generation:  2,
+		Generation:  1,
 		LeaseExpiry: time.Now().UTC().Add(time.Hour),
 		Nonce:       "n-1",
 		Action:      contract.ActionStartReplica,
@@ -132,5 +132,36 @@ func TestCordonedNodeRejected(t *testing.T) {
 	}, "")
 	if !errors.Is(err, errNodeCordoned) {
 		t.Fatalf("want cordoned, got %v", err)
+	}
+}
+
+func TestNodeLeaseAndGenerationFencing(t *testing.T) {
+	ctx := context.Background()
+	mem := newMemStores()
+	fixed := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	h := NewHandler(true, mem, mem)
+	h.now = func() time.Time { return fixed }
+
+	_ = mem.UpsertRuntimeNode(ctx, contract.RuntimeNode{
+		NodeID: "node-a", CapacityUnits: 1, Generation: 2,
+		LeaseExpiry: fixed.Add(-time.Minute),
+	})
+	scope := testScope()
+	scope.Generation = 2
+	scope.LeaseExpiry = fixed.Add(time.Hour)
+	_, err := h.StartReplica(ctx, contract.StartReplicaSpec{Scope: scope, Bucket: "b"}, "")
+	var cmd *CommandError
+	if !errors.As(err, &cmd) || cmd.Message != "node lease expired" {
+		t.Fatalf("expired node lease: %v", err)
+	}
+
+	_ = mem.UpsertRuntimeNode(ctx, contract.RuntimeNode{
+		NodeID: "node-a", CapacityUnits: 1, Generation: 2,
+		LeaseExpiry: fixed.Add(time.Hour),
+	})
+	scope.Generation = 3
+	rep, err := h.StartReplica(ctx, contract.StartReplicaSpec{Scope: scope, Bucket: "b"}, "")
+	if err != nil || rep.Generation != 3 {
+		t.Fatalf("desire generation independent of node generation: rep=%+v err=%v", rep, err)
 	}
 }

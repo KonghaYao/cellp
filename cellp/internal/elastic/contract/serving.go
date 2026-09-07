@@ -30,9 +30,9 @@ type ServingDesire struct {
 type ServingPhase string
 
 const (
-	ServingCold      ServingPhase = "cold"
-	ServingWaking    ServingPhase = "waking"
-	ServingStarting  ServingPhase = "starting"
-	ServingWarm      ServingPhase = "warm"
-	ServingDegraded  ServingPhase = "degraded"
+	ServingCold     ServingPhase = "cold"
+	ServingWaking   ServingPhase = "waking"
+	ServingStarting ServingPhase = "starting"
+	ServingWarm     ServingPhase = "warm"
+	ServingDegraded ServingPhase = "degraded"
 )

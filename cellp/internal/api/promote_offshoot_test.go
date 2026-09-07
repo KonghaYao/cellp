@@ -26,6 +26,10 @@ func TestPromoteOffshootFailed502(t *testing.T) {
 		ProjectID: "demo", VersionID: "v-old", Active: true,
 		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
 	})
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v-new", Active: true,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 8793,
+	})
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/projects/demo/versions/v-new/promote", nil)
 	req.Header.Set("Authorization", "Bearer admin")

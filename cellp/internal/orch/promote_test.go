@@ -46,7 +46,7 @@ func setupPromoteOrch(t *testing.T) (registry.Store, *orch.Orchestrator, context
 		t.Fatal(err)
 	}
 	if err := store.SetRoute(ctx, registry.Route{
-		ProjectID: "demo", VersionID: "v-new", Active: false,
+		ProjectID: "demo", VersionID: "v-new", Active: true,
 		UpstreamHost: "127.0.0.1", UpstreamPort: 8793,
 	}); err != nil {
 		t.Fatal(err)

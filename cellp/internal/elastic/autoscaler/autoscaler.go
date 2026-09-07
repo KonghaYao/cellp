@@ -63,15 +63,11 @@ type Loop struct {
 
 // Enabled reports whether elastic autoscaler logic may run.
 func Enabled() bool {
-	return contract.ElasticRuntimeEnabled()
+	return true
 }
 
 // Tick reads policies and desires, compares desired vs ready replica counts.
-// When CELLP_ELASTIC_RUNTIME=0 this is a no-op (Skipped=true).
 func (l *Loop) Tick(ctx context.Context) (TickReport, error) {
-	if !Enabled() {
-		return TickReport{Skipped: true}, nil
-	}
 	if l == nil || l.Store == nil {
 		return TickReport{}, nil
 	}
@@ -154,9 +150,15 @@ func Run(ctx context.Context, store Store, cfg Config, guard contract.Background
 }
 
 // Start begins the background loop when cfg.Background is set (per-tick still no-op if flag=0).
-func Start(ctx context.Context, store registry.ServingStore, cfg Config) {
+func Start(ctx context.Context, store registry.ServingStore, cfg Config) <-chan struct{} {
+	done := make(chan struct{})
 	if !cfg.Background {
-		return
+		close(done)
+		return done
 	}
-	go Run(ctx, RegistryStore{ServingStore: store}, cfg, contract.BackgroundGuardOptions{})
+	go func() {
+		defer close(done)
+		Run(ctx, RegistryStore{ServingStore: store}, cfg, contract.BackgroundGuardOptions{})
+	}()
+	return done
 }

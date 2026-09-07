@@ -4,13 +4,14 @@ import (
 	"errors"
 
 	"github.com/cellp/cellp/internal/elastic/contract"
+	"github.com/cellp/cellp/internal/registry"
 )
 
 var (
-	errInvalidNode   = errors.New("invalid runtime node")
-	errNodeCordoned  = errors.New("runtime node cordoned")
-	errNodeNotFound  = errors.New("runtime node not found")
-	errReplicaNotFound = errors.New("replica not found")
+	errInvalidNode     = errors.New("invalid runtime node")
+	errNodeCordoned    = errors.New("runtime node cordoned")
+	errNodeNotFound    = registry.ErrRuntimeNodeNotFound
+	errReplicaNotFound = registry.ErrRuntimeReplicaNotFound
 )
 
 // CommandError carries a contract reason for API mapping.

@@ -19,14 +19,15 @@ import (
 
 // Gateway is the cellpd built-in reverse proxy (DESIGN §2.3, AD-12 Host ingress).
 type Gateway struct {
-	store       registry.Store
-	cache       *RouteCache
-	snapshots   *RouteSnapshotHolder
-	activator   *activator.Activator
-	router      chi.Router
-	cfg         GatewayConfig
-	lastTouchMu sync.Mutex
-	lastTouchAt map[string]time.Time
+	store         registry.Store
+	cache         *RouteCache
+	snapshots     *RouteSnapshotHolder
+	activator     *activator.Activator
+	activatorOnce sync.Once
+	router        chi.Router
+	cfg           GatewayConfig
+	lastTouchMu   sync.Mutex
+	lastTouchAt   map[string]time.Time
 }
 
 // New creates a gateway with config from the environment.
@@ -85,8 +86,8 @@ func (g *Gateway) RouteSnapshotHolder() *RouteSnapshotHolder {
 }
 
 // StartRouteSnapshotPoller begins background revision polling (no-op if store nil).
-func (g *Gateway) StartRouteSnapshotPoller(ctx context.Context, interval time.Duration) {
-	StartSnapshotPoller(ctx, g.store, g.snapshots, interval)
+func (g *Gateway) StartRouteSnapshotPoller(ctx context.Context, interval time.Duration) <-chan struct{} {
+	return StartSnapshotPoller(ctx, g.store, g.snapshots, interval)
 }
 
 // RouteCacheForTest exposes the route cache for test configuration.
@@ -134,7 +135,19 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if g.tryColdActivator(w, r, projectID, versionID) {
+	version, err := g.store.GetVersion(r.Context(), projectID, versionID)
+	if err != nil || version == nil {
+		http.Error(w, "version unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if version.Status == registry.StatusDeployReady {
+		if g.tryColdActivator(w, r, binding, version) {
+			return
+		}
+		http.Error(w, "version not ready", http.StatusServiceUnavailable)
+		return
+	}
+	if g.tryElasticReadyProxy(w, r, binding, projectID, versionID) {
 		return
 	}
 

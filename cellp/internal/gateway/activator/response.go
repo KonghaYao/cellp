@@ -8,6 +8,7 @@ import (
 // AdmitResult is the gateway decision for a cold deploy_ready request.
 type AdmitResult struct {
 	AllowProxy    bool
+	Upstream      string
 	Reason        string
 	RetryAfterSec int
 }

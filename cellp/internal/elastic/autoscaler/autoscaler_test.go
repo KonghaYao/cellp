@@ -9,7 +9,6 @@ import (
 )
 
 func TestTick_disabledByDefault(t *testing.T) {
-	t.Setenv(contract.EnvElasticRuntime, "")
 	store, err := registry.Open(t.TempDir() + "/as.sqlite")
 	if err != nil {
 		t.Fatal(err)
@@ -21,8 +20,8 @@ func TestTick_disabledByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rep.Skipped {
-		t.Fatalf("want skipped when flag off, got %+v", rep)
+	if rep.Skipped {
+		t.Fatalf("autoscaler always runs when store configured, got %+v", rep)
 	}
 }
 

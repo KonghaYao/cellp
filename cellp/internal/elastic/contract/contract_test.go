@@ -62,14 +62,31 @@ func TestValidateRouteSnapshot_revision(t *testing.T) {
 	}
 }
 
-func TestElasticRuntimeEnabled_defaultOff(t *testing.T) {
+func TestParseElasticRuntimeEnv(t *testing.T) {
 	t.Setenv(EnvElasticRuntime, "")
-	if ElasticRuntimeEnabled() {
-		t.Fatal("default off")
+	enabled, err := ParseElasticRuntimeEnv()
+	if err != nil || !enabled {
+		t.Fatalf("unset: enabled=%v err=%v", enabled, err)
 	}
-	t.Setenv(EnvElasticRuntime, "1")
+	t.Setenv(EnvElasticRuntime, "off")
+	enabled, err = ParseElasticRuntimeEnv()
+	if err == nil || enabled {
+		t.Fatalf("off: enabled=%v err=%v", enabled, err)
+	}
+	t.Setenv(EnvElasticRuntime, "treu")
+	if _, err := ParseElasticRuntimeEnv(); err == nil {
+		t.Fatal("expected invalid value error")
+	}
+}
+
+func TestElasticRuntimeEnabled_alwaysOn(t *testing.T) {
+	t.Setenv(EnvElasticRuntime, "")
 	if !ElasticRuntimeEnabled() {
-		t.Fatal("1 should enable")
+		t.Fatal("elastic runtime always enabled for cellpd")
+	}
+	t.Setenv(EnvElasticRuntime, "off")
+	if !ElasticRuntimeEnabled() {
+		t.Fatal("ElasticRuntimeEnabled ignores explicit off; ParseElasticRuntimeEnv errors instead")
 	}
 }
 

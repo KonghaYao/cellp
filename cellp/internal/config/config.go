@@ -36,6 +36,9 @@ type Config struct {
 
 	Ingress IngressConfig
 
+	// Serving holds platform-wide elastic serving defaults (scale-to-zero, min/max, idle-after-deploy).
+	Serving ServingDefaults
+
 	// InstanceID identifies this cellpd/gateway pair (CELLPD_INSTANCE_ID).
 	InstanceID string
 }
@@ -96,6 +99,7 @@ func Load() Config {
 	}
 	cfg.Ingress = loadIngressConfig()
 	cfg.InstanceID = envOr("CELLPD_INSTANCE_ID", "")
+	cfg.Serving = LoadServingDefaults()
 	return cfg
 }
 

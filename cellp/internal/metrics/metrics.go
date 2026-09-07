@@ -67,11 +67,14 @@ func Handler() http.Handler {
 }
 
 // StartCollector launches a background metrics collection loop.
-func StartCollector(ctx context.Context, store registry.Store, rm *runtime.Manager, interval time.Duration) {
+func StartCollector(ctx context.Context, store registry.Store, rm *runtime.Manager, interval time.Duration) <-chan struct{} {
+	done := make(chan struct{})
 	if interval <= 0 {
-		return
+		close(done)
+		return done
 	}
 	go func() {
+		defer close(done)
 		log.Printf("metrics: collector every %v", interval)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -86,6 +89,7 @@ func StartCollector(ctx context.Context, store registry.Store, rm *runtime.Manag
 			}
 		}
 	}()
+	return done
 }
 
 func collectAndLog(ctx context.Context, store registry.Store, rm *runtime.Manager) {

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,27 +24,30 @@ import (
 
 // Manager manages celld subprocess lifecycle per version (AD-1).
 type Manager struct {
-	basePort  int
-	endpoint  string
-	region    string
-	bucket    string
-	accessKey string
-	secretKey string
-	mu        sync.Mutex
-	processes map[string]*celldProc
-	ports     map[string]int
-	lifecycle map[string]*lifecycleLock
-	nextN     int
-	envLoader WorkerEnvLoader
+	basePort     int
+	endpoint     string
+	region       string
+	bucket       string // Retained for constructor compatibility; AD-1 per-version paths never derive from it.
+	accessKey    string
+	secretKey    string
+	mu           sync.Mutex
+	processes    map[string]*celldProc
+	ports        map[string]int
+	lifecycle    map[string]*lifecycleLock
+	nextN        int
+	envLoader    WorkerEnvLoader
+	replicaHosts ReplicaHostConfig
 }
 
 // WorkerEnvLoader returns dashboard/CD Worker vars for a version (not platform keys).
 type WorkerEnvLoader func(ctx context.Context, project, version string) (map[string]string, error)
 
 type celldProc struct {
-	cmd      *exec.Cmd
-	port     int
-	watchDir string
+	cmd           *exec.Cmd
+	port          int
+	watchDir      string
+	bindHost      string
+	advertiseHost string
 }
 
 type lifecycleLock struct {
@@ -53,15 +58,16 @@ type lifecycleLock struct {
 // New creates a runtime manager.
 func New(basePort int, endpoint, region, bucket, accessKey, secretKey string) *Manager {
 	return &Manager{
-		basePort:  basePort,
-		endpoint:  endpoint,
-		region:    region,
-		bucket:    bucket,
-		accessKey: accessKey,
-		secretKey: secretKey,
-		processes: make(map[string]*celldProc),
-		ports:     make(map[string]int),
-		lifecycle: make(map[string]*lifecycleLock),
+		basePort:     basePort,
+		endpoint:     endpoint,
+		region:       region,
+		bucket:       bucket,
+		accessKey:    accessKey,
+		secretKey:    secretKey,
+		processes:    make(map[string]*celldProc),
+		ports:        make(map[string]int),
+		lifecycle:    make(map[string]*lifecycleLock),
+		replicaHosts: DefaultReplicaHostConfig(),
 	}
 }
 
@@ -74,8 +80,15 @@ func (m *Manager) key(project, version string) string {
 	return project + "/" + version
 }
 
+func (m *Manager) replicaKey(key ReplicaKey) string {
+	return key.ProjectID + "/" + key.VersionID + "/replicas/" + key.ReplicaID
+}
+
 func (m *Manager) lockLifecycle(project, version string) func() {
-	k := m.key(project, version)
+	return m.lockLifecycleKey(m.key(project, version))
+}
+
+func (m *Manager) lockLifecycleKey(k string) func() {
 	m.mu.Lock()
 	lock := m.lifecycle[k]
 	if lock == nil {
@@ -105,6 +118,26 @@ func processAlive(cmd *exec.Cmd) bool {
 
 func (m *Manager) versionBucket(project, version string) string {
 	return fmt.Sprintf("s3://cellp-celld/%s/%s", project, version)
+}
+
+// ExpectedReplicaBucket returns the canonical server-derived bucket for a replica.
+func (m *Manager) ExpectedReplicaBucket(key ReplicaKey) (string, error) {
+	if err := key.validate(); err != nil {
+		return "", err
+	}
+	return m.versionBucket(key.ProjectID, key.VersionID), nil
+}
+
+// ValidateReplicaBucket rejects any wire bucket that differs from the canonical bucket.
+func (m *Manager) ValidateReplicaBucket(key ReplicaKey, bucket string) error {
+	expected, err := m.ExpectedReplicaBucket(key)
+	if err != nil {
+		return err
+	}
+	if bucket != expected {
+		return fmt.Errorf("replica bucket does not match assignment")
+	}
+	return nil
 }
 
 // AllocatePort returns a unique port for a version (8792+N, skipping base dev celld).
@@ -195,13 +228,17 @@ func (m *Manager) StartOnPort(ctx context.Context, project, version, host string
 }
 
 func (m *Manager) startOnPortLocked(ctx context.Context, project, version, host string, port int) (string, int, error) {
-	k := m.key(project, version)
+	return m.startManagedOnPortLocked(ctx, m.key(project, version), project, version, version, m.versionBucket(project, version), host, "", port)
+}
+
+func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, version, watchVersion, bucket, bindHost, advertiseHost string, port int) (string, int, error) {
+	returnHost := externalReplicaHost(bindHost, advertiseHost)
 
 	m.mu.Lock()
 	if p, ok := m.processes[k]; ok && processAlive(p.cmd) {
 		runningPort := p.port
 		m.mu.Unlock()
-		return host, runningPort, nil
+		return p.externalHost(), runningPort, nil
 	}
 	var staleWatch string
 	if p, ok := m.processes[k]; ok {
@@ -210,37 +247,44 @@ func (m *Manager) startOnPortLocked(ctx context.Context, project, version, host 
 		delete(m.processes, k)
 	}
 	m.mu.Unlock()
-	removeEphemeralWatch(staleWatch)
+	if err := removeEphemeralWatch(staleWatch); err != nil {
+		return "", 0, fmt.Errorf("remove stale watch: %w", err)
+	}
 
 	if os.Getenv("CELLP_E2E_INJECT_DEPLOY_FAIL") == "1" {
-		return host, port, nil
+		return returnHost, port, nil
 	}
 
 	if !CelldInstalled() {
 		m.mu.Lock()
-		m.processes[k] = &celldProc{port: port}
+		m.processes[k] = &celldProc{port: port, bindHost: bindHost, advertiseHost: advertiseHost}
 		m.mu.Unlock()
-		return host, port, nil
+		return returnHost, port, nil
 	}
-	if err := waitForTCPPortFree(host, port, 0); err != nil {
+	if err := waitForTCPPortFree(bindHost, port, 0); err != nil {
 		return "", 0, err
 	}
 
-	bucket := m.versionBucket(project, version)
 	args := []string{
 		"--bucket", bucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
-		"--listen", fmt.Sprintf("%s:%d", host, port),
+		"--listen", celldListenFlag(bindHost, port),
 	}
 	// celld is a long-lived AD-1 daemon. Do not bind it to the caller
 	// context — HTTP wake handlers cancel when the response is written,
 	// which would SIGKILL the process and 502 the preview.
 	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", args...)
-	watch, err := m.allocateWatchDir(project, version)
+	watch, err := m.allocateWatchDir(project, watchVersion)
 	if err != nil {
 		return "", 0, fmt.Errorf("allocate watch dir: %w", err)
 	}
+	keepWatch := false
+	defer func() {
+		if !keepWatch {
+			_ = removeEphemeralWatch(watch)
+		}
+	}()
 	gateMs := os.Getenv("CELLD_READY_FLEET_GATE_MS")
 	if gateMs == "" {
 		// Per-version bucket is a one-node fleet. The 120s default withholds
@@ -272,22 +316,41 @@ func (m *Manager) startOnPortLocked(ctx context.Context, project, version, host 
 		}
 	}
 	cmd.Env = append(os.Environ(), envExtra...)
-	logPath := filepath.Join(os.TempDir(), fmt.Sprintf("celld-%s-%s.log", project, version))
+	logPath := celldLogPath(project, watchVersion)
+	var logFile *os.File
 	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+		logFile = f
 		cmd.Stdout = f
 		cmd.Stderr = f
 	}
 	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
+		_ = removeEphemeralWatch(watch)
 		return "", 0, fmt.Errorf("start celld: %w", err)
+	}
+	if logFile != nil {
+		_ = logFile.Close()
 	}
 
 	m.mu.Lock()
-	m.processes[k] = &celldProc{cmd: cmd, port: port, watchDir: watch}
+	m.processes[k] = &celldProc{cmd: cmd, port: port, watchDir: watch, bindHost: bindHost, advertiseHost: advertiseHost}
 	m.mu.Unlock()
+	keepWatch = true
+	ready := false
+	defer func() {
+		if !ready {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			_ = m.stopManagedLocked(cleanupCtx, k, true)
+		}
+	}()
 
 	for i := 0; i < 60; i++ {
-		if m.Health(ctx, host, port) {
-			return host, port, nil
+		if m.Health(ctx, bindHost, port) {
+			ready = true
+			return returnHost, port, nil
 		}
 		select {
 		case <-ctx.Done():
@@ -295,7 +358,7 @@ func (m *Manager) startOnPortLocked(ctx context.Context, project, version, host 
 		case <-time.After(time.Second):
 		}
 	}
-	return host, port, fmt.Errorf("celld health timeout on %s:%d", host, port)
+	return returnHost, port, fmt.Errorf("celld health timeout on %s:%d", bindHost, port)
 }
 
 // CelldInstalled reports whether the celld binary is on PATH.
@@ -306,14 +369,25 @@ func CelldInstalled() bool {
 
 // Diagnose runs celld storage probe for a version bucket before deploy/start.
 func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
+	return m.diagnoseBucket(ctx, m.versionBucket(project, version))
+}
+
+const diagnoseTimeout = 30 * time.Second
+
+func cappedContext(ctx context.Context, cap time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, cap)
+}
+
+func (m *Manager) diagnoseBucket(ctx context.Context, bucket string) error {
 	if os.Getenv("CELLP_SKIP_CELLD_DIAGNOSE") == "1" {
 		return nil
 	}
 	if !CelldInstalled() {
 		return nil
 	}
-	bucket := m.versionBucket(project, version)
-	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", "diagnose",
+	diagnoseCtx, cancel := cappedContext(ctx, diagnoseTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(diagnoseCtx, "celld", "diagnose",
 		"--bucket", bucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
@@ -323,8 +397,8 @@ func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
 		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", m.secretKey),
 		fmt.Sprintf("AWS_REGION=%s", m.region),
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("celld diagnose: %w: %s", err, string(out))
+	if _, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("celld diagnose failed: %w", err)
 	}
 	return nil
 }
@@ -694,8 +768,9 @@ func (m *Manager) Health(ctx context.Context, host string, port int) bool {
 		return true
 	}
 	// Probe celld health on the well-known path used by production runners.
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		fmt.Sprintf("http://%s:%d/.well-known/celld/health", host, port), nil)
+		"http://"+addr+"/.well-known/celld/health", nil)
 	if err != nil {
 		return false
 	}
@@ -748,11 +823,11 @@ func sanitizeWatchToken(s string) string {
 	return out
 }
 
-func removeEphemeralWatch(watchDir string) {
+var removeEphemeralWatch = func(watchDir string) error {
 	if watchDir == "" || os.Getenv("CELLP_CELLD_WATCH_PERSIST") == "1" {
-		return
+		return nil
 	}
-	_ = os.RemoveAll(watchDir)
+	return os.RemoveAll(watchDir)
 }
 
 // Stop tears down a celld instance for a version.
@@ -774,14 +849,13 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errs := make(chan error, len(keys))
 	for _, k := range keys {
-		project, version, ok := strings.Cut(k, "/")
-		if !ok {
-			continue
-		}
+		k := k
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := m.Stop(ctx, project, version); err != nil {
+			unlock := m.lockLifecycleKey(k)
+			defer unlock()
+			if err := m.stopManagedLocked(ctx, k, true); err != nil {
 				errs <- fmt.Errorf("stop %s: %w", k, err)
 			}
 		}()
@@ -797,49 +871,66 @@ func (m *Manager) StopAll(ctx context.Context) error {
 }
 
 func (m *Manager) stopLocked(ctx context.Context, project, version string) error {
-	_ = ctx
+	return m.stopManagedLocked(ctx, m.key(project, version), false)
+}
+
+func (m *Manager) stopManagedLocked(ctx context.Context, k string, releasePort bool) error {
 	m.mu.Lock()
-	k := m.key(project, version)
 	p, ok := m.processes[k]
 	if !ok || p == nil {
 		delete(m.processes, k)
+		if releasePort {
+			delete(m.ports, k)
+		}
 		m.mu.Unlock()
 		return nil
 	}
 	watchDir := p.watchDir
 	cmd := p.cmd
-	delete(m.processes, k)
 	m.mu.Unlock()
 
-	if cmd == nil || cmd.Process == nil {
-		removeEphemeralWatch(watchDir)
-		return nil
-	}
-	_ = cmd.Process.Signal(syscall.SIGTERM)
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(10 * time.Second):
-		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return fmt.Errorf("kill celld: %w", err)
+	if cmd != nil && cmd.Process != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("signal celld: %w", err)
 		}
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
 		case <-done:
-		case <-time.After(5 * time.Second):
-			return fmt.Errorf("wait for killed celld process")
+		case <-time.After(10 * time.Second):
+			if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				return fmt.Errorf("kill celld: %w", err)
+			}
+			select {
+			case <-done:
+			case <-cleanupCtx.Done():
+				return fmt.Errorf("wait for killed celld process: %w", cleanupCtx.Err())
+			}
 		}
-	case <-done:
 	}
-	removeEphemeralWatch(watchDir)
-	return nil
+
+	m.mu.Lock()
+	if m.processes[k] == p {
+		delete(m.processes, k)
+		if releasePort {
+			delete(m.ports, k)
+		}
+	}
+	m.mu.Unlock()
+	return removeEphemeralWatch(watchDir)
+}
+
+func celldLogPath(project, version string) string {
+	component := func(v string) string {
+		return base64.RawURLEncoding.EncodeToString([]byte(v))
+	}
+	return filepath.Join(os.TempDir(), fmt.Sprintf("celld-%s-%s.log", component(project), component(version)))
 }
 
 func waitForTCPPortFree(host string, port int, maxWait time.Duration) error {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	deadline := time.Now().Add(maxWait)
 	for {
 		c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)

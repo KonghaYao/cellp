@@ -2,17 +2,17 @@ package contract
 
 // Version lifecycle statuses (additive to DESIGN §2.5).
 const (
-	StatusPending      = "pending"
-	StatusFetching     = "fetching"
-	StatusBranching    = "branching"
-	StatusPreparing    = "preparing"
-	StatusDeploying    = "deploying"
-	StatusDeployReady  = "deploy_ready"
-	StatusReady        = "ready"
-	StatusArchived     = "archived"
-	StatusDraining     = "draining"
-	StatusDestroyed    = "destroyed"
-	StatusFailed       = "failed"
+	StatusPending     = "pending"
+	StatusFetching    = "fetching"
+	StatusBranching   = "branching"
+	StatusPreparing   = "preparing"
+	StatusDeploying   = "deploying"
+	StatusDeployReady = "deploy_ready"
+	StatusReady       = "ready"
+	StatusArchived    = "archived"
+	StatusDraining    = "draining"
+	StatusDestroyed   = "destroyed"
+	StatusFailed      = "failed"
 )
 
 // AllVersionStatuses lists every known status for validation and OpenAPI alignment.

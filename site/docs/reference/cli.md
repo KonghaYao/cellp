@@ -63,7 +63,7 @@ Orchestrator tuning (optional):
 | `CELLP_LENIENT_DEPLOY=1` | Local-only: warn on branch/offshoot failures ([Environment variables](/guides/environment-variables)) |
 | `CELLP_ARCHIVE_IDLE` / `CELLP_ARCHIVE_GRACE` | Idle archive and post-promote pin ([Archive](/concepts/archive)) |
 | `CELLP_ARCHIVE_REAPER=0` | Disable idle archive ticker |
-| `CELLP_ELASTIC_RUNTIME` | Elastic serving **off** by default ([Limits](/reference/limits)) |
+| `CELLP_ELASTIC_RUNTIME` | **Unsupported internal E1–E5 scaffold; leave unset.** It has no remote HTTP+mTLS Agent, real celld lifecycle, Scheduler/complete 0→N, or production-readiness ([Limits](/reference/limits)) |
 
 Worker env per version is **not** configured here — use the API or [Environment variables](/guides/environment-variables).
 

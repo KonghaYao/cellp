@@ -31,7 +31,7 @@
 | 9 | **Registry** | SQLite：project · version · route · prod 指针 · jobs |
 | 10 | **Dashboard** | 运维 UI；**仅**消费 cellpd `:8790` REST API |
 | 11 | **可观测（AD-14）** | OTLP 发射 + 查询门面；后端可换（`memory`…`lgtm-prod`）；**不做**自研 Analytics |
-| 12 | **弹性 Serving（AD-15）** | `0..N` replica · 安全 scale-to-zero；`CELLP_ELASTIC_RUNTIME` 默认关；分阶段 E1–E5 |
+| 12 | **弹性 Serving（AD-15）** | `0..N` replica · 安全 scale-to-zero；cellpd **单轨** scheduler+agent；分阶段 E1–E5 |
 
 完整否定清单与边界论证见 **[docs/decisions.md §15 AD-10](./docs/decisions.md#15-ad-10--产品边界权威否定与核心范畴)**。
 
@@ -139,7 +139,7 @@ flowchart TB
 
 权威可观测设计：**[docs/plans/OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)**（AD-14）。cellpd **不**内嵌检索引擎。
 
-权威弹性 Serving：**[docs/decisions.md §20 AD-15](./docs/decisions.md#20-ad-15--elastic-serving-fleet-与安全-scale-to-zero)**（决策摘要）· 设计包索引 **[docs/plans/SURGE-DESIGN-INDEX.md](./docs/plans/SURGE-DESIGN-INDEX.md)**（WP/DAG · E0–E5 门禁）。默认 `CELLP_ELASTIC_RUNTIME=0`；**不**替代 AD-1 每 version 独立 bucket / AD-5 promote saga。
+权威弹性 Serving：**[docs/decisions.md §20 AD-15](./docs/decisions.md#20-ad-15--elastic-serving-fleet-与安全-scale-to-zero)**（决策摘要）· 设计包索引 **[docs/plans/SURGE-DESIGN-INDEX.md](./docs/plans/SURGE-DESIGN-INDEX.md)**（WP/DAG · E0–E5 门禁）。`cellpd` 已移除 legacy fleet reconciler；显式 `CELLP_ELASTIC_RUNTIME=off` 拒绝启动；**不**替代 AD-1 每 version 独立 bucket / AD-5 promote saga。
 
 ### 2.2 确认技术栈（私有化 · 官方依据）
 
@@ -776,7 +776,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 | 生命周期 | 保留 `ready`；additive `deploy_ready`；cold 与 `archived` 互斥 |
 | 控制面 | ServingPolicy / Desire / RuntimeReplica / RouteSnapshot；E1/E2 单 active writer |
 | 运行时 | Node Agent（HTTP+mTLS）；Gateway 原子 route snapshot |
-| 开关 | `CELLP_ELASTIC_RUNTIME` 默认 **关闭**；未过 gate 不得宣称多 replica 生产就绪 |
+| 开关 | 弹性控制面 **常开**；`CELLP_ELASTIC_RUNTIME=off` 失败关闭；未过 gate 不得宣称多 replica 生产就绪 |
 
 **验证：** SURGE 包 [12-test-concurrency-and-evidence](./docs/plans/12-test-concurrency-and-evidence.md) · [14-adoption-gates-and-rollback](./docs/plans/14-adoption-gates-and-rollback.md)；现行 M1/M2 仍优先。
 
