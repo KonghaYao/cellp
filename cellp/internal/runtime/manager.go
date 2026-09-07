@@ -222,8 +222,8 @@ func (m *Manager) startOnPortLocked(ctx context.Context, project, version, host 
 		m.mu.Unlock()
 		return host, port, nil
 	}
-	if err := waitForTCPPortFree(host, port, 0); err != nil {
-		return "", 0, err
+	if err := waitForTCPPortFree(host, port, 15*time.Second); err != nil {
+		return "", 0, fmt.Errorf("start celld: %w", err)
 	}
 
 	bucket := m.versionBucket(project, version)
