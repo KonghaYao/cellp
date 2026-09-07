@@ -19,7 +19,6 @@ VA_VALUE="native-va"
 VB_VALUE="native-vb"
 OP_VALUE="operator-to-native"
 GREETING_EXPECTED="hello-native"
-DELETE_KEY="native-delete-key"
 SAFETY_DEADLINE_MS="${NATIVE_E2E_DEADLINE_MS:-400}"
 SAFETY_GRACE_MS="${NATIVE_E2E_GRACE_MS:-250}"
 CANCEL_SLACK_MS="${NATIVE_E2E_CANCEL_SLACK_MS:-150}"
@@ -196,10 +195,6 @@ stage_worker_example "$JS_EXAMPLE" "${ARTIFACTS_DIR}/${PROJECT}/${VJ}"
 
 create_version "$PROJECT" "$VA" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VA" ready 120 >/dev/null
-create_version "$PROJECT" "$VB" | jq -r .id >/dev/null
-poll_version "$PROJECT" "$VB" ready 120 >/dev/null
-create_version "$PROJECT" "$VS" | jq -r .id >/dev/null
-poll_version "$PROJECT" "$VS" ready 120 >/dev/null
 
 # TP-NATIVE-HTTP/BIND: guest write through the formal Gateway Host path, then
 # prove the same bytes through both guest HTTP and the cellpd operator API.
@@ -223,24 +218,28 @@ GUEST_VALUE=$(curl_version "$PROJECT" "$VA" "/${OP_KEY}")
 [[ "$GUEST_VALUE" == "$OP_VALUE" ]] || fail "guest did not observe operator KV write"
 log "real KV guest/operator bidirectional PASS"
 
-# Guest DELETE -> operator miss; operator DELETE -> guest miss.
-curl_version_method PUT "$PROJECT" "$VA" "/${DELETE_KEY}" --data-binary "delete-me" >/dev/null
-curl_version_method DELETE "$PROJECT" "$VA" "/${DELETE_KEY}" >/dev/null
-api_status GET "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${DELETE_KEY}"
+# Guest DELETE -> operator miss; operator DELETE -> guest miss (reuse OP_KEY from bidirectional).
+curl_version_method DELETE "$PROJECT" "$VA" "/${OP_KEY}" >/dev/null
+api_status GET "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}"
 [[ "$API_STATUS" == "404" ]] \
   || fail "operator GET after guest DELETE expected 404, got ${API_STATUS}: ${API_BODY}"
-[[ "$(http_code_version "$PROJECT" "$VA" "/${DELETE_KEY}")" == "404" ]] \
+[[ "$(http_code_version "$PROJECT" "$VA" "/${OP_KEY}")" == "404" ]] \
   || fail "guest GET after guest DELETE expected 404"
-api_status PUT "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${DELETE_KEY}" \
+api_status PUT "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}" \
   "$(jq -n --arg value "operator-delete" '{value:$value}')"
 [[ "$API_STATUS" == "200" || "$API_STATUS" == "204" ]] \
   || fail "operator PUT before DELETE -> HTTP ${API_STATUS}: ${API_BODY}"
-api_status DELETE "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${DELETE_KEY}"
+api_status DELETE "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}"
 [[ "$API_STATUS" == "200" || "$API_STATUS" == "204" ]] \
   || fail "operator DELETE -> HTTP ${API_STATUS}: ${API_BODY}"
-[[ "$(http_code_version "$PROJECT" "$VA" "/${DELETE_KEY}")" == "404" ]] \
+[[ "$(http_code_version "$PROJECT" "$VA" "/${OP_KEY}")" == "404" ]] \
   || fail "guest GET after operator DELETE expected 404"
 log "real KV delete guest/operator PASS"
+
+create_version "$PROJECT" "$VB" | jq -r .id >/dev/null
+poll_version "$PROJECT" "$VB" ready 120 >/dev/null
+create_version "$PROJECT" "$VS" | jq -r .id >/dev/null
+poll_version "$PROJECT" "$VS" ready 120 >/dev/null
 
 # TP-NATIVE-ISOL: sibling starts empty, may use the same key, and cannot mutate VA.
 api_status GET "/v1/projects/${PROJECT}/versions/${VB}/kv/${NS}/keys/${KEY}"
