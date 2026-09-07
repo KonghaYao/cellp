@@ -59,8 +59,12 @@ func (g *Gateway) tryElasticReadyProxy(w http.ResponseWriter, r *http.Request, b
 	if policy == nil || !policy.ElasticEnrolled {
 		return false
 	}
-	g.writeActivationResponse(w, activator.AdmitResult{Reason: activator.ReasonControlUnavailable})
-	return true
+	version, err := g.store.GetVersion(r.Context(), projectID, versionID)
+	if err != nil || version == nil {
+		g.writeActivationResponse(w, activator.AdmitResult{Reason: activator.ReasonControlUnavailable})
+		return true
+	}
+	return g.runElasticColdWake(w, r, binding, version)
 }
 
 func (g *Gateway) proxySnapshotUpstream(w http.ResponseWriter, r *http.Request, binding *registry.IngressBinding, projectID, versionID, upstream string) bool {
@@ -79,11 +83,23 @@ func (g *Gateway) proxySnapshotUpstream(w http.ResponseWriter, r *http.Request, 
 
 // tryColdActivator returns true if the request was fully handled.
 func (g *Gateway) tryColdActivator(w http.ResponseWriter, r *http.Request, binding *registry.IngressBinding, version *registry.Version) bool {
-	act := g.elasticActivator()
-	if act == nil || !act.Enabled() {
+	if version == nil || version.Status != registry.StatusDeployReady {
 		return false
 	}
-	if version == nil || version.Status != registry.StatusDeployReady {
+	return g.runElasticColdWake(w, r, binding, version)
+}
+
+func elasticColdWakeEligible(version *registry.Version) bool {
+	if version == nil || version.ReadyAt == nil {
+		return false
+	}
+	return version.Status == registry.StatusDeployReady || version.Status == registry.StatusReady
+}
+
+// runElasticColdWake bumps desired capacity and polls the immutable snapshot for a warm endpoint.
+func (g *Gateway) runElasticColdWake(w http.ResponseWriter, r *http.Request, binding *registry.IngressBinding, version *registry.Version) bool {
+	act := g.elasticActivator()
+	if act == nil || !act.Enabled() || !elasticColdWakeEligible(version) {
 		return false
 	}
 	projectID, versionID := version.ProjectID, version.ID
@@ -94,10 +110,6 @@ func (g *Gateway) tryColdActivator(w http.ResponseWriter, r *http.Request, bindi
 	}
 	if policy == nil || !policy.ElasticEnrolled {
 		return false
-	}
-	if version.ReadyAt == nil {
-		g.writeActivationResponse(w, activator.AdmitResult{Reason: activator.ReasonVersionNotReady})
-		return true
 	}
 	lookup := func() (string, bool) {
 		return g.snapshots.LookupElasticUpstream(projectID, versionID)
@@ -114,7 +126,7 @@ func (g *Gateway) tryColdActivator(w http.ResponseWriter, r *http.Request, bindi
 	if desired != nil {
 		desiredGen = desired.Generation
 	}
-	res := act.Admit(r.Context(), r, projectID, versionID, registry.StatusDeployReady, desiredGen, lookup)
+	res := act.Admit(r.Context(), r, projectID, versionID, version.Status, desiredGen, lookup)
 	if res.AllowProxy && res.Upstream != "" {
 		metrics.RecordActivatorResult("", true)
 		return g.proxySnapshotUpstream(w, r, binding, projectID, versionID, res.Upstream)

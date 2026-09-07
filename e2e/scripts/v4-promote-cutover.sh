@@ -13,6 +13,7 @@ PROJECT="${DEV_PROJECT}"
 V_OLD="$(unique_id)"
 V_NEW="$(unique_id)"
 MAX_DUAL_MS=2000
+MAX_CUTOVER_MS=5000
 PROD_H="$(prod_host "$PROJECT")"
 
 log "V4 promote cutover project=${PROJECT} prod_host=${PROD_H}"
@@ -66,6 +67,9 @@ fi
 
 if [[ "$ELAPSED" -gt "$MAX_DUAL_MS" ]]; then
   echo "WARN: cutover took ${ELAPSED}ms > ${MAX_DUAL_MS}ms" >&2
+fi
+if [[ "$ELAPSED" -gt "$MAX_CUTOVER_MS" ]]; then
+  fail "cutover took ${ELAPSED}ms > ${MAX_CUTOVER_MS}ms"
 fi
 
 if [[ -n "$PROD_BODY" ]]; then

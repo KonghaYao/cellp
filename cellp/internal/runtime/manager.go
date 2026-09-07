@@ -212,7 +212,7 @@ func (m *Manager) Restart(ctx context.Context, project, version string) error {
 		return err
 	}
 	if celldInstalled {
-		if err := waitForTCPPortFree("127.0.0.1", port, 15*time.Second); err != nil {
+		if err := waitForTCPPortFree("127.0.0.1", port, celldListenPortSettle); err != nil {
 			return err
 		}
 	}
@@ -236,9 +236,17 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 
 	m.mu.Lock()
 	if p, ok := m.processes[k]; ok && processAlive(p.cmd) {
+		bindHost := p.bindHost
+		if bindHost == "" {
+			bindHost = "127.0.0.1"
+		}
 		runningPort := p.port
+		extHost := p.externalHost()
 		m.mu.Unlock()
-		return p.externalHost(), runningPort, nil
+		if err := m.waitCelldHealthy(ctx, bindHost, runningPort); err != nil {
+			return "", 0, err
+		}
+		return extHost, runningPort, nil
 	}
 	var staleWatch string
 	if p, ok := m.processes[k]; ok {
@@ -261,8 +269,8 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 		m.mu.Unlock()
 		return returnHost, port, nil
 	}
-	if err := waitForTCPPortFree(bindHost, port, 0); err != nil {
-		return "", 0, err
+	if err := waitForTCPPortFree(bindHost, port, celldListenPortSettle); err != nil {
+		return "", 0, fmt.Errorf("start celld: %w", err)
 	}
 
 	args := []string{
@@ -347,18 +355,11 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 		}
 	}()
 
-	for i := 0; i < 60; i++ {
-		if m.Health(ctx, bindHost, port) {
-			ready = true
-			return returnHost, port, nil
-		}
-		select {
-		case <-ctx.Done():
-			return "", 0, ctx.Err()
-		case <-time.After(time.Second):
-		}
+	if err := m.waitCelldHealthy(ctx, bindHost, port); err != nil {
+		return "", 0, err
 	}
-	return returnHost, port, fmt.Errorf("celld health timeout on %s:%d", bindHost, port)
+	ready = true
+	return returnHost, port, nil
 }
 
 // CelldInstalled reports whether the celld binary is on PATH.
@@ -373,6 +374,31 @@ func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
 }
 
 const diagnoseTimeout = 30 * time.Second
+
+// Time to wait for a celld listen socket to be released after stop or before start.
+const celldListenPortSettle = 15 * time.Second
+
+const celldHealthPollAttempts = 60
+
+func (m *Manager) waitCelldHealthy(ctx context.Context, bindHost string, port int) error {
+	if !CelldInstalled() {
+		return nil
+	}
+	if bindHost == "" {
+		bindHost = "127.0.0.1"
+	}
+	for i := 0; i < celldHealthPollAttempts; i++ {
+		if m.Health(ctx, bindHost, port) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return fmt.Errorf("celld health timeout on %s:%d", bindHost, port)
+}
 
 func cappedContext(ctx context.Context, cap time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, cap)
@@ -887,6 +913,11 @@ func (m *Manager) stopManagedLocked(ctx context.Context, k string, releasePort b
 	}
 	watchDir := p.watchDir
 	cmd := p.cmd
+	bindHost := p.bindHost
+	listenPort := p.port
+	if bindHost == "" {
+		bindHost = "127.0.0.1"
+	}
 	m.mu.Unlock()
 
 	if cmd != nil && cmd.Process != nil {
@@ -908,6 +939,12 @@ func (m *Manager) stopManagedLocked(ctx context.Context, k string, releasePort b
 			case <-cleanupCtx.Done():
 				return fmt.Errorf("wait for killed celld process: %w", cleanupCtx.Err())
 			}
+		}
+	}
+
+	if cmd != nil && cmd.Process != nil && CelldInstalled() && listenPort > 0 {
+		if err := waitForTCPPortFree(bindHost, listenPort, celldListenPortSettle); err != nil {
+			return err
 		}
 	}
 

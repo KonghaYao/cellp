@@ -234,6 +234,13 @@ func (c *Controller) reconcileVersionServingStatus(ctx context.Context, pol regi
 		return nil
 	}
 	if version.Status == contract.StatusReady && pol.MinReplicas == 0 && desire.DesiredReplicas == 0 && !occupied {
+		route, err := c.Store.GetRoute(ctx, pol.ProjectID, pol.VersionID)
+		if err != nil {
+			return err
+		}
+		if route != nil && route.Active {
+			return nil
+		}
 		if err := c.checkGuard(ctx); err != nil {
 			return err
 		}

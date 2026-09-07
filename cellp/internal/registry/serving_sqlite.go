@@ -300,6 +300,13 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 	})
 }
 
+func activationDesiredEligible(status string, readyAtValid bool) bool {
+	if !readyAtValid {
+		return false
+	}
+	return status == contract.StatusDeployReady || status == contract.StatusReady
+}
+
 func (s *SQLiteStore) EnsureActivationDesired(ctx context.Context, projectID, versionID string, expectGen int64, desire ServingDesireRow, minReplicas int) error {
 	if strings.TrimSpace(projectID) == "" || strings.TrimSpace(versionID) == "" || minReplicas < 1 || desire.DesiredReplicas < minReplicas ||
 		(expectGen == 0 && desire.Generation != 1) || (expectGen > 0 && desire.Generation != expectGen+1) {
@@ -331,7 +338,7 @@ WHERE project_id = ? AND version_id = ?`, projectID, versionID).Scan(&maxReplica
 			}
 			return err
 		}
-		if status != contract.StatusDeployReady || !readyAt.Valid || versionEnrolled != 1 || policyEnrolled != 1 {
+		if !activationDesiredEligible(status, readyAt.Valid) || versionEnrolled != 1 || policyEnrolled != 1 {
 			return ErrActivationNotEligible
 		}
 		if maxReplicas < minReplicas {

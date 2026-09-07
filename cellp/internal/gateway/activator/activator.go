@@ -126,7 +126,7 @@ func (a *Activator) Shutdown(ctx context.Context) error {
 	return a.group.Shutdown(ctx)
 }
 
-// Admit handles deploy_ready+cold when elastic runtime is on.
+// Admit handles deploy_ready+cold and qualified ready+cold when elastic runtime is on.
 func (a *Activator) Admit(ctx context.Context, r *http.Request, projectID, versionID, versionStatus string, desiredGeneration int64, lookup EndpointLookup) AdmitResult {
 	if a == nil || !a.enabled {
 		return AdmitResult{AllowProxy: true}
@@ -134,7 +134,8 @@ func (a *Activator) Admit(ctx context.Context, r *http.Request, projectID, versi
 	if versionStatus == contract.StatusArchived {
 		return a.reject(ReasonVersionArchived)
 	}
-	if versionStatus != contract.StatusDeployReady {
+	coldEligible := versionStatus == contract.StatusDeployReady || versionStatus == contract.StatusReady
+	if !coldEligible {
 		return AdmitResult{AllowProxy: true}
 	}
 	if upstream, ok := lookupEndpoint(lookup); ok {

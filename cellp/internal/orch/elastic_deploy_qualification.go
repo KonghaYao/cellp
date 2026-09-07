@@ -21,7 +21,9 @@ const (
 	desireReasonDeployQualificationLegacy = "deploy_qualification"
 	desireReasonDeployFailed              = "deploy_failed"
 	desireReasonIdle                      = "idle"
-	defaultQualificationWait              = 30 * time.Second
+	desireReasonCronResident              = "cron_resident"
+	desireReasonPromoteActivate           = "promote_activate"
+	defaultQualificationWait              = 120 * time.Second
 	qualificationDesireCASAttempts        = 8
 )
 

@@ -70,7 +70,7 @@ func schedulerClientFactory(cfg config.ElasticConfig, materials transport.TLSMat
 
 func newElasticSchedulerController(store registry.ServingStore, guard scheduler.ControllerGuardChecker, cfg config.ElasticConfig, materials transport.TLSMaterials) *scheduler.Controller {
 	return &scheduler.Controller{
-		Store:   scheduler.RegistryStore{ServingStore: store},
+		Store:   scheduler.RegistryStoreFromServing(store),
 		Guard:   guard,
 		Clients: schedulerClientFactory(cfg, materials),
 	}

@@ -142,7 +142,7 @@ func TestControllerSingleNodeRealCelldScheduler(t *testing.T) {
 
 	clientTLS := transport.TLSMaterials{Cert: pki.client, RootCAs: pki.pool, ServerName: "127.0.0.1"}
 	ctrl := &Controller{
-		Store: RegistryStore{ServingStore: store}, Guard: NoopGuard{}, Now: func() time.Time { return now },
+		Store: RegistryStoreFromServing(store), Guard: NoopGuard{}, Now: func() time.Time { return now },
 		Clients: func(node contract.RuntimeNode) (RuntimeNodeClient, error) {
 			return transport.NewClient(transport.ClientConfig{
 				BaseURL: node.AgentBaseURL, ExpectedNodeURI: node.IdentityURI,

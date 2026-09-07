@@ -306,7 +306,7 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 	if err := o.assertDeployOperation(ctx, j); err != nil {
 		return err
 	}
-	if err := o.ensureDefaultElasticServingPolicy(ctx, j.ProjectID, j.VersionID); err != nil {
+	if err := o.ensureDefaultElasticServingPolicy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
 		return fmt.Errorf("serving policy: %w", err)
 	}
 	elasticQ := o.elasticQualificationEnabled(ctx, j.ProjectID, j.VersionID)
@@ -371,6 +371,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 		if err := o.finalizeQualificationIdleDesire(ctx, j); err != nil {
 			return fmt.Errorf("qualification idle: %w", err)
 		}
+		if err := o.ensureCronResidentDesire(ctx, j.ProjectID, j.VersionID, armCron, bundleDir); err != nil {
+			return fmt.Errorf("cron resident desire: %w", err)
+		}
 		if o.elasticSchedulerTick != nil {
 			if err := o.elasticSchedulerTick(ctx); err != nil {
 				return fmt.Errorf("post-qualification scheduler: %w", err)
@@ -384,6 +387,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 		if err := o.ensureProdIngress(ctx, j.ProjectID); err != nil {
 			log.Printf("orch: prod ingress warn: %v", err)
 		}
+	}
+	if err := o.ensureCronResidentDesire(ctx, j.ProjectID, j.VersionID, armCron, bundleDir); err != nil {
+		return fmt.Errorf("cron resident desire: %w", err)
 	}
 	return nil
 }
@@ -440,6 +446,7 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		if err := o.ensureProdIngress(ctx, projectID); err != nil {
 			log.Printf("orch: prod ingress warn: %v", err)
 		}
+		o.enqueueCronReconcileAfterProdChange(projectID, oldProd, versionID)
 		return nil
 	}
 
@@ -489,6 +496,11 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 	})
 
+	if err := o.ensurePromotedProdActivation(ctx, projectID, versionID); err != nil {
+		o.runCompensation(ctx, compensated)
+		return fmt.Errorf("promote activation: %w", err)
+	}
+
 	if err := o.ensureProdIngress(ctx, projectID); err != nil {
 		log.Printf("orch: prod ingress warn: %v", err)
 	}
@@ -496,10 +508,7 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		log.Printf("orch: prod PUBLIC_BASE_URL warn: %v", err)
 	}
 
-	if err := o.ReconcileCronAfterProdChange(ctx, projectID, oldProd, versionID); err != nil {
-		log.Printf("orch: cron reconcile after promote warn: %v", err)
-		return err
-	}
+	o.enqueueCronReconcileAfterProdChange(projectID, oldProd, versionID)
 
 	return nil
 }

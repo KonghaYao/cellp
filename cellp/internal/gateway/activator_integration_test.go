@@ -140,7 +140,7 @@ func TestActivatorRequestPathZeroToOneForwardsBodyOnce(t *testing.T) {
 
 	client := &activationSchedulerClient{store: store, upstream: upstreamURL}
 	ctrl := &scheduler.Controller{
-		Store: scheduler.RegistryStore{ServingStore: store}, Guard: scheduler.NoopGuard{},
+		Store: scheduler.RegistryStoreFromServing(store), Guard: scheduler.NoopGuard{},
 		Clients: func(contract.RuntimeNode) (scheduler.RuntimeNodeClient, error) { return client, nil },
 	}
 	schedulerDone := scheduler.Start(ctx, ctrl, scheduler.Config{Interval: time.Millisecond, Background: true}, nil)

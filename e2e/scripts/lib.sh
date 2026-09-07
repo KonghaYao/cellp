@@ -195,6 +195,33 @@ poll_version() {
   fail "timeout waiting for ${version} status=${want} (last=${status:-unknown})"
 }
 
+# celld_log_paths lists runtime celld log files for a version (matches cellp/internal/runtime celldLogPath encoding).
+celld_log_paths() {
+  local project="$1" version="$2"
+  python3 -c "
+import base64, glob, os, sys
+enc = lambda s: base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
+p, v = sys.argv[1], sys.argv[2]
+tmpdir = os.environ.get('TMPDIR', '/tmp')
+ve = enc(v)
+for path in sorted(glob.glob(os.path.join(tmpdir, f'celld-{enc(p)}-*'))):
+    if ve in os.path.basename(path):
+        print(path)
+" "$project" "$version"
+}
+
+# celld_version_log_ticks counts needle occurrences across all celld logs for a version.
+celld_version_log_ticks() {
+  local project="$1" version="$2" needle="$3"
+  local total=0 f n
+  while IFS= read -r f; do
+    [[ -n "$f" && -f "$f" ]] || continue
+    n=$(grep -c "$needle" "$f" 2>/dev/null || true)
+    total=$((total + n))
+  done < <(celld_log_paths "$project" "$version")
+  echo "$total"
+}
+
 create_version() {
   local project="$1"
   local version="$2"

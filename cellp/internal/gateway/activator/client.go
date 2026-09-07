@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	// ErrActivationNotEligible means the version is not an enrolled deploy_ready target.
+	// ErrActivationNotEligible means the version is not an enrolled cold-activation target.
 	ErrActivationNotEligible = errors.New("activator: version not eligible")
 	// ErrActivationNotQualified means the version never completed deploy qualification.
 	ErrActivationNotQualified = errors.New("activator: version not qualified")
@@ -61,7 +61,7 @@ func (c *RegistryEnsureClient) EnsureCapacity(ctx context.Context, projectID, ve
 		if err != nil {
 			return err
 		}
-		if version == nil || version.Status != contract.StatusDeployReady {
+		if version == nil || !activationCapacityStatusEligible(version.Status) {
 			return ErrActivationNotEligible
 		}
 		if version.ReadyAt == nil {
@@ -122,6 +122,10 @@ func (c *RegistryEnsureClient) EnsureCapacity(ctx context.Context, projectID, ve
 		return err
 	}
 	return registry.ErrDesiredCASConflict
+}
+
+func activationCapacityStatusEligible(status string) bool {
+	return status == contract.StatusDeployReady || status == contract.StatusReady
 }
 
 func (c *RegistryEnsureClient) guard(ctx context.Context) error {

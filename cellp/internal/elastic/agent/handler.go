@@ -96,11 +96,13 @@ func (h *Handler) StartReplica(ctx context.Context, spec contract.StartReplicaSp
 	}
 	command := claim.Command
 	leaseCommand := command
-	operationCtx, cancelOperation := context.WithCancel(ctx)
-	defer cancelOperation()
+	const startReplicaWorkTimeout = 120 * time.Second
+	workCtx, cancelWork := context.WithTimeout(context.WithoutCancel(ctx), startReplicaWorkTimeout)
+	defer cancelWork()
+	renewCtx := context.WithoutCancel(ctx)
 	ownershipLost := make(chan struct{})
 	var ownershipOnce sync.Once
-	loseOwnership := func() { ownershipOnce.Do(func() { close(ownershipLost); cancelOperation() }) }
+	loseOwnership := func() { ownershipOnce.Do(func() { close(ownershipLost); cancelWork() }) }
 	checkOwnership := func() error {
 		select {
 		case <-ownershipLost:
@@ -122,10 +124,10 @@ func (h *Handler) StartReplica(ctx context.Context, spec contract.StartReplicaSp
 		defer ticker.Stop()
 		for {
 			select {
-			case <-operationCtx.Done():
+			case <-workCtx.Done():
 				return
 			case <-ticker.C:
-				if err := h.store.RenewAgentCommandLease(operationCtx, leaseCommand, h.now().UTC().Add(h.commandLease)); err != nil {
+				if err := h.store.RenewAgentCommandLease(renewCtx, leaseCommand, h.now().UTC().Add(h.commandLease)); err != nil {
 					loseOwnership()
 					return
 				}
@@ -136,7 +138,7 @@ func (h *Handler) StartReplica(ctx context.Context, spec contract.StartReplicaSp
 	// A prior attempt may have committed readiness before losing its command lease.
 	// Never regress that healthy assignment: verify exact backend identity and finish atomically.
 	if rep.State == contract.ReplicaReady {
-		live, probeErr := h.backend.Probe(operationCtx, spec.Scope)
+		live, probeErr := h.backend.Probe(workCtx, spec.Scope)
 		if probeErr != nil || !backendMatches(*rep, live) {
 			return contract.RuntimeReplica{}, &CommandError{Reason: contract.ReasonColdActivating, Message: "ready replica verification unavailable"}
 		}
@@ -176,25 +178,25 @@ func (h *Handler) StartReplica(ctx context.Context, spec contract.StartReplicaSp
 		}
 		return contract.RuntimeReplica{}, errors.Join(append(joined, persistErrs...)...)
 	}
-	if err := h.backend.Diagnose(operationCtx, spec); err != nil {
+	if err := h.backend.Diagnose(workCtx, spec); err != nil {
 		return fail(contract.ReasonSnapshotUnavailable, err, false)
 	}
 	if err := checkOwnership(); err != nil {
 		return contract.RuntimeReplica{}, h.commandStoreError(err)
 	}
 	if rep.State == contract.ReplicaPending || rep.State == contract.ReplicaFailed || rep.State == contract.ReplicaStopped {
-		if err := h.record(operationCtx, *rep, contract.ReplicaStarting, "", 0); err != nil {
+		if err := h.record(workCtx, *rep, contract.ReplicaStarting, "", 0); err != nil {
 			return fail(contract.ReasonGenerationStale, err, false)
 		}
 	}
-	host, port, err := h.backend.Start(operationCtx, spec)
+	host, port, err := h.backend.Start(workCtx, spec)
 	if err != nil {
 		return fail(contract.ReasonSnapshotUnavailable, err, true)
 	}
 	if err := checkOwnership(); err != nil {
 		return contract.RuntimeReplica{}, h.commandStoreError(err)
 	}
-	live, err := h.backend.Probe(operationCtx, spec.Scope)
+	live, err := h.backend.Probe(workCtx, spec.Scope)
 	if err != nil || !live.Healthy || live.Host != host || live.Port != port || !backendIdentityMatches(*rep, live) {
 		return fail(contract.ReasonSnapshotUnavailable, err, true)
 	}
@@ -419,6 +421,12 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 		valid[rep.ReplicaID] = rep
 		item, running := local[rep.ReplicaID]
 		identityHealthy := running && backendMatches(rep, item)
+		if identityHealthy && rep.State != contract.ReplicaDraining {
+			if err := h.recordReadyIfRunning(ctx, &rep, item.Host, item.Port); err != nil {
+				allErrs = append(allErrs, fmt.Errorf("record ready replica %s: %w", rep.ReplicaID, err))
+			}
+			continue
+		}
 		if rep.State == contract.ReplicaDraining && !running {
 			if err := h.store.TerminalizeReplica(ctx, rep.ReplicaID, rep.NodeID, rep.Generation, contract.ReplicaStopped); err != nil {
 				allErrs = append(allErrs, fmt.Errorf("terminalize drained replica %s: %w", rep.ReplicaID, err))
@@ -433,14 +441,6 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 			if rep.State != contract.ReplicaStopped {
 				if err := h.record(ctx, rep, contract.ReplicaStopped, "", 0); err != nil {
 					allErrs = append(allErrs, fmt.Errorf("terminalize cleaned replica %s: %w", rep.ReplicaID, err))
-				}
-			}
-			continue
-		}
-		if identityHealthy {
-			if rep.State == contract.ReplicaStarting {
-				if err := h.record(ctx, rep, contract.ReplicaReady, item.Host, item.Port); err != nil {
-					allErrs = append(allErrs, fmt.Errorf("record ready replica %s: %w", rep.ReplicaID, err))
 				}
 			}
 			continue
@@ -467,11 +467,9 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 			allErrs = append(allErrs, fmt.Errorf("diagnose replica %s: %w", rep.ReplicaID, err))
 			continue
 		}
-		if rep.State == contract.ReplicaPending {
-			if err := h.record(ctx, rep, contract.ReplicaStarting, "", 0); err != nil {
-				allErrs = append(allErrs, fmt.Errorf("record starting replica %s: %w", rep.ReplicaID, err))
-				continue
-			}
+		if err := h.recordStartingIfNeeded(ctx, &rep); err != nil {
+			allErrs = append(allErrs, fmt.Errorf("record starting replica %s: %w", rep.ReplicaID, err))
+			continue
 		}
 		host, port, startErr := h.backend.Start(ctx, spec)
 		if startErr != nil {
@@ -484,10 +482,14 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 		if probeErr != nil || !probe.Healthy || probe.Host != host || probe.Port != port || !backendIdentityMatches(rep, probe) {
 			stopErr := h.backend.Stop(ctx, startScope)
 			recordErr := h.store.TerminalizeReplica(ctx, rep.ReplicaID, rep.NodeID, rep.Generation, contract.ReplicaFailed)
-			allErrs = append(allErrs, errors.Join(fmt.Errorf("probe replica %s: %w", rep.ReplicaID, probeErr), stopErr, recordErr))
+			probeFail := probeErr
+			if probeFail == nil {
+				probeFail = errors.New("probe verification failed")
+			}
+			allErrs = append(allErrs, errors.Join(fmt.Errorf("probe replica %s: %w", rep.ReplicaID, probeFail), stopErr, recordErr))
 			continue
 		}
-		if err := h.record(ctx, rep, contract.ReplicaReady, host, port); err != nil {
+		if err := h.recordReadyIfRunning(ctx, &rep, host, port); err != nil {
 			allErrs = append(allErrs, fmt.Errorf("record ready replica %s: %w", rep.ReplicaID, err))
 		}
 	}
@@ -584,6 +586,38 @@ func (h *Handler) assignment(ctx context.Context, scope contract.CommandScope) (
 		return nil, errReplicaNotFound
 	}
 	return rep, nil
+}
+
+func (h *Handler) recordStartingIfNeeded(ctx context.Context, rep *contract.RuntimeReplica) error {
+	switch rep.State {
+	case contract.ReplicaStarting, contract.ReplicaReady:
+		return nil
+	case contract.ReplicaPending, contract.ReplicaFailed, contract.ReplicaStopped:
+		if err := h.record(ctx, *rep, contract.ReplicaStarting, "", 0); err != nil {
+			if errors.Is(err, registry.ErrReplicaTransitionInvalid) {
+				return nil
+			}
+			return err
+		}
+		rep.State = contract.ReplicaStarting
+		return nil
+	default:
+		return nil
+	}
+}
+
+func (h *Handler) recordReadyIfRunning(ctx context.Context, rep *contract.RuntimeReplica, host string, port int) error {
+	if rep.State == contract.ReplicaReady {
+		return h.record(ctx, *rep, contract.ReplicaReady, host, port)
+	}
+	if err := h.recordStartingIfNeeded(ctx, rep); err != nil {
+		return err
+	}
+	if err := h.record(ctx, *rep, contract.ReplicaReady, host, port); err != nil {
+		return err
+	}
+	rep.State = contract.ReplicaReady
+	return nil
 }
 
 func (h *Handler) record(ctx context.Context, rep contract.RuntimeReplica, state contract.ReplicaState, host string, port int) error {

@@ -150,6 +150,57 @@ func setupLifecycleWithOptions(t *testing.T, opts registry.OpenOptions) (*regist
 	}
 }
 
+func TestReconcileFailedReplicaWithLiveProcessPromotesReady(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	h := NewLifecycleFromRegistry(true, store, backend)
+	spec := contract.StartReplicaSpec{Scope: scope, Bucket: "s3://cellp-celld/demo/v1"}
+	if _, err := h.StartReplica(ctx, spec, "start-1"); err != nil {
+		t.Fatal(err)
+	}
+	backend.healthy = false
+	probe := scope
+	probe.Action = contract.ActionProbeReplica
+	if _, err := h.ProbeReplica(ctx, probe); err != nil {
+		t.Fatal(err)
+	}
+	backend.healthy = true
+	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	rep, err := store.ValidateAgentAssignment(ctx, scope, time.Now().UTC())
+	if err != nil || rep == nil || rep.State != contract.ReplicaReady {
+		t.Fatalf("after reconcile: rep=%+v err=%v", rep, err)
+	}
+}
+
+func TestReconcileRestartFromFailedRecordsStartingBeforeReady(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	h := NewLifecycleFromRegistry(true, store, backend)
+	spec := contract.StartReplicaSpec{Scope: scope, Bucket: "s3://cellp-celld/demo/v1"}
+	if _, err := h.StartReplica(ctx, spec, "start-1"); err != nil {
+		t.Fatal(err)
+	}
+	backend.healthy = false
+	probe := scope
+	probe.Action = contract.ActionProbeReplica
+	if _, err := h.ProbeReplica(ctx, probe); err != nil {
+		t.Fatal(err)
+	}
+	delete(backend.inventory, scope.ReplicaID)
+	backend.healthy = true
+	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	rep, err := store.ValidateAgentAssignment(ctx, scope, time.Now().UTC())
+	if err != nil || rep == nil || rep.State != contract.ReplicaReady {
+		t.Fatalf("after reconcile restart: rep=%+v err=%v", rep, err)
+	}
+}
+
 func TestLifecycleStartDiagnoseReadyAndDurableReplay(t *testing.T) {
 	ctx := context.Background()
 	store, scope := setupLifecycle(t)

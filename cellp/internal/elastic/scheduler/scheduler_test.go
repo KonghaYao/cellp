@@ -159,7 +159,7 @@ func newSchedulerFixture(t *testing.T, desired int, nodes ...contract.RuntimeNod
 		clients[node.NodeID] = &recordingClient{store: store}
 	}
 	ctrl := &Controller{
-		Store: RegistryStore{ServingStore: store}, Guard: NoopGuard{}, Now: func() time.Time { return now },
+		Store: RegistryStoreFromServing(store), Guard: NoopGuard{}, Now: func() time.Time { return now },
 		Clients: func(node contract.RuntimeNode) (RuntimeNodeClient, error) {
 			client := clients[node.NodeID]
 			if client == nil {
@@ -332,7 +332,7 @@ func TestControllerFencesNodeGenerationAndRegistryUncertainty(t *testing.T) {
 	if failed != 1 || ready != 1 {
 		t.Fatalf("node-generation replacement: %+v", reps)
 	}
-	fault := &faultStore{Store: RegistryStore{ServingStore: fix.store}, listNodesErr: errors.New("registry unavailable")}
+	fault := &faultStore{Store: RegistryStoreFromServing(fix.store), listNodesErr: errors.New("registry unavailable")}
 	ctrl := *fix.ctrl
 	ctrl.Store = fault
 	startsBefore, _, drainsBefore, stopsBefore := fix.clients["n1"].counts()
@@ -693,7 +693,7 @@ func TestControllerDispatchesThroughRealMTLSAgent(t *testing.T) {
 	}
 	clientMaterials := transport.TLSMaterials{Cert: pki.client, RootCAs: pki.pool, ServerName: "127.0.0.1"}
 	ctrl := &Controller{
-		Store: RegistryStore{ServingStore: store}, Guard: NoopGuard{}, Now: func() time.Time { return now },
+		Store: RegistryStoreFromServing(store), Guard: NoopGuard{}, Now: func() time.Time { return now },
 		Clients: func(node contract.RuntimeNode) (RuntimeNodeClient, error) {
 			return transport.NewClient(transport.ClientConfig{
 				BaseURL: node.AgentBaseURL, ExpectedNodeURI: node.IdentityURI,

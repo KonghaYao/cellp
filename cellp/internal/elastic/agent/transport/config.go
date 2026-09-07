@@ -14,10 +14,10 @@ import (
 
 const (
 	defaultMaxBodyBytes  = 1 << 20 // 1 MiB
-	defaultReadTimeout   = 15 * time.Second
-	defaultWriteTimeout  = 15 * time.Second
+	defaultReadTimeout   = 90 * time.Second
+	defaultWriteTimeout  = 90 * time.Second
 	defaultIdleTimeout   = 60 * time.Second
-	defaultClientTimeout = 30 * time.Second
+	defaultClientTimeout = 90 * time.Second
 	maxIdempotencyKeyLen = 128
 	headerIdempotencyKey = "Cellp-Idempotency-Key"
 )
