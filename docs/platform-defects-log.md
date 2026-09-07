@@ -265,7 +265,7 @@ no-patch Pages Router 新 preview稳定复现：rewrite 页面无 `SSR`；`/rewr
 
 **2026-09-07 对照：** `run-opennext-official-e2e.sh --only pages-router --compat-patch`（S30 bundle 补丁 + stage `.next/*.json` + celld no_bundle `*.json` data module）→ **36 passed / 1 skipped**，rewrite/trailing 全绿。日志 `docs/evidence/opennext-official-e2e-20260907-143952-70936.log`。
 
-**2026-09-07 celld 补丁下沉（`opennext_compat` + ingress `Location` / 绝对 `request.url` slash）：** 同一官方 no-patch harness → **11 passed / 25 failed**（trailing `happy=true`、rewrite merge 等仍红）。说明 S30 中 **Worker 内** `req.url = pathname + query`、`normalizeRepeatedSlashes2` 于 edge handler、rewrite 子 fetch 等仍须 bundle 补丁或更深 runtime hook；celld 边界下沉 alone 不足。日志 `docs/evidence/opennext-official-e2e-20260907-145334-74571.log` · celld `805bc50`。
+**2026-09-07 celld 补丁下沉（`opennext_compat` + ingress `Location` / 绝对 `request.url` slash）：** 同一官方 no-patch harness → **11 passed / 25 failed**（trailing `happy=true`、rewrite merge 等仍红）。说明 S30 中 **Worker 内** `req.url = pathname + query`、`normalizeRepeatedSlashes2` 于 edge handler、rewrite 子 fetch 等仍须 bundle 补丁或更深 runtime hook；celld 边界下沉 alone 不足。逐项对照见 [NEXT-OPENNEXT-CELLP.md §补丁下沉矩阵](./plans/NEXT-OPENNEXT-CELLP.md#补丁下沉矩阵s30--celld)。日志 `docs/evidence/opennext-official-e2e-20260907-145334-74571.log` · celld `805bc50`。
 
 **证据：** `docs/evidence/opennext-official-pages-router-v-oncf-pages-router-1788614929-19670.log` · `docs/evidence/opennext-official-wrangler-pages-baseline-20260905.log`
 

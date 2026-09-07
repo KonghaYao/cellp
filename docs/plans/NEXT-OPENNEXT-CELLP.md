@@ -125,9 +125,38 @@ Playwright `--list` 是分母权威：**119 declarations，5 个上游 `test.ski
 
 **验证待办（低成本）：**
 
-1. Pages fixture：临时去掉 `SKIP_PATCH` 重跑 3 个失败用例 → 若全绿则确认 PD-04 为 patch-gap 而非未知 celld bug。  
+1. ~~Pages fixture：临时去掉 `SKIP_PATCH` 重跑~~ → **已完成**：`--compat-patch` **36/36**；celld `opennext_compat` alone **11/36**（见下节矩阵）。  
 2. App+Pages：`curl` `/api/host` 对比 Gateway vs public Host，抓 celld 日志里 `Invalid Server Actions request`。  
 3. cellp 仓库：`git submodule status celld` 与 `~/.local/bin/celld` 是否同一 lab 构建。
+
+#### 补丁下沉矩阵（S30 ↔ celld）
+
+来源：`dev/examples/support-opennext/prepare-artifact.sh`（`CELLP_OPENNEXT_SKIP_PATCH=1` 时跳过整段 bundle 补丁）。官方 Pages 对照：**compat-patch 36/36**（`opennext-official-e2e-20260907-143952-70936.log`）· **celld `805bc50` alone 11/36**（`opennext-official-e2e-20260907-145334-74571.log`）。
+
+| # | S30 补丁（标记） | 解决什么 | celld 现状 | Pages e2e 影响 | 下沉优先级 |
+|---|------------------|----------|------------|----------------|------------|
+| 1 | `normalizeLocationHeader` 整函数 | 同源 `Location` 相对化；`?`/`//`/空 → `/`；保留 query | `opennext_compat::normalize_worker_location`，仅 HTTP **出站** `runtime_response` | 只覆盖 celld→客户端的 `Location`；OpenNext **内部** redirect/rewrite 仍走 JS | 中（子 fetch/DO 回包若不经 `runtime_response` 仍缺口） |
+| 2 | `__cellpParseRel` | 解析相对 Location 时 `?`/`//` → `/` | 未下沉（JS parse） | trailing 间接 | 低 |
+| 3 | `Location: normalizeRepeatedSlashes` → `+ normalizeLocationHeader(..., event.url)` | slash redirect 的 `Location` 带 query | 出站 `Location` 有 #1；无 bundle 内 `event.url` 组合 | **trailing `happy=true`** 仍红 | 高 |
+| 4 | `__cellpSlashPath` | Pages `handleRequestImpl`：绝对 `req.url` 取 pathname 再判双斜杠 | **部分**：ingress `request.url` 用 `normalize_worker_request_url`；Worker 内仍可能用整段绝对 URL | 与 #5/#6 叠加才绿 | 高 |
+| 5 | `cleanUrl` 308 redirect | 用 `__cellpSlashPath` 而非 `normalizeRepeatedSlashes(req.url)` | 未下沉（Worker 内 `res.redirect`） | SSR/redirect 类失败 | 高 |
+| 6 | `normalizeRepeatedSlashes2` | `https://…` 时折叠 origin+pathname | **部分**：仅 ingress 一次；rewrite **子请求**、内部 `event.url` 无 | **rewrite merge `b=2`** 等 | **最高**（与 #7 同为 PD-04 主因） |
+| 7 | `req.url = pathname + query` | Pages handler 见 **相对** path+query（CF 语义） | 未下沉；celld 仍给 **绝对** `scheme://host/…` | PD-04 核心 | **最高** |
+| 8 | `handleRequest` rawPath `!== "/"` | 根路径不误触发 slash 逻辑 | 未下沉 | 次要 | 低 |
+| 9 | `__cellpProtoRel` / image / localPatterns | `//` URL、`_next/image` | 历史 S30 root + celld `url` builtin；Pages 11 pass 可能已够用 | 非 PD-04 主因 | 低 |
+| 10 | `next.config` `images.unoptimized` | 构建期 image optimizer | 构建脚本，非 runtime | — | 保持 harness |
+| 11 | stage `.next/*.json` + deploy `.json` module | deploy / dynamic import | harness + celld `deploy.rs`（`e050a73`） | deploy 阻塞 | **已完成** |
+| 12 | （无 S30 patch）`worker_request_headers` | trusted 时 `Host` = public XFH | celld `main.rs` + `--trust-forwarded-headers` | PD-02：edge converter 仍用 synthetic `host` 覆盖 XFH | 中（compat 无 edge 补丁） |
+
+**分层：**
+
+```text
+客户端 → Gateway → celld ingress (绝对 request.url + slash + Host/XFH)
+                         → OpenNext bundle (routing / 相对 req.url / 内部 Location)
+                         → celld egress (Location 规范化) → 客户端
+```
+
+**建议下一批下沉顺序：** (1) **#7** — 契约调研 pathname+query 形态 `request.url`；(2) **#6+#4** — `fetch`/subfetch URL 与 `Location` 复用 `opennext_compat`；(3) **#3** — redirect 跟随各跳 `Location`；(4) **PD-02** — edge 补丁或 HTTPS preview，与 #7 分轨。
 
 #### 失败归因与责任边界
 
