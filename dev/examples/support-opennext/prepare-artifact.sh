@@ -346,6 +346,13 @@ fs.writeFileSync(p, s);
 NODE
 fi
 
+# Wrangler dry-run output may contain import("./.next/…json"); celld no_bundle walks those paths.
+if [[ -d .next ]]; then
+  log "stage .next/*.json into .cellp-bundle for celld no_bundle closure"
+  mkdir -p .cellp-bundle/.next
+  rsync -a --prune-empty-dirs --include '*/' --include '*.json' --exclude '*' .next/ .cellp-bundle/.next/
+fi
+
 log "stage .open-next/assets → .cellp-assets"
 rm -rf .cellp-assets
 mkdir -p .cellp-assets

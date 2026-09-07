@@ -5,6 +5,7 @@
 #   ./dev/scripts/run-opennext-official-e2e.sh [--list]
 #   ./dev/scripts/run-opennext-official-e2e.sh [--collect-only] [--fast]
 #   ./dev/scripts/run-opennext-official-e2e.sh [--only app-router|pages-router|app-pages-router] [--skip-build]
+#   ./dev/scripts/run-opennext-official-e2e.sh [--compat-patch]  # apply S30 bundle patches (not upstream-official byte identity)
 #
 # Exit: 0 all pass · 1 test/deploy/build failure · 2 bad args
 set -euo pipefail
@@ -29,6 +30,7 @@ Options:
   --collect-only     Validate Playwright test counts only (119 listed, 5 declared skip, 114 runnable)
   --list             Print fixtures, projects, and expected counts
   --fast             Opt-in: skip workspace pnpm install when node_modules present
+  --compat-patch     Apply S30 bundle patches at prepare (lab compat tier; not byte-identical upstream)
   -h, --help         This help
 
 Default: all three fixtures; full install + rebuild .open-next; preview deploy only (never promote).
@@ -40,6 +42,7 @@ SKIP_BUILD=0
 COLLECT_ONLY=0
 LIST_MODE=0
 FAST=0
+COMPAT_PATCH=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --collect-only) COLLECT_ONLY=1; shift ;;
     --list) LIST_MODE=1; shift ;;
     --fast) FAST=1; shift ;;
+    --compat-patch) COMPAT_PATCH=1; shift ;;
     -h | --help) usage; exit 0 ;;
     *)
       echo "FAIL: unknown argument: $1" >&2
@@ -102,9 +106,13 @@ oncf_ensure_browser
 require_stack_or_skip
 require_platform
 
+if [[ "$COMPAT_PATCH" == "1" ]]; then
+  export CELLP_ONCF_COMPAT_PATCH=1
+fi
+
 {
   echo "=== opennext-official e2e ${RUN_ID} $(date -Iseconds) ==="
-  echo "fixtures: ${SELECTED[*]} skip_build=${SKIP_BUILD} fast=${FAST}"
+  echo "fixtures: ${SELECTED[*]} skip_build=${SKIP_BUILD} fast=${FAST} compat_patch=${COMPAT_PATCH}"
 
   OVERALL=0
   for fixture in "${SELECTED[@]}"; do

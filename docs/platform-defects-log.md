@@ -263,6 +263,8 @@ no-patch Pages Router 新 preview稳定复现：rewrite 页面无 `SSR`；`/rewr
 
 优先：**Pages 去 SKIP_PATCH 对照 run**；长期：补丁语义迁入 celld 或文档化 compat tier。门禁：rewrite merge query + trailing search 全绿，control 保留 query。
 
+**2026-09-07 对照：** `run-opennext-official-e2e.sh --only pages-router --compat-patch`（S30 bundle 补丁 + stage `.next/*.json` + celld no_bundle `*.json` data module）→ **36 passed / 1 skipped**，rewrite/trailing 全绿。日志 `docs/evidence/opennext-official-e2e-20260907-143952-70936.log`。
+
 **证据：** `docs/evidence/opennext-official-pages-router-v-oncf-pages-router-1788614929-19670.log` · `docs/evidence/opennext-official-wrangler-pages-baseline-20260905.log`
 
 ---
