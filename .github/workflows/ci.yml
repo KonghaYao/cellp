@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: auto
+
+jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cellp/go.mod
+          cache-dependency-path: cellp/go.sum
+
+      - name: go test
+        working-directory: cellp
+        run: |
+          go version
+          go test ./...
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build platform image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: cellp:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            CELLD_PROFILE=release
+
+      - name: Smoke — binaries in image
+        run: |
+          docker run --rm --entrypoint '' cellp:ci-${{ github.sha }} sh -ec '
+            test -x /usr/local/bin/cellp
+            test -x /usr/local/bin/cellpd
+            test -x /usr/local/bin/celld
+            test -x /usr/local/bin/offshoot
+            test -x /usr/local/bin/esbuild
+            celld --version >/dev/null
+          '
