@@ -354,13 +354,10 @@ printf '%s' "$DENIED_BODY" | grep -Eq 'capability_denied|guest_trap' \
   || fail "undeclared KV response missing normalized error code: ${DENIED_BODY}"
 printf '%s' "$DENIED_BODY" | grep -Eqi 'wasmtime|webassembly|backtrace|aws_secret_access_key|authorization:[[:space:]]*bearer' \
   && fail "undeclared KV response leaked engine or credential detail" || true
-wait_http_200_version "$PROJECT" "$VA" "/${KEY}" 30
-api_status GET "/v1/runtime/routes"
-[[ "$API_STATUS" == "200" ]] || fail "runtime routes -> HTTP ${API_STATUS}"
-printf '%s' "$API_BODY" | jq -e --arg project "$PROJECT" --arg version "$VD" \
-  '.routes[] | select(.project_id==$project and .version_id==$version and .celld_health=="ok")' >/dev/null \
-  || fail "denied Native version is not healthy after error: ${API_BODY}"
-log "undeclared KV denial and per-version recovery PASS HTTP=${DENIED_CODE}"
+	wait_http_200_version "$PROJECT" "$VA" "/${KEY}" 30
+	assert_native_health "$PROJECT" "$VD"
+	wait_runtime_celld_health "$PROJECT" "$VD" 30
+	log "undeclared KV denial and per-version recovery PASS HTTP=${DENIED_CODE}"
 
 # TP-NATIVE-SMOKE: prove the historical JS/V8 path still deploys and serves.
 create_version "$PROJECT" "$VJ" | jq -r .id >/dev/null

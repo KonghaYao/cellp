@@ -98,8 +98,10 @@ func (s *Server) handleHealthDeep(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+const runtimeRouteHealthProbeTimeout = 2 * time.Second
+
 func (s *Server) handleRuntimeRoutes(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
 	routes, err := s.store.ListAllActiveRoutes(ctx)
@@ -127,7 +129,9 @@ func (s *Server) handleRuntimeRoutes(w http.ResponseWriter, r *http.Request) {
 			if v, err := s.store.GetVersion(ctx, route.ProjectID, route.VersionID); err == nil && v != nil {
 				status = v.Status
 			}
-			healthy := s.runtime.Health(ctx, route.UpstreamHost, route.UpstreamPort)
+			probeCtx, probeCancel := context.WithTimeout(context.Background(), runtimeRouteHealthProbeTimeout)
+			defer probeCancel()
+			healthy := s.runtime.Health(probeCtx, route.UpstreamHost, route.UpstreamPort)
 			celldHealth := "ok"
 			if !healthy {
 				celldHealth = "down"

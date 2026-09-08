@@ -195,6 +195,24 @@ poll_version() {
   fail "timeout waiting for ${version} status=${want} (last=${status:-unknown})"
 }
 
+# wait_runtime_celld_health project version [timeout_seconds]
+# Polls /v1/runtime/routes until the version reports celld_health=ok.
+wait_runtime_celld_health() {
+  local project="$1"
+  local version="$2"
+  local timeout="${3:-30}"
+  local i
+  for i in $(seq 1 "$timeout"); do
+    api_status GET "/v1/runtime/routes"
+    if [[ "$API_STATUS" == "200" ]] && printf '%s' "$API_BODY" | jq -e --arg project "$project" --arg version "$version" \
+      '.routes[] | select(.project_id==$project and .version_id==$version and .celld_health=="ok")' >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "runtime celld_health not ok for ${project}/${version} after ${timeout}s: ${API_BODY:-empty}"
+}
+
 # celld_log_paths lists runtime celld log files for a version (matches cellp/internal/runtime celldLogPath encoding).
 celld_log_paths() {
   local project="$1" version="$2"

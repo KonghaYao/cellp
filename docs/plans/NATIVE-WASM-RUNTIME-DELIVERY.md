@@ -1,6 +1,6 @@
 # Native Wasm Runtime — R1 delivery (experimental)
 
-> **Status:** Shipped **experimental** in celld/cellp worktree (qualification **WP-Q3 PASS** @ celld `44a3259`).
+> **Status:** Shipped **experimental** on celld **`main`** @ `f4619c3` (merged from `adlc/native-wasm-runtime-product-r1`; qualification **WP-Q3 PASS** @ `44a3259`).
 > **Public docs:** [Native Component Worker](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../../celld/docs/runtime-bindings.md)
 > **Decision:** [AD-16](../decisions.md#21-ad-16--experimental-native-component-http-native-http-v1)
 > **E2E:** `e2e/scripts/v18-native-wasm.sh` · evidence `docs/evidence/native-wasm-e2e.*`
@@ -47,6 +47,14 @@ Implementation seams: `celld/crates/celld/protocol.rs`, `deploy.rs`, `native/**`
 
 Frozen **D1** RPC contracts were not modified for this delivery.
 
-## Submodule rebuild
+## Submodule
 
-celld native 须在分支 `adlc/native-wasm-runtime-product-r1` **重建**（规格：`.peri/adlc/tasks/2026-09-06-native-wasm-runtime-delivery/`、`e2e/scripts/v18-native-wasm.sh`）；历史 SHA 未上 origin 不可 fetch。Qualification 对照 **`44a3259`**（G-Q）。rebuild 未更新 gitlink 前 **v18 / G-REL wasm gate blocked**。
+cellp gitlink **`f4619c3`** tracks **celld `main`** (native-http-v1 runtime). Rebuild after bump:
+
+```bash
+cd celld && git checkout main && cargo build -p celld --profile lab
+cp target/lab/celld ~/.local/bin/celld
+./dev/scripts/up.sh && ./e2e/scripts/run-all.sh --only v18-native-wasm
+```
+
+Qualification baseline reference: **`44a3259`** (G-Q). Feature branch `adlc/native-wasm-runtime-product-r1` is merged; use `main` for new work.
