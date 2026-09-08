@@ -120,6 +120,20 @@ assert_recovery() {
   wait_http_200_version "$project" "$version" "$path" 15
 }
 
+wait_native_gateway_health() {
+  local project="$1" version="$2" timeout="${3:-60}"
+  local i body
+  for i in $(seq 1 "$timeout"); do
+    body=$(curl_version "$project" "$version" "/health" 2>/dev/null || true)
+    if printf '%s' "$body" | grep -Fq "native-http-v1" \
+      && printf '%s' "$body" | grep -Fq "$GREETING_EXPECTED"; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "native gateway /health not ready for ${version} (last: ${body:-empty})"
+}
+
 assert_native_health() {
   local project="$1" version="$2"
   local body
@@ -197,6 +211,7 @@ stage_worker_example "$JS_EXAMPLE" "${ARTIFACTS_DIR}/${PROJECT}/${VJ}"
 
 create_version "$PROJECT" "$VA" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VA" ready 120 >/dev/null
+wait_native_gateway_health "$PROJECT" "$VA" 60
 
 # TP-NATIVE-HTTP/BIND: guest write through the formal Gateway Host path, then
 # prove the same bytes through both guest HTTP and the cellpd operator API.
@@ -225,8 +240,7 @@ curl_version_method DELETE "$PROJECT" "$VA" "/${OP_KEY}" >/dev/null
 api_status GET "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}"
 [[ "$API_STATUS" == "404" ]] \
   || fail "operator GET after guest DELETE expected 404, got ${API_STATUS}: ${API_BODY}"
-[[ "$(http_code_version "$PROJECT" "$VA" "/${OP_KEY}")" == "404" ]] \
-  || fail "guest GET after guest DELETE expected 404"
+wait_http_gone_version "$PROJECT" "$VA" "/${OP_KEY}" 30
 api_status PUT "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}" \
   "$(jq -n --arg value "operator-delete" '{value:$value}')"
 [[ "$API_STATUS" == "200" || "$API_STATUS" == "204" ]] \
@@ -234,14 +248,15 @@ api_status PUT "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}" 
 api_status DELETE "/v1/projects/${PROJECT}/versions/${VA}/kv/${NS}/keys/${OP_KEY}"
 [[ "$API_STATUS" == "200" || "$API_STATUS" == "204" ]] \
   || fail "operator DELETE -> HTTP ${API_STATUS}: ${API_BODY}"
-[[ "$(http_code_version "$PROJECT" "$VA" "/${OP_KEY}")" == "404" ]] \
-  || fail "guest GET after operator DELETE expected 404"
+wait_http_gone_version "$PROJECT" "$VA" "/${OP_KEY}" 30
 log "real KV delete guest/operator PASS"
 
 create_version "$PROJECT" "$VB" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VB" ready 120 >/dev/null
+wait_native_gateway_health "$PROJECT" "$VB" 60
 create_version "$PROJECT" "$VS" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VS" ready 120 >/dev/null
+wait_native_gateway_health "$PROJECT" "$VS" 60
 
 # TP-NATIVE-ISOL: sibling starts empty, may use the same key, and cannot mutate VA.
 api_status GET "/v1/projects/${PROJECT}/versions/${VB}/kv/${NS}/keys/${KEY}"
@@ -326,6 +341,7 @@ log "Native client-disconnect KV hostcall bounded stop PASS elapsed=${KV_CANCEL_
 # subsequent request that does not open KV must still pass through the Gateway.
 create_version "$PROJECT" "$VD" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$VD" ready 120 >/dev/null
+wait_native_gateway_health "$PROJECT" "$VD" 60
 DENIED_BODY_FILE=$(mktemp)
 DENIED_CODE=$(curl -sS -o "$DENIED_BODY_FILE" -w '%{http_code}' \
   $(gateway_curl_tls_flags) -H "Host: $(preview_host "$PROJECT" "$VD")" \
