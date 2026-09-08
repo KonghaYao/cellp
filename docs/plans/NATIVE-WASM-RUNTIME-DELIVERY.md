@@ -1,6 +1,6 @@
 # Native Wasm Runtime — R1 delivery (experimental)
 
-> **Status:** Shipped **experimental** on celld **`main`** @ `f4619c3` (merged from `adlc/native-wasm-runtime-product-r1`; qualification **WP-Q3 PASS** @ `44a3259`).
+> **Status:** Shipped **experimental** on celld **`main`** @ **`3cb9f30`** (cellp gitlink; merged from `adlc/native-wasm-runtime-product-r1`; qualification **WP-Q3 PASS** @ `44a3259`).
 > **Public docs:** [Native Component Worker](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../../celld/docs/runtime-bindings.md)
 > **Decision:** [AD-16](../decisions.md#21-ad-16--experimental-native-component-http-native-http-v1)
 > **E2E:** `e2e/scripts/v18-native-wasm.sh` · evidence `docs/evidence/native-wasm-e2e.*`
@@ -49,7 +49,7 @@ Frozen **D1** RPC contracts were not modified for this delivery.
 
 ## Submodule
 
-cellp gitlink **`f4619c3`** tracks **celld `main`** (native-http-v1 runtime). Rebuild after bump:
+cellp gitlink **`3cb9f30`** tracks **celld `main`** (native-http-v1 runtime). Rebuild after bump:
 
 ```bash
 cd celld && git checkout main && cargo build -p celld --profile lab

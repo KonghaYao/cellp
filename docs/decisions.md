@@ -501,7 +501,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 ## 21. AD-16 — Experimental Native Component HTTP (`native-http-v1`)
 
-**状态：** **已落地（experimental 0.x · 2026-09-06）** · qualification Wasmtime **48.0.1** · celld `44a3259`
+**状态：** **已落地（experimental 0.x · 2026-09-06）** · qualification Wasmtime **48.0.1** @ celld **`44a3259`** · **cellp submodule `3cb9f30`**（tracks celld `main`；见 [NATIVE-WASM-RUNTIME-DELIVERY.md](./plans/NATIVE-WASM-RUNTIME-DELIVERY.md)）
 **公开文档：** [site: Native Component](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../celld/docs/runtime-bindings.md)
 **交付摘要：** [plans/NATIVE-WASM-RUNTIME-DELIVERY.md](./plans/NATIVE-WASM-RUNTIME-DELIVERY.md)
 
