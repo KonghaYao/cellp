@@ -4,10 +4,12 @@
 
 **面向使用者的文档站：** [https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)（源码 `site/`）。改产品行为时请同步站点，不要只改内部 ADR。
 
+**Claude Code 补充流程（Support / 框架 / 文档地图）：** [CLAUDE.md](./CLAUDE.md)
+
 ## 必读（按顺序）
 
 1. **[DESIGN.md](./DESIGN.md)** — 唯一顶层设计
-2. **[docs/decisions.md](./docs/decisions.md)** — 当前有效架构决策（AD-1..14 · D1 · 存储 tier · Bindings）
+2. **[docs/decisions.md](./docs/decisions.md)** — 当前有效架构决策（**AD-1 … AD-16** · D1 · 存储 tier · Bindings）
 3. **[docs/test-plan.md](./docs/test-plan.md)** — 功能验收门禁
 4. 任务相关子目录 AGENTS：
    - 后端 / 本地栈 → **[dev/AGENTS.md](./dev/AGENTS.md)**
@@ -15,7 +17,7 @@
 
 完整文档索引：**[docs/README.md](./docs/README.md)**
 
-**JS 依赖：** 仓库根目录 **`pnpm install`**（`pnpm-workspace.yaml`：`web` · `site` · `dev/examples/{counter,d1-seed,commerce}`）。勿在子目录单独 `npm install`。
+**JS 依赖：** 仓库根目录 **`pnpm install`**（`pnpm-workspace.yaml`：`web` · `site` · `dev/examples/{counter,d1-seed,commerce}`）。`dev/examples/support-*` 由部署脚本单独构建，**不在** workspace 内；勿在子目录单独 `npm install`。
 
 ## 仓库地图
 
@@ -25,6 +27,7 @@
 | `celld/` | Rust Workers 运行时（**git submodule**） | `cargo build -p celld --profile lab`（在 `celld/`） |
 | `web/` | Dashboard（Vite + React SPA） | `pnpm install`（仓库根）后 `pnpm --filter cellp-dashboard test:e2e` |
 | `dev/` | 本地 dev 栈（RustFS · cellpd · celld · offshoot） | `./dev/scripts/health.sh` |
+| `dev/examples/` | 示例与 **support overlay**（`support-*` · `native-wasm`） | `deploy-support-app.sh` · `simulate-cd.sh` |
 | `e2e/` | 端口级集成测试（M1/M2 门禁） | 日常：`run-all.sh --only …`；全量仅合并前 |
 | `stress/` | 压测（phase5 生产 · phase6 扩展/D1 scale） | 见 `stress/README.md` |
 | `docs/` | 计划 · 契约 · 证据（内部） | 索引 [docs/README.md](./docs/README.md) |
@@ -32,8 +35,8 @@
 
 ## 核心决策（摘要）
 
-- **AD-1：** 每个 ready version = 独立 celld 进程 + 独立 bucket；**本地 `CELPD_WATCH` 为临时页缓存，Stop 后删除；S3 为唯一持久层**
-- **AD-4：** Dev 可用 local offshoot；prod offshoot RustFS 需 V0b（当前 **deferred**）
+- **AD-1：** 每个 ready version = 独立 celld 进程 + 独立 bucket；**本地 `CELPD_WATCH` 为临时页缓存，Stop 后删除；S3/RustFS 为唯一持久层**
+- **AD-4：** Dev 可用 local offshoot；**prod offshoot on RustFS = TP-V0b**（✅ 已 PASS；M2 dev 路径仍可用 local tier — 压测须注明 `offshoot_tier`）
 - **D1 import：** 根 version；`celld d1 import --file`；契约 [D1-IMPORT-RPC.md](./docs/plans/D1-IMPORT-RPC.md)
 - **D1 branch：** 子 version（`parent_version_id`）；`celld d1 branch --parent-bucket`；契约 [D1-BRANCH-RPC.md](./docs/plans/D1-BRANCH-RPC.md)
 - **AD-6：** Worker KV / Queue / Workflow / R2 / Cron **沿用 celld 0.4.0**
@@ -41,8 +44,12 @@
 - **AD-8：** 子 version **KV / R2 / Queue branch**（与 D1 同构）
 - **AD-9：** archived / wake；取消 ready 硬上限
 - **AD-10：** **不做**账号体系 · Git 托管 · DNS/CDN/TLS/WAF · 全球边缘；**做**分布式 Workers 控制面（见 decisions §15）
+- **AD-11：** Cron **仅**当前 prod version 武装调度
 - **AD-12：** Gateway **Host** 选 version（path 废弃）；dev Host 配置 **[dev/INGRESS-HOST.md](./dev/INGRESS-HOST.md)**
+- **AD-13：** 一等公民框架 **S22–S25**；Next/OpenNext **非一等** — [support-matrix.md](./docs/support-matrix.md) · [framework-coverage-cellp.md](./docs/framework-coverage-cellp.md)
 - **AD-14：** 可观测 = OTLP + 查询门面 + 可换后端；权威 **[docs/plans/OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)**；**不做**自研搜索引擎
+- **AD-15：** 弹性 Serving / 安全 scale-to-zero（设计包 [SURGE-DESIGN-INDEX.md](./docs/plans/SURGE-DESIGN-INDEX.md)；E 阶段按用户指令）
+- **AD-16：** Experimental **`native-http-v1`** Wasm Component；`dev/examples/native-wasm/` · e2e `v18-native-wasm`
 
 ## 改代码后的验证顺序
 
@@ -73,6 +80,7 @@ cd cellp && go test ./...
 | KV / Queue / Workflow·Cron | `v9-kv` / `v10-queue` / `v11-workflow-cron` |
 | KV·R2·Queue branch | `v12-kv-branch,v13-r2-branch,v14-queue-branch` |
 | archive / worker env | `v15-archive,v16-worker-env` |
+| Native Component (AD-16) | `v18-native-wasm` |
 | 存储 / celld / offshoot | `RUN_GATES=1 ./e2e/scripts/run-all.sh --only v0a-celld-diagnose` 或全量 `RUN_GATES=1` |
 
 `--only` **不能**宣称 TP-VE-ALL/M2 全绿。存储变更后需 `RUN_GATES=1` 路径（含 `celld diagnose`）。细节：[dev/AGENTS.md](./dev/AGENTS.md) · [e2e/README.md](./e2e/README.md)。
@@ -99,7 +107,7 @@ D1_BRANCH_MULTI_SIZE_MB=100 D1_BRANCH_MULTI_COUNT=3 \
 
 ## Subagent 派发
 
-见 [docs/README.md § Subagent](./docs/README.md#subagent-派发约定)。**社区 Support / 框架 S22+：** [CLAUDE.md § Support 标准流程](../CLAUDE.md#support-与框架验证--标准流程claude-code)。
+见 [docs/README.md § Subagent](./docs/README.md#subagent-派发约定)。**社区 Support / 框架 / Agent 应用：** [CLAUDE.md § Support 标准流程](./CLAUDE.md#support-与框架验证--标准流程)。
 
 ## 证据
 

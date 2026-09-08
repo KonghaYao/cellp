@@ -3,8 +3,9 @@ export const meta = {
   description: 'Sequential E2-E5+ADOPT+acceptance with git commit per phase',
 }
 
-const REPO = '/Users/mino/code/remote/cellp'
+const REPO = process.env.CELLP_REPO ?? process.cwd()
 const CO = 'Co-Authored-By: composer-2.5 <noreply@anthropic.com>'
+const SURGE_DELIVERY_LOG = `${REPO}/docs/process/surge-delivery-log.md`
 
 const deliverPhase = async (phaseName, commitMsg, planDoc, evidenceDir, scope) => {
   phase(phaseName)
@@ -15,10 +16,11 @@ Read first: ${planDoc} and docs/decisions.md §20. Default CELLP_ELASTIC_RUNTIME
 
 Implement ${scope} with tests. Then:
 1. cd ${REPO}/cellp && go test ./... -count=1 (fix failures in scope only).
-2. Write ${REPO}/${evidenceDir}/handoff.md with what changed and test result.
-3. git add only files you changed for this phase (under cellp/, web/, docs/evidence/surge/, docs/ as needed).
-4. git commit -m "${commitMsg}" -m "${CO}"
-5. Return: commit hash, PASS/FAIL, handoff path.
+2. Append one table row to ${SURGE_DELIVERY_LOG} under "## 自动化追加" (create section if missing): Phase=${phaseName}, date, commit hash (after step 4), scope summary, go test PASS/FAIL, notes. Do NOT create ${evidenceDir}/handoff.md.
+3. Optionally write ${REPO}/${evidenceDir}/delivery-notes.md (short bullet summary for this run only).
+4. git add only files you changed for this phase (under cellp/, web/, docs/process/surge-delivery-log.md, docs/evidence/surge/, docs/ as needed).
+5. git commit -m "${commitMsg}" -m "${CO}"
+6. Return: commit hash, PASS/FAIL, delivery log path.
 
 Do NOT modify celld submodule, peri/, dev/support scripts unless phase requires. Do NOT run SP lab without args.run_sp.`,
     { label: phaseName, model: 'sonnet' },
@@ -60,7 +62,7 @@ const e5 = await deliverPhase(
 
 phase('ADOPT')
 const adopt = await agent(
-  `In ${REPO}: update DESIGN.md with short AD-15 elastic serving section (pointer to decisions §20 and docs/plans/SURGE-DESIGN-INDEX.md). Do not duplicate full spec. git commit -m "docs(surge): AD-15 DESIGN adoption pointer" -m "${CO}". Evidence: docs/evidence/surge/e5/adopt-handoff.md`,
+  `In ${REPO}: update DESIGN.md with short AD-15 elastic serving section (pointer to decisions §20 and docs/plans/SURGE-DESIGN-INDEX.md). Do not duplicate full spec. Append ADOPT row to ${SURGE_DELIVERY_LOG}. git commit -m "docs(surge): AD-15 DESIGN adoption pointer" -m "${CO}".`,
   { label: 'ADOPT', model: 'sonnet' },
 )
 

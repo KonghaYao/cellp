@@ -3,13 +3,15 @@
 > **产品支持口径（唯一 verdict）：** [support-matrix.md](../support-matrix.md)  
 > 本页只做导航，**不**声明各 Sxx / Axx 是否支持。
 
+- **内部过程文档：** [process/README.md](../process/README.md)
+
 ---
 
 ## 权威与队列
 
 | 文档 | 用途 |
 |------|------|
-| [support-matrix.md](../support-matrix.md) | S01–S30、P0 Agent — **支持 / 不支持** |
+| [support-matrix.md](../support-matrix.md) | **S01–S40** · **A01–A05** — **支持 / 不支持** |
 | [support-unsupported-by-capability.md](../support-unsupported-by-capability.md) | **不支持** → **cellp/celld 能力缺口**（按能力维度） |
 | [support-todos.md](../support-todos.md) | 待办与优先级队列 |
 | [support-star-queue.md](../support-star-queue.md) | 高 Star 生态验证队列 |
@@ -31,6 +33,7 @@
 | 文档 | 用途 |
 |------|------|
 | [platform-defects-log.md](../platform-defects-log.md) | 平台缺陷（PD-*）登记 |
-| [framework-coverage-cellp.md](../framework-coverage-cellp.md) | 框架覆盖对照 |
+| [framework-coverage-cellp.md](../framework-coverage-cellp.md) | 框架覆盖对照（**AD-13** S22–S25 一等公民） |
+| [../CLAUDE.md](../../CLAUDE.md) | Claude Code：**Support 标准流程**（coder → verification） |
 
 **证据 log：** `docs/evidence/support-*.log` · [evidence-index.md](../evidence-index.md)

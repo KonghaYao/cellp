@@ -19,7 +19,7 @@
 |--------|--------|
 | **产品文档（如何用 cellp）** | **[GitHub Pages](https://konghayao.github.io/cellp/)** |
 | 理解整体架构 | [DESIGN.md](../DESIGN.md) |
-| 查当前有效决策（AD-1..14、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
+| 查当前有效决策（AD-1..16、D1、Bindings、存储 tier） | [decisions.md](./decisions.md) |
 | 跑验收 / 看门禁 | [test-plan.md](./test-plan.md) |
 | 本地起栈 | [../dev/README.md](../dev/README.md) · [../dev/INGRESS-HOST.md](../dev/INGRESS-HOST.md) · [../dev/AGENTS.md](../dev/AGENTS.md) |
 | 改 Dashboard | [../web/AGENTS.md](../web/AGENTS.md) |
@@ -35,7 +35,7 @@
 | 支持的技术栈 | [supported-stacks.md](./supported-stacks.md) |
 | **社区 Workers 支持矩阵** | [support/README.md](./support/README.md)（索引）· [support-matrix.md](./support-matrix.md) · [support-unsupported-by-capability.md](./support-unsupported-by-capability.md) |
 | **证据目录说明** | [evidence-index.md](./evidence-index.md)（`docs/evidence/` 本地 gitignore） |
-| **SURGE E1 用户验收** | [evidence/surge/e1/ACCEPTANCE.md](./evidence/surge/e1/ACCEPTANCE.md) |
+| **SURGE 弹性验收 / E1** | [handoff/SURGE-AD15-HANDOFF.md](./handoff/SURGE-AD15-HANDOFF.md) · [evidence/surge/final/ACCEPTANCE-RUN.md](./evidence/surge/final/ACCEPTANCE-RUN.md) |
 | **Native Wasm Runtime + Bindings（研究纲领）** | [plans/NATIVE-WASM-RUNTIME-RESEARCH.md](./plans/NATIVE-WASM-RUNTIME-RESEARCH.md) · [R0 审查记录](./plans/NATIVE-WASM-RUNTIME-REVIEW.md) · [R1 Market Scan](./plans/NATIVE-WASM-RUNTIME-R1.md)（Proposed · **R1 desk PASS / VERIFIED**；不授权 R2/R3，不改现有 JS 生态） |
 | **Coding Agent on cellp（前沿）** | [plans/CODING-AGENT-ON-CELLP.md](./plans/CODING-AGENT-ON-CELLP.md) · [AGENT-SUPPORT.md](./AGENT-SUPPORT.md) |
 | **Vercel framework on cellp（后续）** | [plans/VERCEL-FRAMEWORK-ON-CELLP.md](./plans/VERCEL-FRAMEWORK-ON-CELLP.md) · [VERCEL-SUPPORT.md](./VERCEL-SUPPORT.md) |
@@ -79,6 +79,8 @@
 ---
 
 ## 实施计划（按 Phase）
+
+> **2026-09-08：** Phase 0–9 与 `celld-d1-branch` / `v1-v0b-phase6-plan` 全文在 [archive/plans/](./archive/plans/)；下表链接为 **stub**（跳转归档 + 指向现行 [test-plan](./test-plan.md) / [decisions](./decisions.md)）。
 
 | Phase | 文件 | Gate | 状态 |
 |-------|------|------|------|
@@ -204,4 +206,4 @@ flowchart LR
 
 ---
 
-*文档库 v1 · 2026-08-29 · cellp 首版交付定型*
+*文档库 · 同步 2026-09-08 · 决策 AD-1..16 · 对外站点以 `site/` / GitHub Pages 为准*

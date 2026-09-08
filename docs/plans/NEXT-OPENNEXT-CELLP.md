@@ -225,3 +225,19 @@ Playwright `--list` 是分母权威：**119 declarations，5 个上游 `test.ski
 1. 扩展独立样本和版本组合，覆盖 middleware、缓存、图片路径及更广泛 Node API；失败用例保留，不用应用级 workaround 制造通过。
 2. 所有新样本先运行项目 `smoke-preview.sh`；任何关键检查失败时拒绝 promote。
 3. **不**把 Next 标为一等公民，除非 AD-13 修订且更广泛门禁通过。
+
+---
+
+## Handoff（OpenNext R2 + 官方 Playwright）
+
+**状态（2026-09-07）：** App Router harness 修复后 **55/58 runnable pass**（3 fail）；`v13-r2-branch.sh` 与 R2 bulk（`celld r2 bulk put` + tombstone reveal）已复验。OpenNext 仍为 **AD-13 experimental**，不得写 tier-1。
+
+| 项 | 要点 |
+|----|------|
+| 目标 | R2 bulk 与 OpenNext cache manifest 兼容；真实 RustFS 写入；Worker binding 读回；pin `@opennextjs/cloudflare@1.14.0`（commit `a644ee15`）→ build → cache 导入 → preview Playwright（不 promote） |
+| 提交 | 根 `de39f3a` · celld `c28db43` |
+| Harness | `dev/scripts/prepare-opennext-official-e2e.sh`（existing prod 门禁、fail-closed staging）、`run-opennext-official-e2e.sh`（`localhost-oncf-*` Host） |
+| 入口 | `./dev/scripts/run-opennext-official-e2e.sh --only app-router --fast` |
+| 后续 P1 | 三 fixture 全跑并更新上表；余 fail：data/tag/fetch cache（见归因表，禁止未证实 tier-1 结论） |
+
+全文交接（运维细节、禁止项、FAQ）：**[archive/handoff/OPENNEXT-R2-RUNTIME-HANDOFF.md](../archive/handoff/OPENNEXT-R2-RUNTIME-HANDOFF.md)** · 原路径 stub：[handoff/OPENNEXT-R2-RUNTIME-HANDOFF.md](../handoff/OPENNEXT-R2-RUNTIME-HANDOFF.md)。

@@ -1,6 +1,6 @@
 # 前端框架：Cloudflare vs cellp
 
-> **日期：** 2026-09-02  
+> **日期：** 2026-09-08（矩阵 S26–S29 已验）  
 > **架构决策：** [decisions.md §18 AD-13](./decisions.md#18-ad-13--前端框架一等公民与-nextjs-边界)  
 > **CF 官方索引：** [Framework guides](https://developers.cloudflare.com/workers/framework-guides/) · [Static assets](https://developers.cloudflare.com/workers/static-assets/)  
 > **cellp 口径：** 仅 **支持 / 不支持**（见 [support-matrix.md](./support-matrix.md)）
@@ -18,8 +18,8 @@
 | **一等** | **SvelteKit** | `adapter-cloudflare` **单 Worker**；**S23**（≠ cloudflarebase 多 service） |
 | **一等** | **Remix** | `@remix-run/cloudflare`；**S24** |
 | **一等** | **Nuxt** | Nitro `cloudflare` preset；**S25** |
-| **非一等** | **Next.js** | CF 上靠 OpenNext/vinext；cellp **不追一等** → [plans/NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) |
-| **非一等** | Solid / Waku / 等 | 有 CF guide，无 S 槽位；按需社区验证 |
+| **非一等** | **Next.js / OpenNext** | CF 上靠 OpenNext/vinext；cellp **不追一等** → [plans/NEXT-OPENNEXT-CELLP.md](./plans/NEXT-OPENNEXT-CELLP.md) · **S30/S40 = 不支持** |
+| **社区已验（非一等）** | **Hono · SolidStart · Qwik · Waku** | **S26–S29** · `dev/examples/support-*` · verdict 见 [support-matrix.md](./support-matrix.md) |
 
 **公开推荐（新应用）：** **Vite SPA + 单 Worker API** + wrangler `assets`（与 CF Static assets 模型一致）。
 

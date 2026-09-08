@@ -3,7 +3,7 @@
 > **给开发者用的产品文档（非本文）：** [https://konghayao.github.io/cellp/](https://konghayao.github.io/cellp/)  
 > **cellp** — 版本化的 Serverless 应用运行时（cell + platform）  
 > **唯一设计入口（实现 / Agent）** · 管理维度：**Project + Version**（**无用户体系 · AD-10**）  
-> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-10** 产品边界 · **AD-14** 可观测 · **AD-15** 弹性 Serving） · 本地 Dev：`dev/scripts/up.sh` · Agent：`AGENTS.md` · `dev/AGENTS.md`
+> 决策摘要：[docs/decisions.md](./docs/decisions.md)（**AD-1 … AD-16**） · Agent：[AGENTS.md](./AGENTS.md) · Claude Code：[CLAUDE.md](./CLAUDE.md) · 本地 Dev：`dev/scripts/up.sh` · `dev/AGENTS.md`
 
 ---
 

@@ -3,6 +3,7 @@
 > 本目录默认 **gitignore**（仅 `.gitkeep` 入库）。本地跑验收后在此落 `.md` 报告与 `.log`；结构化结论可择要提交时改 `.gitignore` 或使用 `docs/` 下活文档。
 
 - **Support 索引：** [support/README.md](./support/README.md)
+- **过程文档（交付摘要）：** [process/README.md](./process/README.md)
 - **验收计划：** [test-plan.md](./test-plan.md)
 
 ## 报告命名（本地）

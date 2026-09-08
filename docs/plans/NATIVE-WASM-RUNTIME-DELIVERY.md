@@ -46,3 +46,7 @@ Implementation seams: `celld/crates/celld/protocol.rs`, `deploy.rs`, `native/**`
 - [NATIVE-WASM-RUNTIME-REVIEW.md](./NATIVE-WASM-RUNTIME-REVIEW.md)
 
 Frozen **D1** RPC contracts were not modified for this delivery.
+
+## Submodule rebuild
+
+celld native 须在分支 `adlc/native-wasm-runtime-product-r1` **重建**（规格：`.peri/adlc/tasks/2026-09-06-native-wasm-runtime-delivery/`、`e2e/scripts/v18-native-wasm.sh`）；历史 SHA 未上 origin 不可 fetch。Qualification 对照 **`44a3259`**（G-Q）。rebuild 未更新 gitlink 前 **v18 / G-REL wasm gate blocked**。

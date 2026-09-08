@@ -4,7 +4,7 @@
 
 ## Confirmed Environment Facts
 
-- `SURGE-SERVERLESS.md` 是 Draft、未生效；现行 AD 和门禁继续优先。
+- 早期弹性单体 Draft 已归档（见 [archive/README.md](../archive/README.md)）；现行以 [SURGE-DESIGN-INDEX](./SURGE-DESIGN-INDEX.md) 与 AD 为准。
 - AD-1 保持每个现行 ready Version 独立 celld 进程与 bucket；AD-9 保持 archived 显式 wake；AD-10、AD-12、AD-14 边界不变。
 - SQLite 是当前控制面持久存储；RustFS 是唯一持久层，`CELLD_WATCH` 可丢弃；生产启动仍须 `celld diagnose`。
 - celld 现有 ownership/fencing/durability guarantees 与 D1 frozen RPC 不得弱化。
