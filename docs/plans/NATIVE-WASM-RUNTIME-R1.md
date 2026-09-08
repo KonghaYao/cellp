@@ -1,5 +1,7 @@
 # Native Wasm Runtime — R1 Market Scan Ledger
 
+> **产品交付（experimental）：** 见 [NATIVE-WASM-RUNTIME-DELIVERY.md](./NATIVE-WASM-RUNTIME-DELIVERY.md) 与 [AD-16](../decisions.md#21-ad-16--experimental-native-component-http-native-http-v1)。本 R1 desk 文档仍为 research ledger，不替代交付 AD。
+
 > **状态：** R1 desk research deliverable **VERIFIED — R1 deliverable PASS**（非实验 PASS，非 M2）
 > **日期：** 2026-09-05
 > **授权：** 用户已批准 R1 Market Scan；本文件**不是** Architecture Decision、runtime 选型、冻结产品 ABI 或实现授权
@@ -345,4 +347,3 @@ Spin 是面向 component 应用的 serverless framework/runtime，可参考 WIT�
 5. WasmEdge `0.17.1` notes/version date 是 2026-07-03，GitHub publication 是 2026-07-06；完整 commit 为 `0502c560d787d969c66f5676b9e11ac64bba3656`。
 6. 未对 release assets、签名、dependency lock、SBOM、CVE applicability 或 transitive licenses 做本地验证。
 7. 未运行任何代码、dev stack 或 benchmark；本文件不能作为性能、稳定性或安全隔离证明。
-8. NW-R1-V01–V04 的原始逐项 findings 不在 git；离线只能核对 §9 closure、run ID 与上表锚点映射，不能重放独立审查全文。

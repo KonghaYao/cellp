@@ -25,6 +25,14 @@ func TestReconcileCronAfterProdChangeNoCelld(t *testing.T) {
 	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v-new", ProjectID: "demo"})
 	_ = store.UpdateVersionStatus(ctx, "demo", "v-old", registry.StatusReady, nil)
 	_ = store.UpdateVersionStatus(ctx, "demo", "v-new", registry.StatusReady, nil)
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v-old", Active: false,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
+	})
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v-new", Active: true,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 8793,
+	})
 	bundle := filepath.Join(o.cfg.ArtifactsDir, "demo", "v-new")
 	_ = os.MkdirAll(bundle, 0o755)
 	_ = os.WriteFile(filepath.Join(bundle, "wrangler.json"), []byte(`{"name":"x","triggers":{"crons":["* * * * *"]}}`), 0o644)

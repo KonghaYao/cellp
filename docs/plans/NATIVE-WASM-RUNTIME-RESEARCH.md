@@ -4,6 +4,7 @@
 > **权威范围：** 本文是原生 Wasm track 的唯一研究范围、术语、比较方法与决策门禁；它**不是**当前产品行为或冻结 RPC
 > **当前产品：** `JS / workers-rs shim + V8 + celld bindings` 继续按 [decisions.md](../decisions.md) AD-1 / AD-6 / AD-8 / **AD-12** / **AD-15** 运行（AD-15 已正式批准，见 decisions §20）
 > **R0 / R1 状态：** R0 对抗审查与独立验证 **PASS**（2026-09-05）— 见 [NATIVE-WASM-RUNTIME-REVIEW.md](./NATIVE-WASM-RUNTIME-REVIEW.md)；R1 已获用户批准，**R1 desk research deliverable** 与仓内独立文档验证 **PASS** — 见 [NATIVE-WASM-RUNTIME-R1.md](./NATIVE-WASM-RUNTIME-R1.md)；**不授权 R2/R3 或产品实现**
+> **R1「PASS」消歧：** 上句 **PASS** 仅指 R1 desk 交付物与可离线复核的文档/证据链闭合；**不是** §6.2 硬门槛 **实验** PASS/FAIL、**不是** [test-plan.md](../test-plan.md) / **M2** 产品门禁、**不是** §1.2 首选 runtime 选型结论，也 **不** 因 R1 PASS 而隐含 R2/R3 授权（§8 须独立批准）。
 > **相关现状：** [celld Wasm](../../celld/docs/wasm.md) · [Cloudflare compatibility](../../celld/docs/cloudflare-compat.md)
 > **最后更新：** 2026-09-05
 

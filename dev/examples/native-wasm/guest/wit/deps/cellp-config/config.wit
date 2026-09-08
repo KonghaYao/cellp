@@ -1,0 +1,7 @@
+package cellp:config@0.1.0;
+
+interface config {
+  /// Read one manifest-authorized variable. Unknown names are absent; variable
+  /// enumeration is intentionally not part of the experimental contract.
+  get: func(name: string) -> option<string>;
+}

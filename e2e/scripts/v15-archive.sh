@@ -18,6 +18,39 @@ exec > >(tee -a "$LOG") 2>&1
 
 log "V15 archive project=${PROJECT}"
 
+# Safe JSON snippet for promote failure diagnostics (no tokens/secrets).
+api_body_diag() {
+  local raw="${1:-}"
+  if [[ -z "$raw" ]]; then
+    echo "(empty)"
+    return 0
+  fi
+  echo "$raw" | jq -c 'if type == "object" then del(.token, .access_token, .refresh_token, .password, .secret) else . end' 2>/dev/null \
+    || echo "$raw" | head -c 1024
+}
+
+assert_promote_ok() {
+  local vid="$1"
+  local label="$2"
+  api_status POST "/v1/projects/${PROJECT}/versions/${vid}/promote" '{}'
+  local promote_http="$API_STATUS"
+  local promote_body="$API_BODY"
+  if [[ "$promote_http" == "200" ]]; then
+    api_status GET "/v1/projects/${PROJECT}/versions/${vid}"
+    log "promote ${label} ${vid} HTTP ${promote_http} version_GET HTTP ${API_STATUS}"
+    return 0
+  fi
+  api_status GET "/v1/projects/${PROJECT}/versions/${vid}"
+  local ver_get_http="$API_STATUS"
+  local ver_snapshot
+  ver_snapshot=$(echo "$API_BODY" | jq -c '{id,status,error: (.error // empty)}' 2>/dev/null || api_body_diag "$API_BODY")
+  {
+    echo "DIAG: project=${PROJECT} promote ${label} version=${vid} POST HTTP ${promote_http} body=$(api_body_diag "$promote_body")"
+    echo "DIAG: GET /versions/${vid} HTTP ${ver_get_http} ${ver_snapshot}"
+  } >&2
+  fail "promote ${label} ${vid} HTTP ${promote_http}"
+}
+
 ensure_project "$PROJECT"
 cleanup_project_e2e_all() {
   local project="$1"
@@ -58,8 +91,7 @@ done
 
 TARGET="${IDS[0]}"
 PROD="${IDS[1]}"
-api_status POST "/v1/projects/${PROJECT}/versions/${PROD}/promote" ""
-[[ "$API_STATUS" == "200" ]] || fail "promote → HTTP ${API_STATUS}"
+assert_promote_ok "$PROD" "prod"
 
 api_status POST "/v1/projects/${PROJECT}/versions/${PROD}/archive" ""
 [[ "$API_STATUS" == "422" ]] || fail "archive prod → HTTP ${API_STATUS} (want 422)"

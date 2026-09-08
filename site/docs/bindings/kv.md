@@ -2,6 +2,8 @@
 
 Workers KV on `env.<binding>`. **celld** stores keys in the version bucket; **cellp** **branches** namespaces on child versions and exposes key operator APIs.
 
+**Native Component** workers use the same KV cell and operator API via `cellp:kv@0.1` (binding **name**, not namespace `id`). See [Native Component (experimental)](/build/native-component).
+
 [Bindings overview](/concepts/bindings) · [Binding guides](./index) · [Platform data](/build/data)
 
 ## 1. Declare it

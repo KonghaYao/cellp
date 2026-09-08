@@ -70,6 +70,7 @@ export default defineConfig({
           text: 'Build your app',
           items: [
             { text: 'Write a Worker', link: '/build/' },
+            { text: 'Native Component (experimental)', link: '/build/native-component' },
             { text: 'Configure bindings', link: '/build/wrangler' },
             { text: 'Platform data', link: '/build/data' },
             { text: 'Handlers', link: '/build/handlers' },

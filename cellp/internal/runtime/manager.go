@@ -473,13 +473,17 @@ func celldDeployKilled(err error) bool {
 // Deploy runs celld deploy for a bundle directory. When includeCrons is false, triggers.crons
 // are stripped from a temp copy of the bundle (artifact unchanged); see AD-11.
 func (m *Manager) Deploy(ctx context.Context, project, version, exampleDir string, includeCrons bool) error {
+	return m.deployWithPreflight(ctx, project, version, exampleDir, includeCrons, DeployPreflightFullFleet, "", 0)
+}
+
+func (m *Manager) deployWithPreflight(ctx context.Context, project, version, exampleDir string, includeCrons bool, preflight DeployPreflight, upstreamHost string, upstreamPort int) error {
 	if os.Getenv("CELLP_E2E_INJECT_DEPLOY_FAIL") == "1" {
 		return fmt.Errorf("injected deploy failure")
 	}
 	if !CelldInstalled() {
 		return nil
 	}
-	if err := m.Diagnose(ctx, project, version); err != nil {
+	if err := m.runDeployPreflight(ctx, project, version, preflight, upstreamHost, upstreamPort); err != nil {
 		return err
 	}
 	deployDir, cleanup, err := PrepareDeployBundle(exampleDir, includeCrons)

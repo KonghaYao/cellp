@@ -1,0 +1,7 @@
+package cellp:fixture@0.1.0;
+
+world fixture {
+  import cellp:config/config@0.1.0;
+  import cellp:kv/kv@0.1.0;
+  export wasi:http/incoming-handler@0.2.12;
+}

@@ -1,8 +1,8 @@
 # cellp 架构决策记录
 
-> **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
-> **设计背景：** [DESIGN.md](../DESIGN.md)  
-> **最后更新：** 2026-09-05（含 AD-6 … AD-13 · **AD-14** · **AD-15** 弹性 Serving · OTEL 门面）
+> **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）
+> **设计背景：** [DESIGN.md](../DESIGN.md)
+> **最后更新：** 2026-09-06（含 AD-6 … AD-13 · **AD-14** · **AD-15** 弹性 Serving · **AD-16** Native Component · OTEL 门面）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
 
@@ -21,7 +21,7 @@
 | **Registry** | SQLite（`cellp-registry.sqlite`，WAL）；**不用 PostgreSQL** |
 | **Gateway** | cellpd **内置** reverse proxy；监听 HTTP，由外部 LB 反代并终止 TLS |
 | **一期范围** | CD + Branch + Version + promote/saga；**首个 ready 可 bootstrap prod**（`prod_version_id` 空时 CAS + prod ingress）；ready 数量**无硬上限**（AD-9，靠封存回收进程） |
-| **Bindings（本期）** | 沿用 celld 0.4.0；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 不 branch |
+| **Bindings（本期）** | 沿用 celld 0.4.0；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 脚本不 branch；可选 experimental **`native-http-v1`**（AD-16） |
 
 ---
 
@@ -347,7 +347,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 - 仅当 `versions.id == projects.prod_version_id`（或项目尚无 prod、首版 deploy 前）时，cellp 对 celld 的 deploy **保留** `triggers.crons`。
 - 其余 ready preview：deploy 使用**临时** wrangler 视图（剥离 `triggers.crons`），**不修改** artifact 原件；`GET …/bindings` 仍反映 artifact 声明。
-- **Promote：** `CAS_prod` 成功后对旧 prod / 新 prod（若仍 ready）分别 **redeploy + Restart**，使仅新 prod manifest 含 crons。
+- **Promote：** `CAS_prod` 成功后对旧 prod / 新 prod（若仍 ready）分别 **redeploy + Restart**，使仅新 prod manifest 含 crons；**先** reconcile 新 prod、**后**旧 prod。旧 prod 已在 promote drain 中 `route.active=false` 且其 registry upstream 不可达时，**跳过** disarm redeploy（进程已不可调度 cron，不得阻断 cutover）；新 prod 配置的 upstream 不可达仍 **fail-closed**。
 - **Defer：** 分布式 cron 选举；`CELLP_PREVIEW_CRON=1` 双 arm；celld `CELLD_CRON_ARM=0` 补强。
 
 **实现：** `cellp/internal/orch/cron_policy.go` · `cellp/internal/runtime/wrangler_cron.go` · e2e `v17-cron-prod-only.sh`。
@@ -468,8 +468,8 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 ## 20. AD-15 — Elastic Serving Fleet 与安全 Scale-to-Zero
 
-**状态：** **已正式批准（2026-09-05）** · `cellpd` 单轨弹性控制面（scheduler + embedded/remote agent）；显式 `CELLP_ELASTIC_RUNTIME=off` 拒绝启动  
-**E0 证据：** [evidence/surge/e0/2026-09-05-e0-01/](./evidence/surge/e0/2026-09-05-e0-01/)  
+**状态：** **已正式批准（2026-09-05）** · `cellpd` 单轨弹性控制面（scheduler + embedded/remote agent）；显式 `CELLP_ELASTIC_RUNTIME=off` 拒绝启动
+**E0 证据：** [evidence/surge/e0/2026-09-05-e0-01/](./evidence/surge/e0/2026-09-05-e0-01/)
 **规格全文：** [plans/SURGE-PROPOSED-AD.md](./plans/SURGE-PROPOSED-AD.md) · [SURGE-DESIGN-INDEX.md](./plans/SURGE-DESIGN-INDEX.md)
 
 **问题：** AD-1 每 `ready` Version 单 celld 常驻；无法在自有容量内做 0→1、1→N、pressure 回收，且与 scale-to-zero 目标冲突。
@@ -496,4 +496,35 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 **实现阶段：** E1 Registry/0·1 本机 → E2 preview 0→1 → E3 remote mTLS → E4 1→N（SP 通过）→ E5 hardening。产品开发按 WP/DAG；**WP-REG** 在 WP-CONTRACT handoff 之后。
 
 **批准记录：** 架构 owner 于 2026-09-05 在开发会话中确认生效；文本审查见 [SURGE-PROPOSED-AD-REVIEW.md](./plans/SURGE-PROPOSED-AD-REVIEW.md)（13/13 CLOSED）。
+
+---
+
+## 21. AD-16 — Experimental Native Component HTTP (`native-http-v1`)
+
+**状态：** **已落地（experimental 0.x · 2026-09-06）** · qualification Wasmtime **48.0.1** · celld `44a3259`
+**公开文档：** [site: Native Component](https://konghayao.github.io/cellp/build/native-component.html) · celld [`runtime-bindings.md`](../celld/docs/runtime-bindings.md)
+**交付摘要：** [plans/NATIVE-WASM-RUNTIME-DELIVERY.md](./plans/NATIVE-WASM-RUNTIME-DELIVERY.md)
+
+**问题：** 部分 workload 希望 **不经 JS/V8** 直接跑 Wasm Component，但仍走 cellp 正式 Gateway Host 与 version 隔离；不能与 workers-rs 产物混为一谈。
+
+**决策（摘要）：**
+
+| 项 | 实现 |
+|----|------|
+| 执行 profile | wrangler 显式 **`cellp.execution: native-http-v1`** + **`cellp.component`**；禁止按 `.wasm` 扩展名猜测 |
+| 引擎 | **Wasmtime-only**；baseline **`cellp-native-baseline-1`**；Component + **`wasi:http/proxy@0.2`** |
+| WIT | **`cellp:config@0.1`**（vars）、**`cellp:kv@0.1`**（get/put/delete）；binding 名来自 manifest 授权 |
+| HTTP | **仅** stateless inbound；Gateway Host → per-version celld Native adapter |
+| 数据面 | KV 走现有 `__KvNamespace` / version bucket / operator API；**不**建第二 KV 存储 |
+| 共存 | JS/V8 默认与 **`wasm-v1`** 行为不变 |
+| 错误/资源 | 每请求 fresh instance；deadline/memory/hostcall/trap/cancel → discard；对外 **engine-neutral** 错误码 |
+| 验收 | `e2e/scripts/v18-native-wasm.sh`（Gateway + 真实 KV + 隔离 + JS smoke） |
+
+**明确不支持（R1）：** D1 · R2 · Queue · Workflow · Cron · DO · assets · `main` JS · outbound HTTP · **Native** WebSocket upgrade · workers-rs binary 直载。
+
+**安全边界：** 资源 containment **不是** hostile multi-tenant 保证；互不信任负载应更强隔离。
+
+**否定：** sidecar 第二 serving 进程；未 qualification 即改 shipped dispatch；篡改冻结 **D1 RPC** 契约。
+
+**证据：** `docs/evidence/native-wasm-e2e.json` · `docs/test-plan.md` **TP-NATIVE** · ADLC Q3 PASS
 
