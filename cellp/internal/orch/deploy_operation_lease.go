@@ -8,7 +8,7 @@ import (
 	"github.com/cellp/cellp/internal/registry"
 )
 
-var deployOperationLeaseTick = time.Minute
+var deployOperationLeaseTick = 30 * time.Second
 
 func (o *Orchestrator) renewDeployWorkerLeases(ctx context.Context, j *registry.Job, workerID string, lease time.Duration) error {
 	if j == nil || j.ID == "" {

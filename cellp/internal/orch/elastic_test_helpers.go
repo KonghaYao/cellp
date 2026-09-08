@@ -22,6 +22,10 @@ func (noopRouteSnapshotAck) WaitPublished(context.Context, registry.Store, int64
 	return nil
 }
 
+func (noopRouteSnapshotAck) WaitPublicServingPublished(context.Context, registry.Store, int64, string, string) error {
+	return nil
+}
+
 func ensureQualificationTestNode(ctx context.Context, store registry.Store) error {
 	return store.UpsertRuntimeNode(ctx, contract.RuntimeNode{
 		NodeID:        "n1",

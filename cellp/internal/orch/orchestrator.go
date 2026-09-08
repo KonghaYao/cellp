@@ -275,27 +275,6 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 	}
 	var host string
 	var port int
-	if d1Plan.UseBranch {
-		t0 := time.Now()
-		if err := o.runtime.D1Branch(ctx, j.ProjectID, j.VersionID, d1Plan.ParentID, bundleDir); err != nil {
-			if deployFailClosed() {
-				return fmt.Errorf("d1 branch: %w", err)
-			}
-			log.Printf("orch: d1 branch warn after %s: %v", time.Since(t0), err)
-		} else {
-			log.Printf("orch: d1 branch took %s", time.Since(t0))
-		}
-	} else if _, err := os.Stat(seedPath); err == nil {
-		t0 := time.Now()
-		if err := o.runtime.D1Execute(ctx, j.ProjectID, j.VersionID, bundleDir, seedPath); err != nil {
-			if deployFailClosed() {
-				return fmt.Errorf("d1 seed: %w", err)
-			}
-			log.Printf("orch: d1 seed warn after %s: %v", time.Since(t0), err)
-		} else {
-			log.Printf("orch: d1 seed took %s", time.Since(t0))
-		}
-	}
 	if bindingPlan.UseBranch {
 		if err := o.runBindingBranches(ctx, j.ProjectID, j.VersionID, bindingPlan.ParentID, bundleDir); err != nil {
 			return err
@@ -310,6 +289,11 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 		return fmt.Errorf("serving policy: %w", err)
 	}
 	elasticQ := o.elasticQualificationEnabled(ctx, j.ProjectID, j.VersionID)
+	if !elasticQ {
+		if err := o.applyD1DeployPlan(ctx, j, d1Plan, bundleDir, seedPath); err != nil {
+			return err
+		}
+	}
 	if err := o.maybeEnterDeployReady(ctx, j); err != nil {
 		return err
 	}
@@ -322,6 +306,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 			return err
 		}
 		if err := o.waitQualificationHealth(ctx, host, port); err != nil {
+			return err
+		}
+		if err := o.applyD1DeployPlan(ctx, j, d1Plan, bundleDir, seedPath); err != nil {
 			return err
 		}
 	}
@@ -368,6 +355,9 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 		return err
 	}
 	if elasticQ {
+		if err := o.routeSnapshotAck.WaitPublicServingPublished(ctx, o.store, routeRev, j.ProjectID, j.VersionID); err != nil {
+			return fmt.Errorf("public route snapshot publication: %w", err)
+		}
 		if err := o.finalizeQualificationIdleDesire(ctx, j); err != nil {
 			return fmt.Errorf("qualification idle: %w", err)
 		}

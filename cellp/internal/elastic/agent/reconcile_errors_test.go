@@ -40,6 +40,12 @@ func TestReconcileNodeErrorFatal(t *testing.T) {
 	if !errors.Is(wireStale, registry.ErrObservationStale) {
 		t.Fatal("wire stale must unwrap to registry sentinel")
 	}
+	if ReconcileNodeErrorFatal(registry.ErrLeaseExpired) {
+		t.Fatal("bare observation lease_expired must not be fatal on reconcile")
+	}
+	if !ReconcileRecordBenign(registry.ErrLeaseExpired) {
+		t.Fatal("lease_expired must be benign reconcile record")
+	}
 }
 
 func TestRuntimeNodeHeartbeatFatal(t *testing.T) {

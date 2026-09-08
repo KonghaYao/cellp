@@ -398,7 +398,8 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 		stopScope := scopeFor(rep, rep.Generation, contract.ActionStopReplica)
 		validated, assignmentErr := h.store.ValidateAgentAssignment(ctx, stopScope, h.now().UTC())
 		authoritativelyInvalid := validated == nil && assignmentErr == nil ||
-			registrywire.IsAuthoritativeGenerationStale(assignmentErr) || registrywire.IsAuthoritativeLeaseExpired(assignmentErr)
+			registrywire.IsAuthoritativeGenerationStale(assignmentErr) || registrywire.IsAuthoritativeLeaseExpired(assignmentErr) ||
+			errors.Is(assignmentErr, registry.ErrObservationStale)
 		if assignmentErr != nil && !authoritativelyInvalid {
 			uncertain[rep.ReplicaID] = struct{}{}
 			allErrs = append(allErrs, fmt.Errorf("validate assignment for replica %s: %w", rep.ReplicaID, assignmentErr))
@@ -439,7 +440,7 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 				continue
 			}
 			if rep.State != contract.ReplicaStopped {
-				if err := h.record(ctx, rep, contract.ReplicaStopped, "", 0); err != nil {
+				if err := h.record(ctx, rep, contract.ReplicaStopped, "", 0); err != nil && !ReconcileRecordBenign(err) {
 					allErrs = append(allErrs, fmt.Errorf("terminalize cleaned replica %s: %w", rep.ReplicaID, err))
 				}
 			}
@@ -590,7 +591,18 @@ func (h *Handler) assignment(ctx context.Context, scope contract.CommandScope) (
 
 func (h *Handler) recordStartingIfNeeded(ctx context.Context, rep *contract.RuntimeReplica) error {
 	switch rep.State {
-	case contract.ReplicaStarting, contract.ReplicaReady:
+	case contract.ReplicaStarting:
+		return nil
+	case contract.ReplicaReady:
+		// In-memory facts may show ready while registry is still pending (Start command
+		// path racing with reconcile). Attempt starting so pending→ready is valid.
+		if err := h.record(ctx, *rep, contract.ReplicaStarting, "", 0); err != nil {
+			if errors.Is(err, registry.ErrReplicaTransitionInvalid) || errors.Is(err, registry.ErrObservationStale) {
+				return nil
+			}
+			return err
+		}
+		rep.State = contract.ReplicaStarting
 		return nil
 	case contract.ReplicaPending, contract.ReplicaFailed, contract.ReplicaStopped:
 		if err := h.record(ctx, *rep, contract.ReplicaStarting, "", 0); err != nil {
@@ -608,12 +620,15 @@ func (h *Handler) recordStartingIfNeeded(ctx context.Context, rep *contract.Runt
 
 func (h *Handler) recordReadyIfRunning(ctx context.Context, rep *contract.RuntimeReplica, host string, port int) error {
 	if rep.State == contract.ReplicaReady {
-		return h.record(ctx, *rep, contract.ReplicaReady, host, port)
+		return nil
 	}
 	if err := h.recordStartingIfNeeded(ctx, rep); err != nil {
 		return err
 	}
 	if err := h.record(ctx, *rep, contract.ReplicaReady, host, port); err != nil {
+		if ReconcileRecordBenign(err) {
+			return nil
+		}
 		return err
 	}
 	rep.State = contract.ReplicaReady

@@ -114,7 +114,8 @@ func TestStartReadinessCancellationReleasesProcessWatchAndPort(t *testing.T) {
 	watchRoot := t.TempDir()
 	t.Setenv("CELLP_CELLD_WATCH_TMP", watchRoot)
 	t.Setenv("CELLP_SKIP_CELLD_DIAGNOSE", "1")
-	m := New(8792, "", "us-east-1", "s3://ignored", "k", "s")
+	t.Setenv("CELLP_CELLD_PORT_SETTLE", "50ms")
+	m := New(48982, "", "us-east-1", "s3://ignored", "k", "s")
 	key := ReplicaKey{ProjectID: "demo", VersionID: "v1", ReplicaID: "r1"}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -135,8 +136,9 @@ func TestStartReadinessCancellationReleasesProcessWatchAndPort(t *testing.T) {
 	}
 	t.Setenv("PATH", t.TempDir())
 	_, reused, err := m.StartReplica(context.Background(), key, "s3://cellp-celld/demo/v1")
-	if err != nil || reused != m.basePort+11 {
-		t.Fatalf("restart did not reuse first free port: new=%d err=%v", reused, err)
+	wantPort := m.basePort + 11
+	if err != nil || reused != wantPort {
+		t.Fatalf("restart did not reuse first free port: want=%d new=%d err=%v", wantPort, reused, err)
 	}
 }
 
@@ -192,6 +194,7 @@ func TestWaitForTCPPortFreeSucceeds(t *testing.T) {
 }
 
 func TestStartOnPortRejectsOccupiedPort(t *testing.T) {
+	t.Setenv("CELLP_CELLD_PORT_SETTLE", "500ms")
 	bin := filepath.Join(t.TempDir(), "bin")
 	if err := os.Mkdir(bin, 0o755); err != nil {
 		t.Fatal(err)

@@ -24,6 +24,7 @@ const (
 	desireReasonCronResident              = "cron_resident"
 	desireReasonPromoteActivate           = "promote_activate"
 	defaultQualificationWait              = 120 * time.Second
+	qualificationSchedulerPollInterval    = 200 * time.Millisecond
 	qualificationDesireCASAttempts        = 8
 )
 
@@ -195,7 +196,7 @@ func (o *Orchestrator) waitElasticQualificationEndpoint(ctx context.Context, pro
 		if time.Now().After(deadline) {
 			return "", 0, fmt.Errorf("qualification endpoint timeout for %s/%s", projectID, versionID)
 		}
-		if err := sleepUntil(ctx, 10*time.Millisecond); err != nil {
+		if err := sleepUntil(ctx, qualificationSchedulerPollInterval); err != nil {
 			return "", 0, err
 		}
 	}

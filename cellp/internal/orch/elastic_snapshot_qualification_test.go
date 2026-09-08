@@ -51,6 +51,10 @@ func (a *integrationSnapshotAck) WaitPublished(ctx context.Context, store regist
 	return nil
 }
 
+func (a *integrationSnapshotAck) WaitPublicServingPublished(context.Context, registry.Store, int64, string, string) error {
+	return a.fail
+}
+
 func prepareElasticDeploy(t *testing.T) (*Orchestrator, registry.Store, context.Context, *registry.Job, int) {
 	t.Helper()
 	installFakeCelld(t)

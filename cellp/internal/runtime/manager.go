@@ -212,7 +212,7 @@ func (m *Manager) Restart(ctx context.Context, project, version string) error {
 		return err
 	}
 	if celldInstalled {
-		if err := waitForTCPPortFree("127.0.0.1", port, celldListenPortSettle); err != nil {
+		if err := waitForTCPPortFree("127.0.0.1", port, celldListenPortSettleDuration()); err != nil {
 			return err
 		}
 	}
@@ -269,7 +269,7 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 		m.mu.Unlock()
 		return returnHost, port, nil
 	}
-	if err := waitForTCPPortFree(bindHost, port, celldListenPortSettle); err != nil {
+	if err := waitForTCPPortFree(bindHost, port, celldListenPortSettleDuration()); err != nil {
 		return "", 0, fmt.Errorf("start celld: %w", err)
 	}
 
@@ -375,8 +375,18 @@ func (m *Manager) Diagnose(ctx context.Context, project, version string) error {
 
 const diagnoseTimeout = 30 * time.Second
 
-// Time to wait for a celld listen socket to be released after stop or before start.
-const celldListenPortSettle = 15 * time.Second
+// Default time to wait for a celld listen socket to be released after stop or before start.
+const defaultCelldListenPortSettle = 45 * time.Second
+
+func celldListenPortSettleDuration() time.Duration {
+	if v := strings.TrimSpace(os.Getenv("CELLP_CELLD_PORT_SETTLE")); v != "" {
+		d, err := time.ParseDuration(v)
+		if err == nil && d > 0 {
+			return d
+		}
+	}
+	return defaultCelldListenPortSettle
+}
 
 const celldHealthPollAttempts = 60
 
@@ -943,8 +953,13 @@ func (m *Manager) stopManagedLocked(ctx context.Context, k string, releasePort b
 	}
 
 	if cmd != nil && cmd.Process != nil && CelldInstalled() && listenPort > 0 {
-		if err := waitForTCPPortFree(bindHost, listenPort, celldListenPortSettle); err != nil {
-			return err
+		if err := waitForTCPPortFree(bindHost, listenPort, celldListenPortSettleDuration()); err != nil {
+			// Our subprocess is already gone; if the listen port is still taken,
+			// another process holds it. Release local inventory anyway so elastic
+			// reconcile does not wedge on stale port maps.
+			if processAlive(cmd) {
+				return err
+			}
 		}
 	}
 

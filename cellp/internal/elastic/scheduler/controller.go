@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/cellp/cellp/internal/elastic/contract"
@@ -13,8 +14,9 @@ import (
 )
 
 const (
-	defaultDrainGrace            = 30 * time.Second
-	defaultAssignmentRenewWindow = 30 * time.Second
+	defaultDrainGrace                     = 30 * time.Second
+	defaultAssignmentRenewWindow          = 30 * time.Second
+	assignmentRenewDuringAgentInterval    = 5 * time.Second
 )
 
 // Controller reconciles serving desires into generation-fenced assignments and Agent commands.
@@ -23,6 +25,8 @@ type Controller struct {
 	Guard   ControllerGuardChecker
 	Clients ClientFactory
 	Now     func() time.Time
+
+	tickMu sync.Mutex
 }
 
 // TickReport summarizes one scheduler pass.
@@ -38,10 +42,15 @@ func Enabled() bool {
 
 // Tick reads registry state and drives placement plus lifecycle convergence.
 func (c *Controller) Tick(ctx context.Context) (TickReport, error) {
+	if c == nil {
+		return TickReport{}, nil
+	}
+	c.tickMu.Lock()
+	defer c.tickMu.Unlock()
 	if !Enabled() {
 		return TickReport{Skipped: true}, nil
 	}
-	if c == nil || c.Store == nil {
+	if c.Store == nil {
 		return TickReport{}, nil
 	}
 	if c.Guard == nil {
@@ -321,7 +330,7 @@ func (c *Controller) placeReplica(ctx context.Context, pol registry.ServingPolic
 		}
 		return true, err
 	}
-	_, err = client.StartReplica(ctx, spec, idempotencyKey(contract.ActionStartReplica, rep.ReplicaID, rep.Generation))
+	err = c.invokeStartReplica(ctx, client, &rep, *pick, spec, idempotencyKey(contract.ActionStartReplica, rep.ReplicaID, rep.Generation))
 	if err != nil {
 		if handleErr := c.handleAgentErr(ctx, rep, err); handleErr != nil {
 			return true, handleErr
@@ -427,8 +436,8 @@ func (c *Controller) startReplica(ctx context.Context, rep contract.RuntimeRepli
 	if err := c.checkGuard(ctx); err != nil {
 		return err
 	}
-	_, err = client.StartReplica(ctx, spec, idempotencyKey(contract.ActionStartReplica, rep.ReplicaID, rep.Generation))
-	if err != nil {
+	repCopy := rep
+	if err := c.invokeStartReplica(ctx, client, &repCopy, node, spec, idempotencyKey(contract.ActionStartReplica, rep.ReplicaID, rep.Generation)); err != nil {
 		return c.handleAgentErr(ctx, rep, err)
 	}
 	return nil
@@ -496,7 +505,11 @@ func (c *Controller) stopReplica(ctx context.Context, rep contract.RuntimeReplic
 	if err := c.checkGuard(ctx); err != nil {
 		return err
 	}
-	_, err = client.StopReplica(ctx, scope)
+	repCopy := rep
+	err = c.withAssignmentRenewDuring(ctx, &repCopy, node, func(callCtx context.Context) error {
+		_, stopErr := client.StopReplica(callCtx, scope)
+		return stopErr
+	})
 	if err != nil {
 		return c.handleAgentErr(ctx, rep, err)
 	}
@@ -619,6 +632,66 @@ func commandNonce() string {
 
 func idempotencyKey(action contract.LifecycleAction, replicaID string, generation int64) string {
 	return fmt.Sprintf("scheduler.%s.%s.%d", action, replicaID, generation)
+}
+
+func (c *Controller) invokeStartReplica(ctx context.Context, client RuntimeNodeClient, rep *contract.RuntimeReplica, node contract.RuntimeNode, spec contract.StartReplicaSpec, idem string) error {
+	return c.withAssignmentRenewDuring(ctx, rep, node, func(callCtx context.Context) error {
+		_, err := client.StartReplica(callCtx, spec, idem)
+		return err
+	})
+}
+
+func (c *Controller) withAssignmentRenewDuring(ctx context.Context, rep *contract.RuntimeReplica, node contract.RuntimeNode, fn func(context.Context) error) error {
+	if c == nil || rep == nil || fn == nil {
+		return fn(ctx)
+	}
+	renewCtx, cancelRenew := context.WithCancel(ctx)
+	defer cancelRenew()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(assignmentRenewDuringAgentInterval)
+		defer ticker.Stop()
+		curNode := node
+		for {
+			select {
+			case <-renewCtx.Done():
+				return
+			case <-ticker.C:
+				if err := c.checkGuard(renewCtx); err != nil {
+					return
+				}
+				fresh, ok, err := c.runtimeNode(renewCtx, rep.NodeID)
+				if err != nil || !ok {
+					continue
+				}
+				curNode = fresh
+				now := c.now().UTC()
+				if err := c.renewAssignmentIfNeeded(renewCtx, rep, curNode, now); err != nil {
+					if errors.Is(err, registry.ErrAssignmentCASConflict) || errors.Is(err, registry.ErrLeaseExpired) {
+						return
+					}
+				}
+			}
+		}
+	}()
+	err := fn(ctx)
+	cancelRenew()
+	<-done
+	return err
+}
+
+func (c *Controller) runtimeNode(ctx context.Context, nodeID string) (contract.RuntimeNode, bool, error) {
+	nodes, err := c.Store.ListRuntimeNodes(ctx)
+	if err != nil {
+		return contract.RuntimeNode{}, false, err
+	}
+	for _, n := range nodes {
+		if n.NodeID == nodeID {
+			return n, true, nil
+		}
+	}
+	return contract.RuntimeNode{}, false, nil
 }
 
 func indexNodes(nodes []contract.RuntimeNode) map[string]contract.RuntimeNode {

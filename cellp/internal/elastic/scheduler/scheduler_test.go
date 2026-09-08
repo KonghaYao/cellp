@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -517,6 +518,81 @@ func TestControllerRemoteDispatchScopeAndLeaseRenewal(t *testing.T) {
 	renewed, _ := fix.store.GetRuntimeReplica(ctx, rep.ReplicaID)
 	if renewed.ValidUntil == nil || !renewed.ValidUntil.After(oldExpiry) {
 		t.Fatalf("assignment lease not renewed: %+v", renewed)
+	}
+}
+
+type blockingStartClient struct {
+	inner *recordingClient
+	delay time.Duration
+
+	mu      sync.Mutex
+	active  int
+	maxSeen int
+}
+
+func (b *blockingStartClient) StartReplica(ctx context.Context, spec contract.StartReplicaSpec, idem string) (contract.RuntimeReplica, error) {
+	b.mu.Lock()
+	b.active++
+	if b.active > b.maxSeen {
+		b.maxSeen = b.active
+	}
+	b.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		b.mu.Lock()
+		b.active--
+		b.mu.Unlock()
+		return contract.RuntimeReplica{}, ctx.Err()
+	case <-time.After(b.delay):
+	}
+	b.mu.Lock()
+	b.active--
+	b.mu.Unlock()
+	return b.inner.StartReplica(ctx, spec, idem)
+}
+
+func (b *blockingStartClient) ProbeReplica(ctx context.Context, scope contract.CommandScope) (agent.ProbeResult, error) {
+	return b.inner.ProbeReplica(ctx, scope)
+}
+
+func (b *blockingStartClient) DrainReplica(ctx context.Context, scope contract.CommandScope, until time.Time) (contract.RuntimeReplica, error) {
+	return b.inner.DrainReplica(ctx, scope, until)
+}
+
+func (b *blockingStartClient) StopReplica(ctx context.Context, scope contract.CommandScope) (contract.RuntimeReplica, error) {
+	return b.inner.StopReplica(ctx, scope)
+}
+
+func TestControllerTickSerializesConcurrently(t *testing.T) {
+	fix := newSchedulerFixture(t, 1, eligibleNode("n1", 1, 1))
+	blocking := &blockingStartClient{inner: fix.clients["n1"], delay: 80 * time.Millisecond}
+	fix.ctrl.Clients = func(node contract.RuntimeNode) (RuntimeNodeClient, error) {
+		if node.NodeID == "n1" {
+			return blocking, nil
+		}
+		return nil, errors.New("unexpected node")
+	}
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	var tickErr atomic.Value
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := fix.ctrl.Tick(ctx); err != nil {
+				tickErr.Store(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if err := tickErr.Load(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	blocking.mu.Lock()
+	peak := blocking.maxSeen
+	blocking.mu.Unlock()
+	if peak != 1 {
+		t.Fatalf("expected serialized ticks, peak concurrent=%d", peak)
 	}
 }
 

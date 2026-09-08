@@ -52,20 +52,21 @@ func IsAuthoritativeGenerationStale(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, registry.ErrObservationStale) || errors.Is(err, registry.ErrNodeLeaseCASConflict) {
+	var auth *AuthoritativeErr
+	if errors.As(err, &auth) && auth.Reason == contract.ReasonGenerationStale {
 		return true
 	}
-	var auth *AuthoritativeErr
-	return errors.As(err, &auth) && auth.Reason == contract.ReasonGenerationStale
+	if errors.Is(err, registry.ErrNodeLeaseCASConflict) {
+		return true
+	}
+	return false
 }
 
-// IsAuthoritativeLeaseExpired reports confirmed lease expiry (local registry or remote wire).
+// IsAuthoritativeLeaseExpired reports confirmed lease expiry from remote wire (AuthoritativeErr).
+// Bare registry.ErrLeaseExpired from local observation CAS is not authoritative assignment loss.
 func IsAuthoritativeLeaseExpired(err error) bool {
 	if err == nil {
 		return false
-	}
-	if errors.Is(err, registry.ErrLeaseExpired) {
-		return true
 	}
 	var auth *AuthoritativeErr
 	return errors.As(err, &auth) && auth.Reason == contract.ReasonLeaseExpired
