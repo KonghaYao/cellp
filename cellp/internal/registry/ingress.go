@@ -128,29 +128,24 @@ func (s *SQLiteStore) UpsertIngressBinding(ctx context.Context, b IngressBinding
 		return err
 	}
 	return withRetryErr(func() error {
-		active := 0
-		if b.Active {
-			active = 1
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
 		}
-		_, err := s.db.ExecContext(ctx, `
-			INSERT INTO ingress_bindings (
-				binding_id, project_id, version_id, role, host, listen_port, synthetic_host, owner_gateway_id, active
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(binding_id) DO UPDATE SET
-				project_id = excluded.project_id,
-				version_id = excluded.version_id,
-				role = excluded.role,
-				host = excluded.host,
-				listen_port = excluded.listen_port,
-				synthetic_host = excluded.synthetic_host,
-				owner_gateway_id = excluded.owner_gateway_id,
-				active = excluded.active`,
-			b.BindingID, b.ProjectID, nullStr(b.VersionID), b.Role,
-			nullStr(b.Host), nullInt(b.ListenPort), b.SyntheticHost, nullStr(b.OwnerGatewayID), active)
-		if isIngressUniqueViolation(err) {
-			return ErrIngressBindingConflict
+		defer tx.Rollback()
+		prior, err := getIngressBindingTx(ctx, tx, b.BindingID)
+		if err != nil {
+			return err
 		}
-		return err
+		if err := upsertIngressBindingExec(ctx, tx, b); err != nil {
+			return err
+		}
+		if prior == nil || !ingressBindingRoutingEqual(prior, &b) {
+			if err := bumpRouteRevisionInTx(ctx, tx); err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
 	})
 }
 
@@ -190,11 +185,26 @@ func (s *SQLiteStore) LookupIngressByListenPort(ctx context.Context, listenPort 
 
 func (s *SQLiteStore) SetIngressBindingActive(ctx context.Context, bindingID string, active bool) error {
 	return withRetryErr(func() error {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		prior, err := getIngressBindingTx(ctx, tx, bindingID)
+		if err != nil {
+			return err
+		}
+		if prior == nil {
+			return fmt.Errorf("ingress binding not found")
+		}
+		if prior.Active == active {
+			return tx.Commit()
+		}
 		activeInt := 0
 		if active {
 			activeInt = 1
 		}
-		res, err := s.db.ExecContext(ctx,
+		res, err := tx.ExecContext(ctx,
 			`UPDATE ingress_bindings SET active = ? WHERE binding_id = ?`, activeInt, bindingID)
 		if err != nil {
 			if isIngressUniqueViolation(err) {
@@ -206,7 +216,10 @@ func (s *SQLiteStore) SetIngressBindingActive(ctx context.Context, bindingID str
 		if n == 0 {
 			return fmt.Errorf("ingress binding not found")
 		}
-		return nil
+		if err := bumpRouteRevisionInTx(ctx, tx); err != nil {
+			return err
+		}
+		return tx.Commit()
 	})
 }
 

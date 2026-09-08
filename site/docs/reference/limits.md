@@ -34,9 +34,9 @@ Intentional constraints so you do not plan on a Cloudflare-shaped roadmap that w
 - `POST /versions` returns **503** `queue_full` when the queue is saturated.
 - Very large multi-tenant registry stress beyond SQLite scope is **out of v1** honesty for this release.
 
-## Elastic replicas (planned, default off)
+## Elastic replicas (unsupported internal scaffold; default off)
 
-Optional **0→N serving replicas** per version (scale-to-zero and surge) exist in code behind `CELLP_ELASTIC_RUNTIME`. **Default is disabled:** every `ready` version still maps to **one celld process** on your machines. `POST …/wake` only applies to **archived** versions, not a future “cold but not archived” elastic state. When elastic serving is productized, this page and [Archive & wake](/concepts/archive) will describe how archive and cold interact.
+`CELLP_ELASTIC_RUNTIME` currently exposes only an **unsupported internal E1–E5 scaffold**. It does not deliver a remote HTTP+mTLS Node Agent, real celld lifecycle management, a Scheduler or complete 0→N scaling, and it is not production-ready. Leave it disabled for supported deployments: every `ready` version maps to **one celld process**. `POST …/wake` applies only to **archived** versions, not a future “cold but not archived” elastic state.
 
 ## Data plane
 

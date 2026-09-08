@@ -164,3 +164,102 @@ func TestAdmitArchivedRejected(t *testing.T) {
 		t.Fatalf("got %+v", res)
 	}
 }
+
+type blockingEnsure struct {
+	calls   atomic.Int32
+	started chan struct{}
+	release chan struct{}
+}
+
+func (f *blockingEnsure) EnsureCapacity(ctx context.Context, projectID, versionID string, minReplicas int) error {
+	if f.calls.Add(1) == 1 {
+		close(f.started)
+	}
+	select {
+	case <-f.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestCallerCancelDoesNotCancelSharedActivation(t *testing.T) {
+	fe := &blockingEnsure{started: make(chan struct{}), release: make(chan struct{})}
+	cfg := activator.DefaultConfig()
+	cfg.WakeTimeout = time.Second
+	cfg.PollInterval = time.Millisecond
+	a := activator.New(true, fe, cfg)
+	var warm atomic.Bool
+	lookup := func() (string, bool) {
+		if warm.Load() {
+			return "127.0.0.1:9001", true
+		}
+		return "", false
+	}
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderDone := make(chan activator.AdmitResult, 1)
+	go func() {
+		leaderDone <- a.Admit(leaderCtx, httptest.NewRequest(http.MethodGet, "/", nil), "p", "v", contract.StatusDeployReady, 1, lookup)
+	}()
+	<-fe.started
+	followerDone := make(chan activator.AdmitResult, 1)
+	go func() {
+		followerDone <- a.Admit(context.Background(), httptest.NewRequest(http.MethodGet, "/", nil), "p", "v", contract.StatusDeployReady, 1, lookup)
+	}()
+	cancelLeader()
+	if res := <-leaderDone; res.AllowProxy || res.Reason != activator.ReasonWakeTimeout {
+		t.Fatalf("cancelled leader: %+v", res)
+	}
+	warm.Store(true)
+	close(fe.release)
+	if res := <-followerDone; !res.AllowProxy || res.Upstream != "127.0.0.1:9001" {
+		t.Fatalf("follower lost shared activation: %+v", res)
+	}
+	if calls := fe.calls.Load(); calls != 1 {
+		t.Fatalf("ensure calls=%d", calls)
+	}
+}
+
+func TestBudgetByteLimitAndRelease(t *testing.T) {
+	b := activator.NewBudgetWithBytes(2, 2, 8, 4)
+	if !b.TryAcquireBytes("p", "v", 4) {
+		t.Fatal("first byte reservation")
+	}
+	if b.TryAcquireBytes("p", "v", 1) {
+		t.Fatal("per-version bytes exceeded")
+	}
+	b.ReleaseBytes("p", "v", 4)
+	if !b.TryAcquireBytes("p", "v", 1) {
+		t.Fatal("reservation not released")
+	}
+}
+
+func TestConfigValidationFailClosed(t *testing.T) {
+	cfg := activator.DefaultConfig()
+	cfg.PerVersionPendingBytes = cfg.MaxBufferedBodyBytes - 1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected invalid byte budget")
+	}
+	t.Setenv("CELLP_WAKE_TIMEOUT", "not-a-duration")
+	if _, err := activator.ConfigFromEnv(); err == nil {
+		t.Fatal("invalid environment must fail closed")
+	}
+}
+
+func TestShutdownCancelsAndQuiescesFastFailFlight(t *testing.T) {
+	fe := &blockingEnsure{started: make(chan struct{}), release: make(chan struct{})}
+	cfg := activator.DefaultConfig()
+	a := activator.New(true, fe, cfg)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.ContentLength = cfg.MaxBufferedBodyBytes + 1
+	_ = a.Admit(context.Background(), req, "p", "v", contract.StatusDeployReady, 1, func() (string, bool) { return "", false })
+	<-fe.started
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := a.Shutdown(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Shutdown(context.Background()); err != nil {
+		t.Fatalf("second shutdown: %v", err)
+	}
+}

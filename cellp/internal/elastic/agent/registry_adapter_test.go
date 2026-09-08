@@ -30,7 +30,7 @@ func TestNewFromRegistryIntegration(t *testing.T) {
 	h := NewFromRegistry(true, store)
 	scope := contract.CommandScope{
 		NodeID: "n1", ProjectID: "demo", VersionID: "v1", ReplicaID: "r1",
-		Generation: 2, LeaseExpiry: exp, Nonce: "x", Action: contract.ActionStartReplica,
+		Generation: 1, LeaseExpiry: exp, Nonce: "x", Action: contract.ActionStartReplica,
 	}
 	rep, err := h.StartReplica(ctx, contract.StartReplicaSpec{Scope: scope, Bucket: "b-demo-v1"}, "")
 	if err != nil {

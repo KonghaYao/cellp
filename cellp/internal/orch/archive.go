@@ -182,12 +182,15 @@ func (o *Orchestrator) RunArchiveReaperOnce(ctx context.Context, cfg ArchiveConf
 }
 
 // StartArchiveReaper runs idle archive on a ticker (CELLP_ARCHIVE_REAPER=0 disables).
-func (o *Orchestrator) StartArchiveReaper(ctx context.Context, cfg ArchiveConfig) {
+func (o *Orchestrator) StartArchiveReaper(ctx context.Context, cfg ArchiveConfig) <-chan struct{} {
+	done := make(chan struct{})
 	if cfg.ReaperInterval <= 0 {
 		log.Println("orch: archive reaper disabled (CELLP_ARCHIVE_REAPER=0)")
-		return
+		close(done)
+		return done
 	}
 	go func() {
+		defer close(done)
 		log.Printf("orch: archive reaper every %v (idle=%v grace=%v rollback_keep=%v)",
 			cfg.ReaperInterval, cfg.Idle, cfg.Grace, cfg.RollbackKeep)
 		ticker := time.NewTicker(cfg.ReaperInterval)
@@ -206,6 +209,7 @@ func (o *Orchestrator) StartArchiveReaper(ctx context.Context, cfg ArchiveConfig
 			}
 		}
 	}()
+	return done
 }
 
 // ParseRollbackKeepForTest exposes rollback keep parsing for tests.

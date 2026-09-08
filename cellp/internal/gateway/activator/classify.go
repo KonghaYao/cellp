@@ -25,18 +25,14 @@ func ClassifyRequest(r *http.Request, maxBufferedBody int64) WaitClass {
 	if isUpgrade(r) {
 		return WaitClassFastFail
 	}
+	if r.ContentLength < 0 || r.ContentLength > maxBufferedBody {
+		return WaitClassFastFail
+	}
 	method := strings.ToUpper(r.Method)
 	switch method {
 	case http.MethodGet, http.MethodHead:
 		return WaitClassBounded
 	case http.MethodPost, http.MethodPut, http.MethodPatch:
-		if r.ContentLength < 0 {
-			// Chunked or unknown length — do not buffer.
-			return WaitClassFastFail
-		}
-		if r.ContentLength > maxBufferedBody {
-			return WaitClassFastFail
-		}
 		return WaitClassBounded
 	default:
 		return WaitClassFastFail

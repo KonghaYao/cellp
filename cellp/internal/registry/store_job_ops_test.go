@@ -63,6 +63,26 @@ func TestJobCompleteFailUpdateStep(t *testing.T) {
 	}
 }
 
+func TestMarkJobCompensating(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "comp-job.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	j, err := s.EnqueueJob(ctx, "demo", "v1", StatusFetching)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkJobCompensating(ctx, j.ID); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := s.ClaimCompensatingJob(ctx, "w1", time.Minute)
+	if err != nil || claimed == nil || claimed.ID != j.ID {
+		t.Fatalf("compensating claim: %+v err=%v", claimed, err)
+	}
+}
+
 func TestCountReadyVersions(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "ready.sqlite"))
 	if err != nil {

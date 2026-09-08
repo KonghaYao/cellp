@@ -19,6 +19,8 @@ func main() {
 		os.Exit(cmdDev(os.Args[2:]))
 	case "serve":
 		os.Exit(cmdServe())
+	case "agent":
+		os.Exit(cmdAgent(os.Args[2:]))
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -34,6 +36,7 @@ func usage() {
 Usage:
   cellp dev       Start a local platform (no Docker). Deploys cwd if wrangler.jsonc exists.
   cellp serve     Run cellpd from environment (production / Compose).
+  cellp agent     Run a standalone remote Node Agent (elastic fleet).
   cellp doctor    Check celld, offshoot, esbuild, and ports.
   cellp version   Print the build version.
 

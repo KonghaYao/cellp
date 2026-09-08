@@ -9,14 +9,14 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/cellp/cellp/internal/registry"
 )
 
 type listenerEntry struct {
-	srv *http.Server
-	ln  net.Listener
+	srv  *http.Server
+	ln   net.Listener
+	done chan struct{}
 }
 
 // ListenerManager owns dedicated 127.0.0.1 ingress listeners (INGRESS-PORT P5c).
@@ -90,7 +90,9 @@ func (lm *ListenerManager) reconcileLocked(ctx context.Context) error {
 		if _, ok := desired[port]; ok {
 			continue
 		}
-		lm.shutdownEntryLocked(port, ent)
+		if err := lm.shutdownEntryLocked(ctx, port, ent); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -110,9 +112,10 @@ func (lm *ListenerManager) startLocked(port int) error {
 		return fmt.Errorf("listen %s: %w", addr, err)
 	}
 	srv := &http.Server{Handler: lm.handlerForPort(port)}
-	ent := &listenerEntry{srv: srv, ln: ln}
+	ent := &listenerEntry{srv: srv, ln: ln, done: make(chan struct{})}
 	lm.servers[port] = ent
 	go func() {
+		defer close(ent.done)
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("ingress listener port=%d: %v", port, err)
 		}
@@ -121,22 +124,53 @@ func (lm *ListenerManager) startLocked(port int) error {
 	return nil
 }
 
-func (lm *ListenerManager) shutdownEntryLocked(port int, ent *listenerEntry) {
+func (lm *ListenerManager) shutdownEntryLocked(ctx context.Context, port int, ent *listenerEntry) error {
 	if ent == nil {
-		return
+		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = ent.srv.Shutdown(ctx)
+	if err := ent.srv.Shutdown(ctx); err != nil {
+		return fmt.Errorf("ingress listener port %d shutdown: %w", port, err)
+	}
+	if err := waitIngressListener(ctx, ent.done); err != nil {
+		return fmt.Errorf("ingress listener port %d serve: %w", port, err)
+	}
 	delete(lm.servers, port)
 	log.Printf("ingress listener: closed http://127.0.0.1:%d", port)
+	return nil
+}
+
+func waitIngressListener(ctx context.Context, done <-chan struct{}) error {
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // CloseAll shuts down dedicated ingress listeners (cellpd shutdown).
-func (lm *ListenerManager) CloseAll(ctx context.Context) {
+func (lm *ListenerManager) CloseAll(ctx context.Context) error {
 	lm.mu.Lock()
-	defer lm.mu.Unlock()
+	ports := make([]int, 0, len(lm.servers))
+	entries := make([]*listenerEntry, 0, len(lm.servers))
 	for port, ent := range lm.servers {
-		lm.shutdownEntryLocked(port, ent)
+		ports = append(ports, port)
+		entries = append(entries, ent)
 	}
+	lm.mu.Unlock()
+	var errs []error
+	for i, port := range ports {
+		lm.mu.Lock()
+		ent := lm.servers[port]
+		if ent != entries[i] {
+			lm.mu.Unlock()
+			continue
+		}
+		err := lm.shutdownEntryLocked(ctx, port, ent)
+		lm.mu.Unlock()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }

@@ -84,7 +84,9 @@ Response includes `prod_version_id`, `prod_url` when production is set.
 | **422** | Invalid fork (e.g. parenting live production for a PR) |
 | **503** | Deploy queue full (`queue_full`, `pending_jobs`, `queue_max`) |
 
-Poll `GET …/versions/{id}` until `status` is `ready` or `failed` (you may see `deploy_ready` transiently when elastic runtime is on—keep polling until `ready`; see table above).
+Poll `GET …/versions/{id}` until `status` is `ready` or `failed`. You may see `deploy_ready` transiently only with the default-off `CELLP_ELASTIC_RUNTIME` internal scaffold; keep polling until `ready`.
+
+> `CELLP_ELASTIC_RUNTIME` is an **unsupported internal E1–E5 scaffold**, not an operator feature. It provides no remote HTTP+mTLS Node Agent, real celld lifecycle management, Scheduler/complete 0→N scaling, or production-readiness.
 
 ### Version `status` values
 

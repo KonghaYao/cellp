@@ -8,6 +8,8 @@ const (
 	ReasonWakeRetry          = "wake_retry"
 	ReasonVersionArchived    = "version_archived"
 	ReasonControlUnavailable = "control_unavailable"
+	ReasonVersionNotReady    = "version_not_ready"
+	ReasonRequestTooLarge    = "request_too_large"
 )
 
 const HeaderCellpReason = "X-Cellp-Reason"

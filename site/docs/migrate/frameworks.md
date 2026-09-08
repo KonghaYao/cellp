@@ -46,6 +46,7 @@ Cloudflare documents Next.js via **OpenNext** (and related tooling). cellp:
 - Does **not** use Next for the Dashboard (`web/` is a **Vite SPA**, not Next.js).
 - Allows **experimental** OpenNext artifacts if you pre-build a single Worker entry and static assets.
 - **Lab only:** minimal OpenNext and pinned App Router fixtures have passed lab fixture checks (static assets, dynamic SSR route, Route Handler, 404). That is not tier-1 support or a promise that arbitrary Next/OpenNext versions work unchanged.
+- **Pinned official corpus:** `@opennextjs/cloudflare@1.14.0` (commit `a644ee1597de577632a29af9a005684554607b2f`) has a real preview harness in `dev/scripts/run-opennext-official-e2e.sh`. The latest measured App Router runtime result is **55 passed / 3 failed / 3 skipped** out of 58 runnable tests (after R2 incremental-cache import and localhost preview Host; remaining failures are data/tag/fetch cache semantics). OpenNext remains **experimental / not tier 1**.
 
 | Approach | cellp |
 |----------|--------|

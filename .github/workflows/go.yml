@@ -1,60 +1,14 @@
+# Deprecated: use ci.yml. Kept so old PR links still resolve; forwards to the same gates.
 name: Go
 
 on:
-  push:
-    paths:
-      - "cellp/**"
-      - ".github/workflows/go.yml"
-  pull_request:
-    paths:
-      - "cellp/**"
-      - ".github/workflows/go.yml"
+  workflow_dispatch:
 
 permissions:
-  contents: write
-
-env:
-  GOTOOLCHAIN: auto
+  contents: read
 
 jobs:
-  test:
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: cellp/go.mod
-          cache-dependency-path: cellp/go.sum
-      - name: Test
-        working-directory: cellp
-        run: |
-          go version
-          set +e
-          go test ./... 2>&1 | tee "$GITHUB_WORKSPACE/go-test.out"
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ "$status" -ne 0 ]; then
-            {
-              echo '### go test'
-              echo '```'
-              tail -n 80 "$GITHUB_WORKSPACE/go-test.out"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit "$status"
-
-      - name: Comment test log
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            let log = '';
-            try { log = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/go-test.out`, 'utf8'); } catch {}
-            const body = '```\n' + log.slice(-3500) + '\n```';
-            await github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-              body: 'go test failed:\n' + body,
-            });
+      - run: echo "Go workflow merged into CI — see .github/workflows/ci.yml"

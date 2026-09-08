@@ -46,11 +46,7 @@ func TestArchiveIdleReaper(t *testing.T) {
 		ProjectID: "demo", VersionID: "v1", Active: true,
 		UpstreamHost: "127.0.0.1", UpstreamPort: 8793,
 	})
-	old := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339Nano)
-	if err := store.ExecTestSQL(ctx, `UPDATE versions SET last_access_at = ?, ready_at = ? WHERE project_id = ? AND id = ?`,
-		old, old, "demo", "v1"); err != nil {
-		t.Fatal(err)
-	}
+	time.Sleep(5 * time.Millisecond)
 
 	cfg := orch.LoadArchiveConfig()
 	n, err := o.RunArchiveReaperOnce(ctx, cfg)

@@ -33,7 +33,8 @@ For the full click-path from deploy to promote, see [Operator journey](/get-star
 | **Settings** | Per-version Worker env overrides |
 | **Platform** | Global metrics, deep health, runtime routes (filter by project) |
 
-R2 is **visible on the bindings list**. There is no object browser (the runtime has no `celld r2` operator yet).
+R2 is **visible on the bindings list**. There is no object browser in the Dashboard.
+Use the Worker binding or the **celld** operator CLI (`celld r2 bulk put`) for write-only imports.
 
 ## What you will not find
 

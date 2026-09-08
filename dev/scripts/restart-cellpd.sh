@@ -7,6 +7,10 @@ cd "$ROOT"
 # shellcheck disable=SC1091
 set -a
 source dev/.env
+if [[ -f dev/cellp-elastic.env ]]; then
+  # shellcheck disable=SC1091
+  source dev/cellp-elastic.env
+fi
 set +a
 
 if [[ -f dev/data/pids/platform.pid ]]; then

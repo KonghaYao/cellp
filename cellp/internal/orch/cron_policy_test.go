@@ -1,6 +1,7 @@
 package orch
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,6 +30,33 @@ func TestCronShouldArm(t *testing.T) {
 				t.Fatalf("CronShouldArm() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestEnsureCronResidentDesire(t *testing.T) {
+	ctx := context.Background()
+	store, err := registry.Open(filepath.Join(t.TempDir(), "cron-desire.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
+	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
+	bundle := filepath.Join(t.TempDir(), "bundle")
+	if err := os.MkdirAll(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "wrangler.json"), []byte(`{"name":"cron","triggers":{"crons":["* * * * *"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	o := &Orchestrator{store: store, cfg: config.Config{Serving: config.LoadServingDefaults()}}
+
+	if err := o.ensureCronResidentDesire(ctx, "demo", "v1", true, bundle); err != nil {
+		t.Fatal(err)
+	}
+	d, err := store.GetServingDesire(ctx, "demo", "v1")
+	if err != nil || d == nil || d.DesiredReplicas != 1 || d.Reason != desireReasonCronResident {
+		t.Fatalf("desire: %+v err=%v", d, err)
 	}
 }
 

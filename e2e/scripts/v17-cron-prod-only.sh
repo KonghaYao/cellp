@@ -17,20 +17,6 @@ LOG="${EVIDENCE_DIR}/v17-cron-prod-only-e2e.log"
 JSON="${EVIDENCE_DIR}/v17-cron-prod-only-e2e.json"
 EXIT_CODE=1
 
-celld_log() {
-  local vid="$1"
-  echo "${TMPDIR:-/tmp}/celld-${PROJECT}-${vid}.log"
-}
-
-count_ticks() {
-  local f="$1"
-  if [[ ! -f "$f" ]]; then
-    echo 0
-    return
-  fi
-  grep -c 'e2e-cron-tick' "$f" 2>/dev/null || true
-}
-
 write_json() {
   jq -n \
     --arg project "$PROJECT" \
@@ -102,26 +88,24 @@ for vid in "$V_PROD" "$V_PREVIEW"; do
 done
 log "both versions declare * * * * * in bindings"
 
-LOG_PROD="$(celld_log "$V_PROD")"
-LOG_PREVIEW="$(celld_log "$V_PREVIEW")"
-BASE_PROD=$(count_ticks "$LOG_PROD")
-BASE_PREVIEW=$(count_ticks "$LOG_PREVIEW")
-log "baseline ticks prod=${BASE_PROD} preview=${BASE_PREVIEW} (logs: ${LOG_PROD} ${LOG_PREVIEW})"
+BASE_PROD=$(celld_version_log_ticks "$PROJECT" "$V_PROD" 'e2e-cron-tick')
+BASE_PREVIEW=$(celld_version_log_ticks "$PROJECT" "$V_PREVIEW" 'e2e-cron-tick')
+log "baseline ticks prod=${BASE_PROD} preview=${BASE_PREVIEW} (celld logs under ${TMPDIR:-/tmp}/celld-*)"
 
 log "waiting 90s for minute cron..."
 sleep 90
 
-AFTER_PROD=$(count_ticks "$LOG_PROD")
-AFTER_PREVIEW=$(count_ticks "$LOG_PREVIEW")
+AFTER_PROD=$(celld_version_log_ticks "$PROJECT" "$V_PROD" 'e2e-cron-tick')
+AFTER_PREVIEW=$(celld_version_log_ticks "$PROJECT" "$V_PREVIEW" 'e2e-cron-tick')
 DELTA_PROD=$((AFTER_PROD - BASE_PROD))
 DELTA_PREVIEW=$((AFTER_PREVIEW - BASE_PREVIEW))
 log "after wait ticks prod=${AFTER_PROD} (+${DELTA_PROD}) preview=${AFTER_PREVIEW} (+${DELTA_PREVIEW})"
 
 if [[ "$DELTA_PROD" -lt 1 ]]; then
-  fail "prod should tick at least once in 90s (delta=${DELTA_PROD}); check celld log ${LOG_PROD}"
+  fail "prod should tick at least once in 90s (delta=${DELTA_PROD}); check celld logs: $(celld_log_paths "$PROJECT" "$V_PROD" | tr '\n' ' ')"
 fi
 if [[ "$DELTA_PREVIEW" -gt 0 ]]; then
-  fail "preview must not tick (delta=${DELTA_PREVIEW}); check ${LOG_PREVIEW}"
+  fail "preview must not tick (delta=${DELTA_PREVIEW}); check celld logs: $(celld_log_paths "$PROJECT" "$V_PREVIEW" | tr '\n' ' ')"
 fi
 
 EXIT_CODE=0

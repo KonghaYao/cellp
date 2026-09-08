@@ -26,12 +26,13 @@ func newTestOrch(t *testing.T) (*Orchestrator, registry.Store, context.Context) 
 	o := New(store, job.NewSQLiteQueue(store), branch.New(dir+"/off", store),
 		runtime.New(8792, "", "us-east-1", "s3://cellp-celld", "k", "s"),
 		&artifact.Store{Bucket: "cellp-artifacts", LocalDir: dir}, cfg)
+	wireElasticDeployTestFixtures(t, o, store)
 	return o, store, context.Background()
 }
 
 func TestRunDeployVersionMissing(t *testing.T) {
 	o, _, ctx := newTestOrch(t)
-	err := o.runDeploy(ctx, &registry.Job{ProjectID: "demo", VersionID: "missing"})
+	err := o.runDeploy(ctx, &registry.Job{ProjectID: "demo", VersionID: "missing"}, "w")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -44,8 +45,12 @@ func TestRunDeployBadArtifactURI(t *testing.T) {
 		ID: "v1", ProjectID: "demo",
 		ArtifactURI: "https://evil.example/bundle",
 	})
-	j, _ := store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
-	if err := o.runDeploy(ctx, j); err == nil {
+	_, _ = store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
+	cj, err := store.ClaimJob(ctx, "w", jobLease)
+	if err != nil || cj == nil {
+		t.Fatal(err)
+	}
+	if err := o.runDeploy(ctx, cj, "w"); err == nil {
 		t.Fatal("expected fetch error")
 	}
 }
@@ -57,8 +62,12 @@ func TestRunDeployInjectedFailure(t *testing.T) {
 		ID: "v1", ProjectID: "demo", GitSHA: "fail",
 		ArtifactURI: artifact.ServerArtifactURI("cellp-artifacts", "demo", "v1"),
 	})
-	j, _ := store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
-	if err := o.runDeploy(ctx, j); err == nil {
+	_, _ = store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
+	cj, err := store.ClaimJob(ctx, "w", jobLease)
+	if err != nil || cj == nil {
+		t.Fatal(err)
+	}
+	if err := o.runDeploy(ctx, cj, "w"); err == nil {
 		t.Fatal("expected inject error")
 	}
 }
@@ -77,7 +86,7 @@ func TestRunBindingBranchesNoBindings(t *testing.T) {
 func TestBranchStepFailClosed(t *testing.T) {
 	o, _, ctx := newTestOrch(t)
 	t.Setenv("CELLP_LENIENT_DEPLOY", "")
-	err := o.branchStep(ctx, "fork", func() error { return os.ErrInvalid })
+	err := o.branchStep(ctx, nil, "fork", func() error { return os.ErrInvalid })
 	if err == nil {
 		t.Fatal("expected branch step error")
 	}
@@ -98,8 +107,12 @@ func TestRunDeployReadyWithoutCelld(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(destDir, "wrangler.jsonc"), []byte(`{"name":"counter"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	j, _ := store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
-	if err := o.runDeploy(ctx, j); err != nil {
+	_, _ = store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
+	cj, err := store.ClaimJob(ctx, "w", jobLease)
+	if err != nil || cj == nil {
+		t.Fatal(err)
+	}
+	if err := o.runDeploy(ctx, cj, "w"); err != nil {
 		t.Fatal(err)
 	}
 	v, _ := store.GetVersion(ctx, "demo", "v1")
@@ -109,14 +122,27 @@ func TestRunDeployReadyWithoutCelld(t *testing.T) {
 }
 
 func TestCompensateDeploy(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
 	o, store, ctx := newTestOrch(t)
+	o.branch = nil
 	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
 	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
 	_ = store.SetRoute(ctx, registry.Route{
 		ProjectID: "demo", VersionID: "v1", Active: true,
 		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
 	})
-	o.compensateDeploy(ctx, "demo", "v1")
+	_, _ = store.EnqueueJob(ctx, "demo", "v1", registry.StatusFetching)
+	cj, err := store.ClaimJob(ctx, "w", jobLease)
+	if err != nil || cj == nil {
+		t.Fatal(err)
+	}
+	if err := store.ClaimVersionDeployOperation(ctx, "demo", "v1", registry.JobDeployAttempt(cj), jobLease); err != nil {
+		t.Fatal(err)
+	}
+	comp := o.compensateDeploy(ctx, "w", cj)
+	if !comp.complete {
+		t.Fatalf("legacy compensate should complete: %+v", comp)
+	}
 	r, _ := store.GetRoute(ctx, "demo", "v1")
 	if r != nil && r.Active {
 		t.Fatal("route should be inactive")

@@ -35,6 +35,7 @@ func TestRunDeployChildD1AndKVBranchWithGateway(t *testing.T) {
 	o := New(store, job.NewSQLiteQueue(store), branch.New(dir+"/off", store),
 		rm,
 		&artifact.Store{Bucket: "cellp-artifacts", LocalDir: dir}, cfg)
+	wireElasticDeployTestFixtures(t, o, store)
 	ctx := t.Context()
 
 	parent := "v-parent"
@@ -57,8 +58,12 @@ func TestRunDeployChildD1AndKVBranchWithGateway(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(parentDir, "wrangler.jsonc"), []byte(wrangler), 0o644)
 	_ = os.WriteFile(filepath.Join(childDir, "wrangler.jsonc"), []byte(wrangler), 0o644)
 
-	j, _ := store.EnqueueJob(ctx, "demo", "v-child", registry.StatusFetching)
-	if err := o.runDeploy(ctx, j); err != nil {
+	_, _ = store.EnqueueJob(ctx, "demo", "v-child", registry.StatusFetching)
+	cj, err := store.ClaimJob(ctx, "w", jobLease)
+	if err != nil || cj == nil {
+		t.Fatal(err)
+	}
+	if err := o.runDeploy(ctx, cj, "w"); err != nil {
 		t.Fatal(err)
 	}
 	v, _ := store.GetVersion(ctx, "demo", "v-child")
@@ -96,8 +101,12 @@ func TestRunDeployChildD1BranchWithoutCelld(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	j, _ := store.EnqueueJob(ctx, "demo", "v-child", registry.StatusFetching)
-	if err := o.runDeploy(ctx, j); err != nil {
+	_, _ = store.EnqueueJob(ctx, "demo", "v-child", registry.StatusFetching)
+	cj, err := store.ClaimJob(ctx, "w", jobLease)
+	if err != nil || cj == nil {
+		t.Fatal(err)
+	}
+	if err := o.runDeploy(ctx, cj, "w"); err != nil {
 		t.Fatal(err)
 	}
 	v, _ := store.GetVersion(ctx, "demo", "v-child")

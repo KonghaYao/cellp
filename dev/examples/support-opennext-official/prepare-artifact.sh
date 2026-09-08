@@ -23,10 +23,13 @@ trap restore_wrangler EXIT
 # Reuse only OpenNext's wrangler dry-run and cellp staging. The official suite
 # must not receive S30/S40 generated-bundle patches or image configuration
 # workarounds: those would change the artifact under test and contaminate the
-# upstream assertions.
-CELLP_OPENNEXT_SKIP_PATCH=1 \
-CELLP_OPENNEXT_SKIP_NEXT_CONFIG_PATCH=1 \
-  bash "${ROOT}/dev/examples/support-opennext/prepare-artifact.sh" "$APP_DIR"
+# upstream assertions — unless CELLP_ONCF_COMPAT_PATCH=1 (lab compat tier).
+PATCH_ARGS=(CELLP_OPENNEXT_SKIP_PATCH=1 CELLP_OPENNEXT_SKIP_NEXT_CONFIG_PATCH=1)
+if [[ "${CELLP_ONCF_COMPAT_PATCH:-0}" == "1" ]]; then
+  echo "prepare-opennext-official: compat patch tier (S30 bundle patches on; next.config patch still skipped)" >&2
+  PATCH_ARGS=(CELLP_OPENNEXT_SKIP_NEXT_CONFIG_PATCH=1)
+fi
+env "${PATCH_ARGS[@]}" bash "${ROOT}/dev/examples/support-opennext/prepare-artifact.sh" "$APP_DIR"
 
 cd "$APP_DIR"
 export CELLP_ONCF_PROJECT CELLP_ONCF_DEPLOY_URL

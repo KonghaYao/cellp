@@ -19,14 +19,15 @@ import (
 
 // Gateway is the cellpd built-in reverse proxy (DESIGN §2.3, AD-12 Host ingress).
 type Gateway struct {
-	store       registry.Store
-	cache       *RouteCache
-	snapshots   *RouteSnapshotHolder
-	activator   *activator.Activator
-	router      chi.Router
-	cfg         GatewayConfig
-	lastTouchMu sync.Mutex
-	lastTouchAt map[string]time.Time
+	store         registry.Store
+	cache         *RouteCache
+	snapshots     *RouteSnapshotHolder
+	activator     *activator.Activator
+	activatorOnce sync.Once
+	router        chi.Router
+	cfg           GatewayConfig
+	lastTouchMu   sync.Mutex
+	lastTouchAt   map[string]time.Time
 }
 
 // New creates a gateway with config from the environment.
@@ -85,8 +86,8 @@ func (g *Gateway) RouteSnapshotHolder() *RouteSnapshotHolder {
 }
 
 // StartRouteSnapshotPoller begins background revision polling (no-op if store nil).
-func (g *Gateway) StartRouteSnapshotPoller(ctx context.Context, interval time.Duration) {
-	StartSnapshotPoller(ctx, g.store, g.snapshots, interval)
+func (g *Gateway) StartRouteSnapshotPoller(ctx context.Context, interval time.Duration) <-chan struct{} {
+	return StartSnapshotPoller(ctx, g.store, g.snapshots, interval)
 }
 
 // RouteCacheForTest exposes the route cache for test configuration.
@@ -104,16 +105,12 @@ func (g *Gateway) Handler() http.Handler {
 }
 
 func (g *Gateway) routes() {
-	g.router.Get("/health", g.handleHealth)
-	g.router.Get("/health/deep", g.handleHealthDeep)
-	g.router.Handle("/*", http.HandlerFunc(g.handleIngress))
-}
-
-func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if !g.tryServeIngress(w, r, true) {
+	g.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("gateway ok"))
-	}
+	})
+	g.router.Get("/health/deep", g.handleHealthDeep)
+	g.router.Handle("/*", http.HandlerFunc(g.handleIngress))
 }
 
 func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
@@ -121,55 +118,54 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	g.tryServeIngress(w, r, false)
-}
 
-// tryServeIngress proxies a Host-bound request to the resolved version upstream.
-// When allowGatewayFallback is true and no ingress binding matches, it returns
-// false so callers can answer with gateway-local health.
-func (g *Gateway) tryServeIngress(w http.ResponseWriter, r *http.Request, allowGatewayFallback bool) bool {
 	binding, err := g.resolveIngressBinding(r.Context(), r)
 	if err != nil {
 		http.Error(w, "ingress lookup failed", http.StatusInternalServerError)
-		return true
+		return
 	}
 	if binding == nil || !binding.Active {
-		if allowGatewayFallback {
-			return false
-		}
 		http.Error(w, "ingress_unknown", http.StatusNotFound)
-		return true
+		return
 	}
 
 	projectID, versionID, ok := g.versionForBinding(r.Context(), binding)
 	if !ok {
-		if allowGatewayFallback {
-			return false
-		}
 		http.Error(w, "ingress_unknown", http.StatusNotFound)
-		return true
+		return
 	}
 
-	if g.tryColdActivator(w, r, projectID, versionID) {
-		return true
+	version, err := g.store.GetVersion(r.Context(), projectID, versionID)
+	if err != nil || version == nil {
+		http.Error(w, "version unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if version.Status == registry.StatusDeployReady {
+		if g.tryColdActivator(w, r, binding, version) {
+			return
+		}
+		http.Error(w, "version not ready", http.StatusServiceUnavailable)
+		return
+	}
+	if g.tryElasticReadyProxy(w, r, binding, projectID, versionID) {
+		return
 	}
 
 	route, ok := g.lookupRoute(r.Context(), projectID, versionID)
 	if !ok || route == nil {
 		http.Error(w, "route not found", http.StatusNotFound)
-		return true
+		return
 	}
 	if !route.Active {
 		if g.versionInactiveBody(r.Context(), projectID, versionID) == "version_archived" {
 			http.Error(w, "version_archived", http.StatusServiceUnavailable)
-			return true
+			return
 		}
 		http.Error(w, "route draining", http.StatusServiceUnavailable)
-		return true
+		return
 	}
 
 	g.proxyIngress(w, r, route, binding, projectID, versionID)
-	return true
 }
 
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {

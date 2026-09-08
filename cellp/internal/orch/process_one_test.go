@@ -51,7 +51,7 @@ func TestProcessOneFailMarksVersionFailed(t *testing.T) {
 func TestBranchStepLenient(t *testing.T) {
 	t.Setenv("CELLP_LENIENT_DEPLOY", "1")
 	o, _, ctx := newTestOrch(t)
-	if err := o.branchStep(ctx, "fork", func() error { return os.ErrInvalid }); err != nil {
+	if err := o.branchStep(ctx, nil, "fork", func() error { return os.ErrInvalid }); err != nil {
 		t.Fatalf("lenient: %v", err)
 	}
 }
@@ -62,6 +62,10 @@ func TestPromoteAlreadyProdNoop(t *testing.T) {
 	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
 	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
 	_ = store.UpdateVersionStatus(ctx, "demo", "v1", registry.StatusReady, nil)
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v1", Active: true,
+		UpstreamHost: "127.0.0.1", UpstreamPort: 8792,
+	})
 	_ = store.SetProdVersion(ctx, "demo", "v1")
 	if err := o.Promote(ctx, "demo", "v1"); err != nil {
 		t.Fatal(err)

@@ -24,6 +24,20 @@ if [[ -f dev/data/pids/platform.pid ]]; then
   fi
   rm -f dev/data/pids/platform.pid
 fi
+
+# Per-version cellds are spawned by cellpd; killing cellpd alone can leave listeners on 127.0.0.1:8803+.
+if command -v pgrep >/dev/null 2>&1; then
+  while read -r pid; do
+    [[ -z "$pid" ]] && continue
+    kill "$pid" 2>/dev/null || true
+  done < <(pgrep -f '[/]celld --bucket' 2>/dev/null || true)
+  sleep 0.5
+  while read -r pid; do
+    [[ -z "$pid" ]] && continue
+    kill -9 "$pid" 2>/dev/null || true
+  done < <(pgrep -f '[/]celld --bucket' 2>/dev/null || true)
+fi
+
 for f in celld offshoot; do
   if [[ -f "dev/data/pids/${f}.pid" ]]; then
     kill "$(cat "dev/data/pids/${f}.pid")" 2>/dev/null || true

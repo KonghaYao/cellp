@@ -4,20 +4,54 @@ package contract
 type ReasonCode string
 
 const (
-	ReasonVersionNotFound      ReasonCode = "version_not_found"
-	ReasonVersionNotReady      ReasonCode = "version_not_ready"
-	ReasonVersionNotArchived   ReasonCode = "version_not_archived"
-	ReasonCapacityExhausted    ReasonCode = "capacity_exhausted"
-	ReasonSnapshotInvalid      ReasonCode = "snapshot_invalid"
-	ReasonSnapshotUnavailable  ReasonCode = "snapshot_unavailable"
-	ReasonGenerationStale      ReasonCode = "generation_stale"
-	ReasonElasticDisabled      ReasonCode = "elastic_disabled"
-	ReasonBackgroundUnknown    ReasonCode = "background_unknown"
-	ReasonAuthFailed           ReasonCode = "auth_failed"
-	ReasonReplayRejected       ReasonCode = "replay_rejected"
-	ReasonColdActivating       ReasonCode = "cold_activating"
-	ReasonRequestTooLarge      ReasonCode = "request_too_large"
+	ReasonVersionNotFound        ReasonCode = "version_not_found"
+	ReasonVersionNotReady        ReasonCode = "version_not_ready"
+	ReasonVersionNotArchived     ReasonCode = "version_not_archived"
+	ReasonCapacityExhausted      ReasonCode = "capacity_exhausted"
+	ReasonSnapshotInvalid        ReasonCode = "snapshot_invalid"
+	ReasonSnapshotUnavailable    ReasonCode = "snapshot_unavailable"
+	ReasonGenerationStale        ReasonCode = "generation_stale"
+	ReasonElasticDisabled        ReasonCode = "elastic_disabled"
+	ReasonBackgroundUnknown      ReasonCode = "background_unknown"
+	ReasonAuthFailed             ReasonCode = "auth_failed"
+	ReasonReplayRejected         ReasonCode = "replay_rejected"
+	ReasonColdActivating         ReasonCode = "cold_activating"
+	ReasonRequestTooLarge        ReasonCode = "request_too_large"
+	ReasonNotFound               ReasonCode = "not_found"
+	ReasonRuntimeNodeNotFound    ReasonCode = "runtime_node_not_found"
+	ReasonRuntimeReplicaNotFound ReasonCode = "runtime_replica_not_found"
+	ReasonLeaseExpired           ReasonCode = "lease_expired"
+	ReasonConflict               ReasonCode = "conflict"
+	ReasonRegistryUnavailable    ReasonCode = "registry_unavailable"
 )
 
 // String returns the wire form.
 func (r ReasonCode) String() string { return string(r) }
+
+// NormalizeWireReason maps untrusted remote reason strings to a known low-cardinality code.
+func NormalizeWireReason(raw ReasonCode) ReasonCode {
+	switch raw {
+	case ReasonVersionNotFound,
+		ReasonVersionNotReady,
+		ReasonVersionNotArchived,
+		ReasonCapacityExhausted,
+		ReasonSnapshotInvalid,
+		ReasonSnapshotUnavailable,
+		ReasonGenerationStale,
+		ReasonElasticDisabled,
+		ReasonBackgroundUnknown,
+		ReasonAuthFailed,
+		ReasonReplayRejected,
+		ReasonColdActivating,
+		ReasonRequestTooLarge,
+		ReasonNotFound,
+		ReasonRuntimeNodeNotFound,
+		ReasonRuntimeReplicaNotFound,
+		ReasonLeaseExpired,
+		ReasonConflict,
+		ReasonRegistryUnavailable:
+		return raw
+	default:
+		return ReasonAuthFailed
+	}
+}

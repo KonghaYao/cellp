@@ -12,10 +12,10 @@ const (
 
 // Endpoint is a routable upstream for Gateway snapshot building.
 type Endpoint struct {
-	ReplicaID string        `json:"replica_id"`
-	Address   string        `json:"address"`
-	State     EndpointState `json:"state"`
-	ValidUntil *time.Time   `json:"valid_until,omitempty"`
+	ReplicaID  string        `json:"replica_id"`
+	Address    string        `json:"address"`
+	State      EndpointState `json:"state"`
+	ValidUntil *time.Time    `json:"valid_until,omitempty"`
 }
 
 // EndpointSet is ready endpoints for one version binding key.

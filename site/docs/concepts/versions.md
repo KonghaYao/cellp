@@ -57,7 +57,7 @@ Do not parent a PR at live production unless you know why. Use a staging seed. T
 
 Today, each **`ready`** version runs **one celld process** on its own port. There is no small hard cap on how many ready versions you can have; idle previews are [archived](/concepts/archive) to reclaim processes.
 
-Multi-replica **elastic serving** (scale-to-zero and `0..N` replicas per version) is on the roadmap and ships behind an operator feature flag—**off by default** in current releases. Until you enable that explicitly, plan capacity around one process per hot version.
+`CELLP_ELASTIC_RUNTIME` is off by default and currently exposes only an **unsupported internal E1–E5 scaffold**. It does not provide a remote HTTP+mTLS Node Agent, real celld lifecycle management, a Scheduler or complete 0→N scaling, and it is not production-ready. Supported capacity planning remains one process per hot version.
 
 See [Limits](/reference/limits).
 

@@ -60,14 +60,14 @@ func (o *Orchestrator) ensurePreviewIngress(ctx context.Context, projectID, vers
 	vid := versionID
 	bid := previewBindingID(projectID, versionID)
 	binding := registry.IngressBinding{
-		BindingID:     bid,
-		ProjectID:     projectID,
-		VersionID:     &vid,
-		Role:          registry.IngressRolePreview,
-		Host:          &previewHost,
-		SyntheticHost: synthetic,
+		BindingID:      bid,
+		ProjectID:      projectID,
+		VersionID:      &vid,
+		Role:           registry.IngressRolePreview,
+		Host:           &previewHost,
+		SyntheticHost:  synthetic,
 		OwnerGatewayID: o.gatewayInstanceIDPtr(),
-		Active:        true,
+		Active:         true,
 	}
 
 	var listenPort *int

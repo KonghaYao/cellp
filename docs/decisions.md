@@ -1,7 +1,7 @@
 # cellp 架构决策记录
 
-> **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）  
-> **设计背景：** [DESIGN.md](../DESIGN.md)  
+> **权威来源：** [plans/REVIEW.md](./plans/REVIEW.md)（AD-1..5 审查原文）
+> **设计背景：** [DESIGN.md](../DESIGN.md)
 > **最后更新：** 2026-09-06（含 AD-6 … AD-13 · **AD-14** · **AD-15** 弹性 Serving · **AD-16** Native Component · OTEL 门面）
 
 本文档汇总**当前仍有效**的架构决策与冻结约束。计划文件中的历史讨论以本页 + 契约文件为准。
@@ -468,8 +468,8 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 
 ## 20. AD-15 — Elastic Serving Fleet 与安全 Scale-to-Zero
 
-**状态：** **已正式批准（2026-09-05）** · 分阶段启用 · 默认 `CELLP_ELASTIC_RUNTIME=0`  
-**E0 证据：** [evidence/surge/e0/2026-09-05-e0-01/](./evidence/surge/e0/2026-09-05-e0-01/)  
+**状态：** **已正式批准（2026-09-05）** · `cellpd` 单轨弹性控制面（scheduler + embedded/remote agent）；显式 `CELLP_ELASTIC_RUNTIME=off` 拒绝启动
+**E0 证据：** [evidence/surge/e0/2026-09-05-e0-01/](./evidence/surge/e0/2026-09-05-e0-01/)
 **规格全文：** [plans/SURGE-PROPOSED-AD.md](./plans/SURGE-PROPOSED-AD.md) · [SURGE-DESIGN-INDEX.md](./plans/SURGE-DESIGN-INDEX.md)
 
 **问题：** AD-1 每 `ready` Version 单 celld 常驻；无法在自有容量内做 0→1、1→N、pressure 回收，且与 scale-to-zero 目标冲突。
@@ -486,7 +486,8 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 | Branch 父版 | `ready` · `deploy_ready` · `archived`（存储证明 fail-closed）；**不改** D1 frozen RPC |
 | Archive vs cold | 互斥；cold **不**隐式 archived；`POST wake` 仍仅 `archived` |
 | Promote | 仍仅 **qualified `ready`** + AD-5 saga |
-| Feature flag | `CELLP_ELASTIC_RUNTIME` 默认 **关闭**；回滚须安全收敛，非瞬时杀 controller |
+| 控制面路径 | legacy `ReconcileFleet` 已移除；`cellpd serve` 始终 autoscaler + scheduler + activator |
+| Kill switch | 显式 `CELLP_ELASTIC_RUNTIME=off` **拒绝启动**（非运行时双轨）；历史安全收敛语义见 adoption 文档 |
 | 多 replica / 多 node | 须 **SP-E1..E6** 与 E4 gate；未证明 background 保持 `min>=1,max=1` |
 | 共享 types | `cellp/internal/elastic/contract`（**WP-CONTRACT** 唯一 owner） |
 

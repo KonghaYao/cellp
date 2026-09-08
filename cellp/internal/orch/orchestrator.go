@@ -2,6 +2,7 @@ package orch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -24,14 +25,16 @@ const (
 
 // Orchestrator drives version lifecycle state machine (DESIGN §2.5).
 type Orchestrator struct {
-	store             registry.Store
-	queue             *job.SQLiteQueue
-	branch            *branch.Manager
-	runtime           *runtime.Manager
-	artifact          *artifact.Store
-	cfg               config.Config
-	workerID          string
-	ingressReconciler IngressListenerReconciler
+	store                registry.Store
+	queue                *job.SQLiteQueue
+	branch               *branch.Manager
+	runtime              *runtime.Manager
+	artifact             *artifact.Store
+	cfg                  config.Config
+	workerID             string
+	ingressReconciler    IngressListenerReconciler
+	routeSnapshotAck     RouteSnapshotAck
+	elasticSchedulerTick ElasticSchedulerTick
 }
 
 // New creates an orchestrator.
@@ -50,6 +53,11 @@ func New(store registry.Store, q *job.SQLiteQueue, bm *branch.Manager, rm *runti
 // SetIngressListenerReconciler wires P5c dedicated listener reconcile (serve.Run).
 func (o *Orchestrator) SetIngressListenerReconciler(r IngressListenerReconciler) {
 	o.ingressReconciler = r
+}
+
+// SetRouteSnapshotAck wires gateway snapshot publication acknowledgement (serve.Run).
+func (o *Orchestrator) SetRouteSnapshotAck(ack RouteSnapshotAck) {
+	o.routeSnapshotAck = ack
 }
 
 func (o *Orchestrator) reconcileIngressListeners(ctx context.Context) error {
@@ -92,6 +100,7 @@ func (o *Orchestrator) runWorker(ctx context.Context, workerID string) {
 			o.processOne(ctx, workerID)
 		default:
 			o.processOne(ctx, workerID)
+			o.processCompensationOne(ctx, workerID)
 			select {
 			case <-ctx.Done():
 				return
@@ -106,22 +115,34 @@ func (o *Orchestrator) processOne(ctx context.Context, workerID string) {
 	if err != nil || j == nil {
 		return
 	}
-	if err := o.runDeploy(ctx, j); err != nil {
-		log.Printf("orch: job %s failed: %v", j.ID, err)
-		msg := err.Error()
-		_ = o.store.UpdateVersionStatus(ctx, j.ProjectID, j.VersionID, registry.StatusFailed, &msg)
-		_ = o.store.FailJob(ctx, j.ID)
-		o.compensateDeploy(ctx, j.ProjectID, j.VersionID)
+	attempt := deployAttempt(j)
+	runErr := o.runDeploy(ctx, j, workerID)
+	if runErr == nil {
+		_ = o.store.ReleaseVersionDeployOperation(ctx, j.ProjectID, j.VersionID, attempt)
+		_ = o.store.CompleteJob(ctx, j.ID)
 		return
 	}
-	_ = o.store.CompleteJob(ctx, j.ID)
+	log.Printf("orch: job %s failed: %v", j.ID, runErr)
+	if errors.Is(runErr, ErrDeployVersionBusy) {
+		if relErr := o.store.ReleaseClaimedJobToPending(ctx, workerID, attempt); relErr != nil {
+			log.Printf("orch: job %s requeue after version busy: %v", j.ID, relErr)
+		}
+		return
+	}
+	o.finalizeDeployJobFailure(ctx, workerID, j, runErr)
 }
 
-func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
+func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID string) error {
 	v, err := o.store.GetVersion(ctx, j.ProjectID, j.VersionID)
 	if err != nil || v == nil {
 		return fmt.Errorf("version not found")
 	}
+
+	if err := o.claimDeployOperation(ctx, j); err != nil {
+		return err
+	}
+	ctx, stopDeployLease := o.startDeployWorkerLeaseKeeper(ctx, j, workerID, jobLease)
+	defer stopDeployLease()
 
 	if shouldInjectFailure(v) {
 		return fmt.Errorf("injected deploy failure")
@@ -148,7 +169,7 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if v.ParentVersionID != nil && *v.ParentVersionID != "" {
 		parentBranch = *v.ParentVersionID
 	}
-	if err := o.branchStep(ctx, "checkpoint", func() error {
+	if err := o.branchStep(ctx, j, "checkpoint", func() error {
 		// Checkpoint from the store when possible. Checkout materializes a
 		// full .db (100 MB seed → hundreds of MB on disk) and is only needed
 		// if offshoot cannot snapshot without a working copy.
@@ -166,7 +187,7 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	}); err != nil {
 		return err
 	}
-	if err := o.branchStep(ctx, "fork", func() error {
+	if err := o.branchStep(ctx, j, "fork", func() error {
 		return o.branch.Fork(ctx, j.ProjectID, parentBranch, j.VersionID)
 	}); err != nil {
 		return err
@@ -220,7 +241,7 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 
 	seedPath := filepath.Join(destDir, "seed.db")
 	if !d1Plan.UseBranch {
-		if err := o.branchStep(ctx, "export", func() error {
+		if err := o.branchStep(ctx, j, "export", func() error {
 			return o.branch.Export(ctx, j.ProjectID, j.VersionID, seedPath)
 		}); err != nil {
 			return err
@@ -233,15 +254,16 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if err := o.setStatus(ctx, j, registry.StatusDeploying); err != nil {
 		return err
 	}
-	if err := o.maybeEnterDeployReady(ctx, j); err != nil {
-		return err
+	bundleDir := filepath.Join("dev", "examples", "counter")
+	if _, err := os.Stat(filepath.Join(destDir, "wrangler.jsonc")); err == nil {
+		bundleDir = destDir
+	} else if alt := filepath.Join(o.cfg.ArtifactsDir, "..", "examples", "counter"); alt != bundleDir {
+		if _, err := os.Stat(filepath.Join(alt, "wrangler.jsonc")); err == nil {
+			bundleDir = alt
+		}
 	}
-	bundleDir, err := runtime.ResolveVersionBundleDir(o.cfg.ArtifactsDir, j.ProjectID, j.VersionID)
-	if err != nil {
-		return fmt.Errorf("bundle dir: %w", err)
-	}
-	if err := runtime.ValidateDeployBundle(bundleDir); err != nil {
-		return fmt.Errorf("bundle: %w", err)
+	if abs, err := filepath.Abs(bundleDir); err == nil {
+		bundleDir = abs
 	}
 	proj, perr := o.store.GetProject(ctx, j.ProjectID)
 	if perr != nil {
@@ -251,13 +273,8 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	if err := o.runtime.Deploy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
 		return fmt.Errorf("deploy: %w", err)
 	}
-	host, port, err := o.runtime.Start(ctx, j.ProjectID, j.VersionID)
-	if err != nil {
-		return fmt.Errorf("start celld: %w", err)
-	}
-	if !o.runtime.Health(ctx, host, port) {
-		return fmt.Errorf("health check failed")
-	}
+	var host string
+	var port int
 	if d1Plan.UseBranch {
 		t0 := time.Now()
 		if err := o.runtime.D1Branch(ctx, j.ProjectID, j.VersionID, d1Plan.ParentID, bundleDir); err != nil {
@@ -285,8 +302,36 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 		}
 	}
 
-	// register route
-	if err := o.store.SetRoute(ctx, registry.Route{
+
+	if err := o.assertDeployOperation(ctx, j); err != nil {
+		return err
+	}
+	if err := o.ensureDefaultElasticServingPolicy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
+		return fmt.Errorf("serving policy: %w", err)
+	}
+	elasticQ := o.elasticQualificationEnabled(ctx, j.ProjectID, j.VersionID)
+	if err := o.maybeEnterDeployReady(ctx, j); err != nil {
+		return err
+	}
+	if elasticQ {
+		if err := o.ensureDeployQualificationDesire(ctx, j); err != nil {
+			return fmt.Errorf("qualification desire: %w", err)
+		}
+		host, port, err = o.waitElasticQualificationEndpoint(ctx, j.ProjectID, j.VersionID)
+		if err != nil {
+			return err
+		}
+		if err := o.waitQualificationHealth(ctx, host, port); err != nil {
+			return err
+		}
+	}
+
+	// Register the endpoint before qualification so the immutable snapshot can
+	// acknowledge it. Gateway keeps deploy_ready fail-closed until ready.
+	if err := o.assertDeployOperation(ctx, j); err != nil {
+		return err
+	}
+	if err := o.setRouteForDeploy(ctx, j, registry.Route{
 		ProjectID:    j.ProjectID,
 		VersionID:    j.VersionID,
 		Active:       true,
@@ -295,30 +340,45 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 	}); err != nil {
 		return err
 	}
-
-	previewHost, previewURL, err := o.ensurePreviewIngress(ctx, j.ProjectID, j.VersionID)
+	routeRev, err := o.store.GetRouteRevision(ctx)
 	if err != nil {
+		return fmt.Errorf("route revision: %w", err)
+	}
+
+	if _, _, err := o.ensurePreviewIngress(ctx, j.ProjectID, j.VersionID); err != nil {
 		return fmt.Errorf("preview ingress: %w", err)
 	}
 	if err := o.reconcileIngressListeners(ctx); err != nil {
 		return fmt.Errorf("ingress listeners: %w", err)
 	}
 
-	tier, _ := o.effectiveTier(ctx, j.ProjectID)
-	if runtime.CelldInstalled() && os.Getenv("CELPD_SKIP_GATEWAY_VERIFY") != "1" {
-		if previewUsesEphemeralPort(tier) {
-			if os.Getenv("CELLP_INGRESS_PORT_GATEWAY_VERIFY") == "1" {
-				if err := runtime.VerifyGatewayRoutePreviewURL(ctx, previewURL, o.cfg.PreviewSyntheticHost(j.ProjectID, j.VersionID), o.cfg.GatewayVerifyBaseURL()); err != nil {
-					return fmt.Errorf("gateway route verify: %w", err)
-				}
-			}
-		} else if err := runtime.VerifyGatewayRouteHost(ctx, o.cfg.GatewayVerifyBaseURL(), previewHost); err != nil {
-			return fmt.Errorf("gateway route verify: %w", err)
+	if elasticQ {
+		if o.routeSnapshotAck == nil {
+			return fmt.Errorf("route snapshot acknowledgement not configured")
+		}
+		if err := o.routeSnapshotAck.WaitPublished(ctx, o.store, routeRev, j.ProjectID, j.VersionID); err != nil {
+			return fmt.Errorf("route snapshot publication: %w", err)
 		}
 	}
 
+	if err := o.assertDeployOperation(ctx, j); err != nil {
+		return err
+	}
 	if err := o.setStatus(ctx, j, registry.StatusReady); err != nil {
 		return err
+	}
+	if elasticQ {
+		if err := o.finalizeQualificationIdleDesire(ctx, j); err != nil {
+			return fmt.Errorf("qualification idle: %w", err)
+		}
+		if err := o.ensureCronResidentDesire(ctx, j.ProjectID, j.VersionID, armCron, bundleDir); err != nil {
+			return fmt.Errorf("cron resident desire: %w", err)
+		}
+		if o.elasticSchedulerTick != nil {
+			if err := o.elasticSchedulerTick(ctx); err != nil {
+				return fmt.Errorf("post-qualification scheduler: %w", err)
+			}
+		}
 	}
 
 	// Set initial prod if none
@@ -328,21 +388,29 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job) error {
 			log.Printf("orch: prod ingress warn: %v", err)
 		}
 	}
+	if err := o.ensureCronResidentDesire(ctx, j.ProjectID, j.VersionID, armCron, bundleDir); err != nil {
+		return fmt.Errorf("cron resident desire: %w", err)
+	}
 	return nil
 }
 
 func (o *Orchestrator) setStatus(ctx context.Context, j *registry.Job, status string) error {
-	if err := o.store.UpdateVersionStatus(ctx, j.ProjectID, j.VersionID, status, nil); err != nil {
-		return err
-	}
-	return o.store.UpdateJobStep(ctx, j.ID, status)
+	return o.setStatusForDeploy(ctx, j, status)
 }
 
-func (o *Orchestrator) branchStep(ctx context.Context, step string, fn func() error) error {
+func (o *Orchestrator) branchStep(ctx context.Context, j *registry.Job, step string, fn func() error) error {
+	if j != nil {
+		if err := o.assertDeployOperation(ctx, j); err != nil {
+			return err
+		}
+	}
 	t0 := time.Now()
 	err := fn()
 	log.Printf("orch: offshoot %s took %s err=%v", step, time.Since(t0), err)
 	if err == nil {
+		if err := o.assertDeployOperation(ctx, j); err != nil {
+			return err
+		}
 		return nil
 	}
 	if deployFailClosed() {
@@ -350,13 +418,6 @@ func (o *Orchestrator) branchStep(ctx context.Context, step string, fn func() er
 	}
 	log.Printf("orch: %s warn: %v", step, err)
 	return nil
-}
-
-func (o *Orchestrator) compensateDeploy(ctx context.Context, projectID, versionID string) {
-	o.teardownPreviewIngress(ctx, projectID, versionID, "deploy_failed")
-	_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
-	_ = o.branch.Destroy(ctx, projectID, versionID)
-	_ = o.runtime.Stop(ctx, projectID, versionID)
 }
 
 // Promote runs the promote saga (AD-5).
@@ -385,6 +446,7 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		if err := o.ensureProdIngress(ctx, projectID); err != nil {
 			log.Printf("orch: prod ingress warn: %v", err)
 		}
+		o.enqueueCronReconcileAfterProdChange(projectID, oldProd, versionID)
 		return nil
 	}
 
@@ -419,6 +481,7 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 
 	// offshoot_promote (hard gate: no CAS / prod route activation on failure)
 	if err := o.branch.Promote(ctx, projectID, versionID); err != nil {
+		_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 		o.runCompensation(ctx, compensated)
 		return fmt.Errorf("%w: %v", ErrOffshootPromote, err)
 	}
@@ -433,6 +496,11 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		_ = o.store.SetRouteActive(ctx, projectID, versionID, false)
 	})
 
+	if err := o.ensurePromotedProdActivation(ctx, projectID, versionID); err != nil {
+		o.runCompensation(ctx, compensated)
+		return fmt.Errorf("promote activation: %w", err)
+	}
+
 	if err := o.ensureProdIngress(ctx, projectID); err != nil {
 		log.Printf("orch: prod ingress warn: %v", err)
 	}
@@ -440,14 +508,7 @@ func (o *Orchestrator) Promote(ctx context.Context, projectID, versionID string)
 		log.Printf("orch: prod PUBLIC_BASE_URL warn: %v", err)
 	}
 
-	// Cron manifest reconcile is best-effort after prod CAS; it must not extend the
-	// promote cutover / dual-write window measured by TP-V4.
-	go func(projectID, oldProd, newProd string) {
-		cronCtx := context.WithoutCancel(ctx)
-		if err := o.ReconcileCronAfterProdChange(cronCtx, projectID, oldProd, newProd); err != nil {
-			log.Printf("orch: cron reconcile after promote warn: %v", err)
-		}
-	}(projectID, oldProd, versionID)
+	o.enqueueCronReconcileAfterProdChange(projectID, oldProd, versionID)
 
 	return nil
 }

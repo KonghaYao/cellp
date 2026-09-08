@@ -88,11 +88,11 @@ const (
 
 // Port allocation sentinel errors (P5a).
 var (
-	ErrPortConflict              = errors.New("port conflict")
-	ErrPortPoolExhausted         = errors.New("ingress port pool exhausted")
-	ErrPortAllocationNotFound    = errors.New("port allocation not found")
-	ErrPortInvalid               = errors.New("port invalid")
-	ErrPortPurposeNotSupported   = errors.New("port purpose not supported in this release")
+	ErrPortConflict               = errors.New("port conflict")
+	ErrPortPoolExhausted          = errors.New("ingress port pool exhausted")
+	ErrPortAllocationNotFound     = errors.New("port allocation not found")
+	ErrPortInvalid                = errors.New("port invalid")
+	ErrPortPurposeNotSupported    = errors.New("port purpose not supported in this release")
 	ErrPortAllocationInputInvalid = errors.New("port allocation input invalid")
 )
 
@@ -144,8 +144,11 @@ type ReleasePortInput struct {
 
 // OpenOptions configures registry open (tests may narrow ingress port pool).
 type OpenOptions struct {
-	IngressPortMin int
-	IngressPortMax int
+	IngressPortMin    int
+	IngressPortMax    int
+	AgentCommandLease time.Duration
+	// MigrateTimeout bounds registry schema migration (including busy retries). Zero uses the production default.
+	MigrateTimeout time.Duration
 }
 
 // IngressBinding maps external Host and/or listen port to a project version (or prod).
@@ -163,13 +166,15 @@ type IngressBinding struct {
 
 // Job represents a persisted orchestrator job.
 type Job struct {
-	ID         string     `json:"id"`
-	ProjectID  string     `json:"project_id"`
-	VersionID  string     `json:"version_id"`
-	Step       string     `json:"step"`
-	Status     string     `json:"status"`
-	LeaseUntil *time.Time `json:"lease_until,omitempty"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	ID              string     `json:"id"`
+	ProjectID       string     `json:"project_id"`
+	VersionID       string     `json:"version_id"`
+	Step            string     `json:"step"`
+	Status          string     `json:"status"`
+	LeaseUntil      *time.Time `json:"lease_until,omitempty"`
+	ClaimedWorkerID string     `json:"claimed_worker_id,omitempty"`
+	ClaimEpoch      int64      `json:"claim_epoch"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // CreateProjectInput holds project creation fields.
@@ -289,7 +294,30 @@ type Store interface {
 	CountPendingJobs(ctx context.Context) (int, error)
 	CompleteJob(ctx context.Context, jobID string) error
 	UpdateJobStep(ctx context.Context, jobID, step string) error
+	UpdateJobStepForAttempt(ctx context.Context, workerID string, attempt DeployAttempt, step string) error
 	FailJob(ctx context.Context, jobID string) error
+	MarkJobCompensating(ctx context.Context, jobID string) error
+	ClaimCompensatingJob(ctx context.Context, workerID string, lease time.Duration) (*Job, error)
+	GetJob(ctx context.Context, jobID string) (*Job, error)
+	RenewClaimedJobLease(ctx context.Context, workerID string, attempt DeployAttempt, lease time.Duration) error
+	ReleaseClaimedJobToPending(ctx context.Context, workerID string, attempt DeployAttempt) error
+	FailJobForAttempt(ctx context.Context, attempt DeployAttempt) error
+	MarkJobCompensatingForAttempt(ctx context.Context, workerID string, attempt DeployAttempt) error
+
+	ClaimVersionDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt, lease time.Duration) error
+	GetVersionDeployOperationHolder(ctx context.Context, projectID, versionID string) (VersionDeployOperationHolder, error)
+	RenewVersionDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt, lease time.Duration) error
+	AssertVersionDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt) error
+	ReleaseVersionDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt) error
+	ListDeployQualificationCompensationWork(ctx context.Context) ([]DeployCompensationWork, error)
+	ListLegacyDeployQualificationRecoveryCandidates(ctx context.Context) ([]DeployCompensationWork, error)
+	RecoverLegacyDeployQualificationIfUnique(ctx context.Context, projectID, versionID string) (recovered bool, err error)
+	PrepareDiscoveredCompensationJob(ctx context.Context, jobID string) (prepared bool, err error)
+	RepairClaimedJobLeaseInvariantForCompensation(ctx context.Context, jobID string) (repaired bool, err error)
+	UpdateVersionStatusForDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt, status string, errMsg *string) error
+	SetRouteForDeployOperation(ctx context.Context, attempt DeployAttempt, route Route) error
+	SetRouteActiveForDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt, active bool) error
+	CompareAndSetDesiredForDeployOperation(ctx context.Context, projectID, versionID string, attempt DeployAttempt, expectGen int64, desire ServingDesireRow) error
 
 	// PurgeCompletedJobs deletes completed/failed jobs with updated_at before olderThan.
 	PurgeCompletedJobs(ctx context.Context, olderThan time.Time) (int64, error)
@@ -300,18 +328,42 @@ type Store interface {
 	// AD-15 elastic serving (WP-REG); see ServingStore.
 	GetRouteRevision(ctx context.Context) (int64, error)
 	BumpRouteRevision(ctx context.Context) (int64, error)
+	CompareAndSetElasticVersionStatus(ctx context.Context, projectID, versionID, expectedStatus, newStatus string, expectedDesireGeneration int64, expectedDesiredReplicas int) error
 	UpsertServingPolicy(ctx context.Context, row ServingPolicyRow) error
 	GetServingPolicy(ctx context.Context, projectID, versionID string) (*ServingPolicyRow, error)
 	ListElasticServingPolicies(ctx context.Context) ([]ServingPolicyRow, error)
 	CompareAndSetDesired(ctx context.Context, projectID, versionID string, expectGen int64, desire ServingDesireRow) error
+	EnsureActivationDesired(ctx context.Context, projectID, versionID string, expectGen int64, desire ServingDesireRow, minReplicas int) error
 	GetServingDesire(ctx context.Context, projectID, versionID string) (*ServingDesireRow, error)
 	UpsertRuntimeNode(ctx context.Context, node contract.RuntimeNode) error
+	ActivateRuntimeNode(ctx context.Context, node contract.RuntimeNode, expectedGeneration int64) error
+	RenewRuntimeNodeLease(ctx context.Context, nodeID string, expectGen int64, leaseExpiry time.Time) error
+	ReleaseRuntimeNodeLease(ctx context.Context, nodeID string, expectGen int64) error
+	CordonRuntimeNode(ctx context.Context, nodeID string, expectGen int64) error
 	GetRuntimeNode(ctx context.Context, nodeID string) (*contract.RuntimeNode, error)
 	ListRuntimeNodes(ctx context.Context) ([]contract.RuntimeNode, error)
+	ClaimAssignment(ctx context.Context, claim AssignmentClaim) error
+	RenewAssignmentLease(ctx context.Context, replicaID, nodeID string, generation, expectedNodeGeneration int64, expectedExpiry, newExpiry time.Time) error
+	RecordObservation(ctx context.Context, obs ReplicaObservation) error
+	GetRuntimeReplica(ctx context.Context, replicaID string) (*contract.RuntimeReplica, error)
+	ValidateAgentAssignment(ctx context.Context, scope contract.CommandScope, now time.Time) (*contract.RuntimeReplica, error)
+	ValidateAgentCleanupAssignment(ctx context.Context, scope contract.CommandScope) (*contract.RuntimeReplica, error)
 	UpsertRuntimeReplica(ctx context.Context, rep contract.RuntimeReplica) error
 	ListRuntimeReplicas(ctx context.Context, projectID, versionID string) ([]contract.RuntimeReplica, error)
+	ListRuntimeReplicasByNode(ctx context.Context, nodeID string) ([]contract.RuntimeReplica, error)
+	ListRuntimeReplicasForReconcile(ctx context.Context) ([]contract.RuntimeReplica, error)
+	ListExpiredAssignments(ctx context.Context, now time.Time) ([]contract.RuntimeReplica, error)
+	ListElasticEnrolledVersions(ctx context.Context) ([]ElasticVersionRef, error)
+	ClaimAgentCommand(ctx context.Context, command AgentCommand) (AgentCommandClaim, error)
+	RenewAgentCommandLease(ctx context.Context, command AgentCommand, expiry time.Time) error
+	CompleteAgentCommand(ctx context.Context, command AgentCommand) error
+	RecordObservationAndCompleteAgentCommand(ctx context.Context, obs ReplicaObservation, command AgentCommand) error
+	WithdrawReplica(ctx context.Context, replicaID, projectID, versionID, nodeID string, generation int64) error
+	TerminalizeReplica(ctx context.Context, replicaID, nodeID string, generation int64, state contract.ReplicaState) error
 	TryAcquireControllerGuard(ctx context.Context, holderID string, pid int) error
 	ReleaseControllerGuard(ctx context.Context, holderID string) error
 	GetControllerGuard(ctx context.Context) (*ControllerGuardState, error)
 	BuildLegacyRouteSnapshot(ctx context.Context) (contract.RouteSnapshot, error)
+	BuildSnapshotAfter(ctx context.Context, afterRevision int64) (contract.RouteSnapshot, bool, error)
+	BuildQualificationViewAfter(ctx context.Context, afterRevision int64) (QualificationView, bool, error)
 }

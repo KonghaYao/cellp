@@ -31,6 +31,14 @@ fi
 set -a
 # shellcheck disable=SC1091
 source dev/.env
+if [[ ! -f dev/data/certs/elastic/agent-server.pem ]]; then
+  echo "==> elastic dev certs missing; run ./dev/scripts/elastic-dev-init.sh"
+  "$ROOT/dev/scripts/elastic-dev-init.sh"
+fi
+if [[ -f dev/cellp-elastic.env ]]; then
+  # shellcheck disable=SC1091
+  source dev/cellp-elastic.env
+fi
 set +a
 
 mkdir -p dev/data/{artifacts,offshoot-store,offshoot-checkouts,celld-watch,pids,logs}

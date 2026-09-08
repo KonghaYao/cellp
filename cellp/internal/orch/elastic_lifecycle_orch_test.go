@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cellp/cellp/internal/artifact"
 	"github.com/cellp/cellp/internal/branch"
@@ -47,7 +48,14 @@ func TestMaybeEnterDeployReady(t *testing.T) {
 		MinReplicas: 0, MaxReplicas: 1, BackgroundMode: contract.BackgroundModeNone,
 		ElasticEnrolled: true,
 	})
-	if err := o.maybeEnterDeployReady(ctx, j); err != nil {
+	claimed, err := store.ClaimJob(ctx, "w1", time.Minute)
+	if err != nil || claimed == nil {
+		t.Fatal(err)
+	}
+	if err := store.ClaimVersionDeployOperation(ctx, "demo", "v1", registry.JobDeployAttempt(claimed), time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.maybeEnterDeployReady(ctx, claimed); err != nil {
 		t.Fatal(err)
 	}
 	v, _ = store.GetVersion(ctx, "demo", "v1")
