@@ -53,7 +53,7 @@ type cellListLine struct {
 // ListCells runs `celld cell list [CLASS] --all --json` against a version bucket.
 // Missing celld (dev) returns an empty list, matching Health().
 func (m *Manager) ListCells(ctx context.Context, project, version, class string) ([]CellRecord, error) {
-	celldBin, err := exec.LookPath("celld")
+	celldBin, err := celldBinary()
 	if err != nil {
 		return emptyCells(), nil
 	}

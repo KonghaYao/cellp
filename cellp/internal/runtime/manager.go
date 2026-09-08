@@ -282,7 +282,10 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 	// celld is a long-lived AD-1 daemon. Do not bind it to the caller
 	// context — HTTP wake handlers cancel when the response is written,
 	// which would SIGKILL the process and 502 the preview.
-	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", args...)
+	cmd, err := celldCommand(context.WithoutCancel(ctx), args...)
+	if err != nil {
+		return "", 0, ErrCelldUnavailable
+	}
 	watch, err := m.allocateWatchDir(project, watchVersion)
 	if err != nil {
 		return "", 0, fmt.Errorf("allocate watch dir: %w", err)
@@ -362,9 +365,9 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 	return returnHost, port, nil
 }
 
-// CelldInstalled reports whether the celld binary is on PATH.
+// CelldInstalled reports whether celld is available (CELLP_CELLD_BIN or PATH).
 func CelldInstalled() bool {
-	_, err := exec.LookPath("celld")
+	_, err := celldBinary()
 	return err == nil
 }
 
@@ -423,11 +426,14 @@ func (m *Manager) diagnoseBucket(ctx context.Context, bucket string) error {
 	}
 	diagnoseCtx, cancel := cappedContext(ctx, diagnoseTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(diagnoseCtx, "celld", "diagnose",
+	cmd, err := celldCommand(diagnoseCtx, "diagnose",
 		"--bucket", bucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
 	)
+	if err != nil {
+		return ErrCelldUnavailable
+	}
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", m.accessKey),
 		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", m.secretKey),
@@ -493,13 +499,10 @@ func (m *Manager) deployWithPreflight(ctx context.Context, project, version, exa
 	defer cleanup()
 
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	const celldDeployKilledMaxAttempts = 3
+	for attempt := 0; attempt < celldDeployKilledMaxAttempts; attempt++ {
 		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(3 * time.Second):
-			}
+			time.Sleep(2 * time.Second)
 		}
 		lastErr = withCelldDeploySlot(ctx, func(runCtx context.Context) error {
 			return m.runCelldDeploy(runCtx, project, version, exampleDir, deployDir)
@@ -513,8 +516,11 @@ func (m *Manager) deployWithPreflight(ctx context.Context, project, version, exa
 
 func (m *Manager) runCelldDeploy(ctx context.Context, project, version, exampleDir, deployDir string) error {
 	bucket := m.versionBucket(project, version)
-	cmd := exec.CommandContext(context.WithoutCancel(ctx), "celld", "deploy", deployDir,
+	cmd, err := celldCommand(context.WithoutCancel(ctx), "deploy", deployDir,
 		"--bucket", bucket, "--endpoint", m.endpoint, "--region", m.region)
+	if err != nil {
+		return ErrCelldUnavailable
+	}
 	env := append(os.Environ(),
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
 		fmt.Sprintf("CELLD_VAR_VERSION_ID=%s", version),
@@ -559,7 +565,7 @@ func (m *Manager) D1Branch(ctx context.Context, project, childVersion, parentVer
 	if os.Getenv("CELLP_E2E_INJECT_D1_BRANCH_FAIL") == "1" {
 		return fmt.Errorf("injected d1 branch failure")
 	}
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return nil
 	}
 	database, err := D1DatabaseName(projectDir)
@@ -571,7 +577,7 @@ func (m *Manager) D1Branch(ctx context.Context, project, childVersion, parentVer
 	}
 	parentBucket := m.versionBucket(project, parentVersion)
 	childBucket := m.versionBucket(project, childVersion)
-	cmd := exec.CommandContext(ctx, "celld",
+	cmd, err := celldCommand(ctx,
 		"d1", "branch", database,
 		"--parent-bucket", parentBucket,
 		projectDir,
@@ -579,6 +585,9 @@ func (m *Manager) D1Branch(ctx context.Context, project, childVersion, parentVer
 		"--endpoint", m.endpoint,
 		"--region", m.region,
 	)
+	if err != nil {
+		return ErrCelldUnavailable
+	}
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
 		fmt.Sprintf("CELLD_VAR_VERSION_ID=%s", childVersion),
@@ -685,7 +694,10 @@ func (m *Manager) D1Execute(ctx context.Context, project, version, projectDir, s
 			"--region", m.region,
 		}
 	}
-	cmd := exec.CommandContext(ctx, "celld", args...)
+	cmd, err := celldCommand(ctx, args...)
+	if err != nil {
+		return ErrCelldUnavailable
+	}
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
 		fmt.Sprintf("CELLD_VAR_VERSION_ID=%s", version),

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 )
 
 func (m *Manager) branchEnv(project, childVersion string) []string {
@@ -19,18 +18,21 @@ func (m *Manager) branchEnv(project, childVersion string) []string {
 
 // KvBranch links a child KV namespace to a parent bucket baseline.
 func (m *Manager) KvBranch(ctx context.Context, project, childVersion, parentVersion, nsID string) error {
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return fmt.Errorf("celld not installed")
 	}
 	parentBucket := m.versionBucket(project, parentVersion)
 	childBucket := m.versionBucket(project, childVersion)
-	cmd := exec.CommandContext(ctx, "celld",
+	cmd, err := celldCommand(ctx,
 		"kv", "branch", nsID,
 		"--parent-bucket", parentBucket,
 		"--bucket", childBucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
 	)
+	if err != nil {
+		return fmt.Errorf("celld not installed")
+	}
 	cmd.Env = append(os.Environ(), m.branchEnv(project, childVersion)...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("celld kv branch: %w: %s", err, string(out))
@@ -40,18 +42,21 @@ func (m *Manager) KvBranch(ctx context.Context, project, childVersion, parentVer
 
 // QueueBranch links a child queue to a parent bucket baseline.
 func (m *Manager) QueueBranch(ctx context.Context, project, childVersion, parentVersion, queueName string) error {
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return fmt.Errorf("celld not installed")
 	}
 	parentBucket := m.versionBucket(project, parentVersion)
 	childBucket := m.versionBucket(project, childVersion)
-	cmd := exec.CommandContext(ctx, "celld",
+	cmd, err := celldCommand(ctx,
 		"queue", "branch", queueName,
 		"--parent-bucket", parentBucket,
 		"--bucket", childBucket,
 		"--endpoint", m.endpoint,
 		"--region", m.region,
 	)
+	if err != nil {
+		return fmt.Errorf("celld not installed")
+	}
 	cmd.Env = append(os.Environ(), m.branchEnv(project, childVersion)...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("celld queue branch: %w: %s", err, string(out))
@@ -61,12 +66,12 @@ func (m *Manager) QueueBranch(ctx context.Context, project, childVersion, parent
 
 // R2Branch links a child R2 binding to a parent bucket overlay baseline.
 func (m *Manager) R2Branch(ctx context.Context, project, childVersion, parentVersion, bucketName string) error {
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return fmt.Errorf("celld not installed")
 	}
 	parentBucket := m.versionBucket(project, parentVersion)
 	childBucket := m.versionBucket(project, childVersion)
-	cmd := exec.CommandContext(ctx, "celld",
+	cmd, err := celldCommand(ctx,
 		"r2", "branch",
 		"--name", bucketName,
 		"--parent-bucket", parentBucket,
@@ -74,6 +79,9 @@ func (m *Manager) R2Branch(ctx context.Context, project, childVersion, parentVer
 		"--endpoint", m.endpoint,
 		"--region", m.region,
 	)
+	if err != nil {
+		return fmt.Errorf("celld not installed")
+	}
 	cmd.Env = append(os.Environ(), m.branchEnv(project, childVersion)...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("celld r2 branch: %w: %s", err, string(out))

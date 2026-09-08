@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -21,10 +20,10 @@ func (m *Manager) appendFleet(args []string, project, version string, jsonOut bo
 }
 
 func (m *Manager) execCelld(ctx context.Context, project, version string, args []string) ([]byte, error) {
-	if _, err := exec.LookPath("celld"); err != nil {
+	cmd, err := celldCommand(ctx, args...)
+	if err != nil {
 		return nil, ErrCelldUnavailable
 	}
-	cmd := exec.CommandContext(ctx, "celld", args...)
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
 		fmt.Sprintf("CELLD_VAR_VERSION_ID=%s", version),

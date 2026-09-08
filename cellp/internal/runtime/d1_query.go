@@ -8,8 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os/exec"
-	"regexp"
+		"regexp"
 	"strconv"
 	"strings"
 )
@@ -44,7 +43,7 @@ func ensureSQLSemicolon(sql string) string {
 
 // D1ExecuteSQL runs arbitrary SQL against a version's D1 database.
 func (m *Manager) D1ExecuteSQL(ctx context.Context, project, version, projectDir, sql string) (*D1SQLResult, error) {
-	if _, err := exec.LookPath("celld"); err != nil {
+	if !CelldInstalled() {
 		return nil, ErrCelldUnavailable
 	}
 	database, err := D1DatabaseName(projectDir)
@@ -66,7 +65,10 @@ func (m *Manager) D1ExecuteSQL(ctx context.Context, project, version, projectDir
 		"--region", m.region,
 		"--json",
 	}
-	cmd := exec.CommandContext(ctx, "celld", args...)
+	cmd, err := celldCommand(ctx, args...)
+	if err != nil {
+		return nil, ErrCelldUnavailable
+	}
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("CELLD_VAR_PROJECT_ID=%s", project),
 		fmt.Sprintf("CELLD_VAR_VERSION_ID=%s", version),
