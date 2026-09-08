@@ -105,20 +105,28 @@ func (g *Gateway) Handler() http.Handler {
 }
 
 func (g *Gateway) routes() {
-	g.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("gateway ok"))
-	})
 	g.router.Get("/health/deep", g.handleHealthDeep)
+	g.router.Get("/health", g.handlePlatformHealthOrIngress)
 	g.router.Handle("/*", http.HandlerFunc(g.handleIngress))
 }
 
-func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/health/") {
-		http.NotFound(w, r)
+// handlePlatformHealthOrIngress serves gateway liveness when Host is not ingress;
+// preview/prod Host requests proxy /health to the version upstream (AD-12).
+func (g *Gateway) handlePlatformHealthOrIngress(w http.ResponseWriter, r *http.Request) {
+	binding, err := g.resolveIngressBinding(r.Context(), r)
+	if err != nil {
+		http.Error(w, "ingress lookup failed", http.StatusInternalServerError)
 		return
 	}
+	if binding != nil && binding.Active {
+		g.handleIngress(w, r)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("gateway ok"))
+}
 
+func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 	binding, err := g.resolveIngressBinding(r.Context(), r)
 	if err != nil {
 		http.Error(w, "ingress lookup failed", http.StatusInternalServerError)

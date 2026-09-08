@@ -44,3 +44,52 @@ func TestVersionRouteProxyHost(t *testing.T) {
 		t.Fatalf("status=%d body=%q", resp.StatusCode, body)
 	}
 }
+
+func TestVersionRouteProxyHealthPath(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte("worker-health"))
+	}))
+	defer upstream.Close()
+
+	store, err := registry.Open(t.TempDir() + "/gw-ver-health.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	_, _ = store.CreateProject(ctx, registry.CreateProjectInput{ID: "demo"})
+	_, _ = store.CreateVersion(ctx, registry.CreateVersionInput{ID: "v1", ProjectID: "demo"})
+
+	host, port := upstreamHostPort(t, upstream.URL)
+	_ = store.SetRoute(ctx, registry.Route{
+		ProjectID: "demo", VersionID: "v1", Active: true,
+		UpstreamHost: host, UpstreamPort: port,
+	})
+	previewHost := "v1.demo.ingress.local"
+	upsertPreviewBinding(t, store, "demo", "v1", previewHost, "syn.v1.demo.ingress.local")
+
+	gw := hostOnlyGW(store)
+	srv := httptest.NewServer(gw.Handler())
+	defer srv.Close()
+
+	resp := doHostGet(t, srv.URL, previewHost, "/health")
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "worker-health" {
+		t.Fatalf("status=%d body=%q", resp.StatusCode, body)
+	}
+
+	respPlain, err := http.Get(srv.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respPlain.Body.Close()
+	plain, _ := io.ReadAll(respPlain.Body)
+	if respPlain.StatusCode != http.StatusOK || string(plain) != "gateway ok" {
+		t.Fatalf("platform health status=%d body=%q", respPlain.StatusCode, plain)
+	}
+}
