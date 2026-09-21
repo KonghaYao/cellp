@@ -40,6 +40,22 @@ func Run(ctx context.Context, ctrl *Controller, cfg Config, errCh chan<- error) 
 	if ctrl == nil {
 		return
 	}
+	// Renewals run on their own lane: a pass can block for the length of an agent call,
+	// and an assignment lease may never outlive its node lease, so renewals inside the
+	// pass would let healthy replicas expire behind any slow start. The lane is cancelled
+	// on return, so a foreground (Background=false) run exits after its single tick
+	// instead of waiting for a loop that no one stops.
+	renewCtx, stopRenew := context.WithCancel(ctx)
+	defer stopRenew()
+	renewDone := make(chan struct{})
+	go func() {
+		defer close(renewDone)
+		runAssignmentRenewals(renewCtx, ctrl)
+	}()
+	defer func() {
+		stopRenew()
+		<-renewDone
+	}()
 	tick := func() bool {
 		if _, err := ctrl.Tick(ctx); err != nil {
 			if ctx.Err() != nil {
@@ -88,4 +104,29 @@ func Start(ctx context.Context, ctrl *Controller, cfg Config, errCh chan<- error
 		Run(ctx, ctrl, cfg, errCh)
 	}()
 	return done
+}
+
+// runAssignmentRenewals renews live assignments on a fixed interval, independent of the
+// serialized pass. Expired or fenced assignments are left to the pass.
+func runAssignmentRenewals(ctx context.Context, ctrl *Controller) {
+	ticker := time.NewTicker(assignmentRenewDuringAgentInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !Enabled() {
+				continue
+			}
+			if err := ctrl.RenewAssignments(ctx); err != nil {
+				if ctx.Err() != nil || GuardLostFatal(err) {
+					return
+				}
+				if !IsTransientAgentOrRegistry(err) {
+					log.Printf("scheduler renewal: %v", err)
+				}
+			}
+		}
+	}
 }

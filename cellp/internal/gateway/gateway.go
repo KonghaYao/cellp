@@ -173,7 +173,7 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	g.proxyIngress(w, r, route, binding, projectID, versionID)
+	g.proxyIngress(w, r, route, binding, projectID, versionID, nil)
 }
 
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {
@@ -227,7 +227,10 @@ func (g *Gateway) lookupProdVersion(ctx context.Context, projectID string) (stri
 	return *versionID, true
 }
 
-func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *registry.Route, binding *registry.IngressBinding, projectID, versionID string) {
+// coldMissDial, when set, may handle a failure that happened before the request reached
+// the upstream (the process behind a ready endpoint is gone). It must not re-send the
+// request.
+func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *registry.Route, binding *registry.IngressBinding, projectID, versionID string, coldMissDial func(http.ResponseWriter, *http.Request, error) bool) {
 	target, err := url.Parse(fmt.Sprintf("http://%s:%d", route.UpstreamHost, route.UpstreamPort))
 	if err != nil {
 		http.Error(w, "bad upstream", http.StatusBadGateway)
@@ -263,6 +266,10 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 	}
 	upgrade := isUpgradeRequest(r)
 	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, e error) {
+		log.Printf("gateway proxy error project=%q version=%q upstream_port=%d class=%s error_type=%T pre_dispatch_dial=%t", projectID, versionID, route.UpstreamPort, classifyProxyError(e), e, preDispatchDialFailure(e))
+		if coldMissDial != nil && coldMissDial(rw, req, e) {
+			return
+		}
 		metrics.RecordGatewayUpstream(http.StatusBadGateway)
 		if upgrade {
 			log.Printf("gateway websocket proxy error class=%s method=%s path=%s host=%s err=%v",

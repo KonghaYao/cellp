@@ -214,16 +214,26 @@ wait_runtime_celld_health() {
 }
 
 # celld_log_paths lists runtime celld log files for a version (matches cellp/internal/runtime celldLogPath encoding).
+# celld_log_paths lists the celld logs for one project/version.
+#
+# A legacy instance logs under "<base64url(project)>-<base64url(version)>". An elastic
+# replica logs under "<base64url(project)>-<base64url(base64url(version)>.<base64url(replica)>)>",
+# so the version only appears after decoding the name once; matching the raw text would
+# silently find nothing for every replica.
 celld_log_paths() {
   local project="$1" version="$2"
   python3 -c "
 import base64, glob, os, sys
 enc = lambda s: base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
+dec = lambda s: base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode(errors='replace')
 p, v = sys.argv[1], sys.argv[2]
 tmpdir = os.environ.get('TMPDIR', '/tmp')
 ve = enc(v)
 for path in sorted(glob.glob(os.path.join(tmpdir, f'celld-{enc(p)}-*'))):
-    if ve in os.path.basename(path):
+    name = os.path.basename(path)[len('celld-'):-len('.log')]
+    parts = name.split('-', 1)
+    inner = dec(parts[1]) if len(parts) == 2 else ''
+    if ve in name or inner.split('.', 1)[0] == ve:
         print(path)
 " "$project" "$version"
 }

@@ -51,6 +51,20 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 Conceptual overview: [Bindings](/concepts/bindings).
 
+## Operators on a scaled-to-zero version
+
+A version may be scaled to zero when it has no traffic (the platform default). Operator
+commands that run inside the version's own cells — KV `get`/`put`/`list`/`info`/`delete`
+and queue operations — therefore wake the version first: the request raises the
+version's serving desire through the same mechanism a cold Gateway request uses, waits
+for a live replica, runs the command, and then releases the wake so the version scales
+back to zero. A version that is already serving is operated without any wake. Bucket-level
+commands (the D1 CLI) never need a running fleet and do not wake anything.
+
+A version that is retired in the moment between the wake and the command is woken again
+and the command is retried; celld refuses such a command before it runs, so the retry
+cannot apply it twice.
+
 ## Per-binding guides
 
 | Guide | Topic |

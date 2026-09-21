@@ -95,7 +95,7 @@ func (m *Manager) KvList(ctx context.Context, project, version, projectDir, ns, 
 	}
 	args = m.appendFleet(args, project, version, true)
 
-	out, err := m.execCelld(ctx, project, version, args)
+	out, err := m.execCelldOnFleet(ctx, project, version, args, true)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (m *Manager) KvGet(ctx context.Context, project, version, projectDir, ns, k
 	}
 	args := []string{"kv", "get", ns, key}
 	args = m.appendFleet(args, project, version, false)
-	out, err := m.execCelld(ctx, project, version, args)
+	out, err := m.execCelldOnFleet(ctx, project, version, args, true)
 	if err != nil {
 		if isKVNoKey(err) {
 			return nil, ErrKVKeyNotFound
@@ -166,7 +166,7 @@ func (m *Manager) KvPut(ctx context.Context, project, version, projectDir, ns, k
 		args = append(args, "--metadata", in.Metadata)
 	}
 	args = m.appendFleet(args, project, version, false)
-	_, err := m.execCelld(ctx, project, version, args)
+	_, err := m.execCelldOnFleet(ctx, project, version, args, false)
 	return err
 }
 
@@ -177,7 +177,7 @@ func (m *Manager) KvDelete(ctx context.Context, project, version, projectDir, ns
 	}
 	args := []string{"kv", "delete", ns, key}
 	args = m.appendFleet(args, project, version, false)
-	_, err := m.execCelld(ctx, project, version, args)
+	_, err := m.execCelldOnFleet(ctx, project, version, args, false)
 	return err
 }
 
@@ -188,7 +188,7 @@ func (m *Manager) KvInfo(ctx context.Context, project, version, projectDir, ns s
 	}
 	args := []string{"kv", "info", ns}
 	args = m.appendFleet(args, project, version, true)
-	out, err := m.execCelld(ctx, project, version, args)
+	out, err := m.execCelldOnFleet(ctx, project, version, args, true)
 	if err != nil {
 		return nil, err
 	}

@@ -32,7 +32,7 @@ func (b ManagerBackend) Probe(ctx context.Context, scope contract.CommandScope) 
 	}
 	return BackendReplica{
 		ReplicaID: inst.Key.ReplicaID, ProjectID: inst.Key.ProjectID, VersionID: inst.Key.VersionID,
-		Host: inst.Host, Port: inst.Port, Healthy: inst.Healthy,
+		Host: inst.Host, Port: inst.Port, Alive: inst.Alive, Healthy: inst.Healthy,
 	}, nil
 }
 
@@ -50,7 +50,7 @@ func (b ManagerBackend) List(ctx context.Context) ([]BackendReplica, error) {
 	for _, inst := range instances {
 		out = append(out, BackendReplica{
 			ReplicaID: inst.Key.ReplicaID, ProjectID: inst.Key.ProjectID, VersionID: inst.Key.VersionID,
-			Host: inst.Host, Port: inst.Port, Healthy: inst.Healthy,
+			Host: inst.Host, Port: inst.Port, Alive: inst.Alive, Healthy: inst.Healthy,
 		})
 	}
 	return out, nil

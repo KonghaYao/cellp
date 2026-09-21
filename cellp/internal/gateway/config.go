@@ -9,14 +9,14 @@ import (
 
 // GatewayConfig holds AD-12 ingress / proxy settings (P0: Tier B = host).
 type GatewayConfig struct {
-	IngressTierB              string
-	HostOnly                  bool
-	GatewayPort               int
-	TrustForwardedHeaders     bool
-	TrustedProxyCIDRs         []*net.IPNet
-	PublicSchemePreview       string
-	PublicSchemeProd          string
-	GatewayID                 string
+	IngressTierB          string
+	HostOnly              bool
+	GatewayPort           int
+	TrustForwardedHeaders bool
+	TrustedProxyCIDRs     []*net.IPNet
+	PublicSchemePreview   string
+	PublicSchemeProd      string
+	GatewayID             string
 }
 
 // ConfigFromEnv loads gateway settings from the environment.

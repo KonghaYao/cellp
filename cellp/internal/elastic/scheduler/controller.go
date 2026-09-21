@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	defaultDrainGrace                     = 30 * time.Second
-	defaultAssignmentRenewWindow          = 30 * time.Second
-	assignmentRenewDuringAgentInterval    = 5 * time.Second
+	defaultDrainGrace                  = 30 * time.Second
+	defaultAssignmentRenewWindow       = 30 * time.Second
+	assignmentRenewDuringAgentInterval = 5 * time.Second
 )
 
 // Controller reconciles serving desires into generation-fenced assignments and Agent commands.
@@ -142,10 +142,22 @@ func (c *Controller) reconcileVersion(ctx context.Context, pol registry.ServingP
 		}
 		node, knownNode := nodes[rep.NodeID]
 		if !knownNode || !nodeOK(node, now) || rep.AssignedNodeGeneration <= 0 || rep.AssignedNodeGeneration != node.Generation {
-			if err := c.Store.TerminalizeReplica(ctx, rep.ReplicaID, rep.NodeID, rep.Generation, contract.ReplicaFailed); err != nil {
+			// The pass snapshots nodes once and can run for minutes behind a blocking
+			// agent call. Re-read before dropping an assignment so a stale snapshot
+			// cannot terminalize a replica whose node is still eligible.
+			fresh, ok, err := c.runtimeNode(ctx, rep.NodeID)
+			if err != nil {
 				return err
 			}
-			continue
+			if ok {
+				node, knownNode = fresh, true
+			}
+			if !knownNode || !nodeOK(node, now) || rep.AssignedNodeGeneration <= 0 || rep.AssignedNodeGeneration != node.Generation {
+				if err := c.Store.TerminalizeReplica(ctx, rep.ReplicaID, rep.NodeID, rep.Generation, contract.ReplicaFailed); err != nil {
+					return err
+				}
+				continue
+			}
 		}
 		_, selected := targetSet[rep.ReplicaID]
 		if selected {
@@ -342,6 +354,19 @@ func (c *Controller) placeReplica(ctx context.Context, pol registry.ServingPolic
 
 func (c *Controller) convergeReplica(ctx context.Context, rep contract.RuntimeReplica, node contract.RuntimeNode, now time.Time) error {
 	if err := c.renewAssignmentIfNeeded(ctx, &rep, node, now); err != nil {
+		if errors.Is(err, registry.ErrAssignmentCASConflict) {
+			// A CAS conflict is not evidence of an expired assignment: the renewal lane
+			// (or a concurrent pass) legitimately moves the lease, and the lease may
+			// never outlive its node lease, so it changes on every node heartbeat.
+			// Re-read the authoritative row before dropping a healthy replica.
+			live, liveErr := c.assignmentStillLive(ctx, rep, node, now)
+			if liveErr != nil {
+				return liveErr
+			}
+			if live {
+				return nil
+			}
+		}
 		if errors.Is(err, registry.ErrAssignmentCASConflict) || errors.Is(err, registry.ErrLeaseExpired) {
 			return c.terminalizeStaleAssignment(ctx, rep)
 		}
@@ -360,6 +385,44 @@ func (c *Controller) convergeReplica(ctx context.Context, rep contract.RuntimeRe
 	default:
 		return nil
 	}
+}
+
+// assignmentStillLive reports whether the authoritative row still carries a live lease
+// for an eligible node at this generation, so callers can tell a benign concurrent
+// renewal from a genuinely fenced or expired assignment.
+//
+// Everything is re-read: the pass may have been running for minutes behind a blocking
+// agent call, so neither its node snapshot nor its `now` may decide that a replica is
+// still live.
+func (c *Controller) assignmentStillLive(ctx context.Context, rep contract.RuntimeReplica, _ contract.RuntimeNode, _ time.Time) (bool, error) {
+	now := c.now().UTC()
+	node, known, err := c.runtimeNode(ctx, rep.NodeID)
+	if err != nil {
+		return false, err
+	}
+	if !known || !nodeOK(node, now) || rep.AssignedNodeGeneration <= 0 || rep.AssignedNodeGeneration != node.Generation {
+		return false, nil
+	}
+	current, err := c.Store.ListRuntimeReplicas(ctx, rep.ProjectID, rep.VersionID)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range current {
+		if row.ReplicaID != rep.ReplicaID {
+			continue
+		}
+		if row.NodeID != rep.NodeID || row.ProjectID != rep.ProjectID || row.VersionID != rep.VersionID {
+			return false, nil
+		}
+		if row.AssignedNodeGeneration != node.Generation || isTerminalReplica(row.State) {
+			return false, nil
+		}
+		if row.ValidUntil == nil || !row.ValidUntil.After(now) {
+			return false, nil
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func (c *Controller) renewAssignmentIfNeeded(ctx context.Context, rep *contract.RuntimeReplica, node contract.RuntimeNode, now time.Time) error {
@@ -393,6 +456,52 @@ func (c *Controller) renewAssignmentIfNeeded(ctx context.Context, rep *contract.
 		return err
 	}
 	rep.ValidUntil = &newExpiry
+	return nil
+}
+
+// RenewAssignments refreshes every live assignment outside the serialized pass.
+//
+// An assignment lease may never exceed its node lease (RenewAssignmentLease enforces
+// that CAS), so it lives at most one node heartbeat TTL. A pass that blocks in an agent
+// call — a replica start waits for the celld ready gate, and the agent client only gives
+// up after transport's 90s client timeout — therefore starves renewals for every other
+// version, and the next pass terminalizes healthy ready replicas whose node never went
+// away. Running renewals on their own lane keeps that from happening. Callers that only
+// want to extend leases skip expired assignments and leave terminalization to the pass,
+// which has the authoritative node view.
+func (c *Controller) RenewAssignments(ctx context.Context) error {
+	if c == nil || c.Store == nil || c.Guard == nil {
+		return nil
+	}
+	if err := c.checkGuard(ctx); err != nil {
+		return err
+	}
+	replicas, err := c.Store.ListRuntimeReplicasForReconcile(ctx)
+	if err != nil {
+		return err
+	}
+	nodes, err := c.Store.ListRuntimeNodes(ctx)
+	if err != nil {
+		return err
+	}
+	index := indexNodes(nodes)
+	now := c.now().UTC()
+	for _, rep := range replicas {
+		if isTerminalReplica(rep.State) {
+			continue
+		}
+		node, ok := index[rep.NodeID]
+		if !ok {
+			continue
+		}
+		if err := c.renewAssignmentIfNeeded(ctx, &rep, node, now); err != nil {
+			if errors.Is(err, registry.ErrAssignmentCASConflict) || errors.Is(err, registry.ErrLeaseExpired) ||
+				errors.Is(err, registry.ErrObservationStale) || IsTransientAgentOrRegistry(err) {
+				continue
+			}
+			return err
+		}
+	}
 	return nil
 }
 

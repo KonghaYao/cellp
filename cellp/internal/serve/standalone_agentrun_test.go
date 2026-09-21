@@ -149,14 +149,14 @@ func waitForNodeLease(t *testing.T, store *registry.SQLiteStore, pki remoteWireP
 			t.Fatal("agent run exited before lease observed")
 		default:
 		}
-			node, err := store.GetRuntimeNode(context.Background(), nodeID)
-			if err != nil {
-				if registry.IsSQLiteBusy(err) {
-					time.Sleep(registryBusyPollInterval)
-					continue
-				}
-				t.Fatal(err)
+		node, err := store.GetRuntimeNode(context.Background(), nodeID)
+		if err != nil {
+			if registry.IsSQLiteBusy(err) {
+				time.Sleep(registryBusyPollInterval)
+				continue
 			}
+			t.Fatal(err)
+		}
 		if node != nil && node.LeaseExpiry.After(time.Now().UTC()) {
 			return
 		}
@@ -199,19 +199,19 @@ func mustStandaloneElasticConfig(t *testing.T, dir string, pki remoteWirePKI, bi
 		"CELLP_AGENT_BIND_ADDR": bind, "CELLP_AGENT_ADVERTISE_URL": advertise,
 		"CELLP_AGENT_NODE_IDENTITY_URI": pki.NodeURI, "CELLP_AGENT_CONTROLLER_IDENTITY_URI": pki.ControllerURI,
 		"CELLP_AGENT_ALLOWED_CONTROLLER_URIS": pki.ControllerURI,
-		"CELLP_AGENT_SERVER_CERT_FILE": filepath.Join(dir, "agent-server.pem"),
-		"CELLP_AGENT_SERVER_KEY_FILE":  filepath.Join(dir, "agent-server-key.pem"),
-		"CELLP_AGENT_SERVER_CA_FILE": filepath.Join(dir, "agent-ca.pem"),
-		"CELLP_AGENT_CLIENT_CERT_FILE": filepath.Join(dir, "agent-client.pem"),
-		"CELLP_AGENT_CLIENT_KEY_FILE":  filepath.Join(dir, "agent-client-key.pem"),
-		"CELLP_AGENT_CLIENT_CA_FILE":   filepath.Join(dir, "agent-ca.pem"),
-		"CELLP_AGENT_TLS_SERVER_NAME":  "127.0.0.1",
-		"CELLP_AGENT_CERT_DENYLIST_FILE": filepath.Join(dir, "denylist"),
-		"CELLP_AGENT_CAPACITY_UNITS": "2", "CELLP_AGENT_ZONE": "z",
+		"CELLP_AGENT_SERVER_CERT_FILE":        filepath.Join(dir, "agent-server.pem"),
+		"CELLP_AGENT_SERVER_KEY_FILE":         filepath.Join(dir, "agent-server-key.pem"),
+		"CELLP_AGENT_SERVER_CA_FILE":          filepath.Join(dir, "agent-ca.pem"),
+		"CELLP_AGENT_CLIENT_CERT_FILE":        filepath.Join(dir, "agent-client.pem"),
+		"CELLP_AGENT_CLIENT_KEY_FILE":         filepath.Join(dir, "agent-client-key.pem"),
+		"CELLP_AGENT_CLIENT_CA_FILE":          filepath.Join(dir, "agent-ca.pem"),
+		"CELLP_AGENT_TLS_SERVER_NAME":         "127.0.0.1",
+		"CELLP_AGENT_CERT_DENYLIST_FILE":      filepath.Join(dir, "denylist"),
+		"CELLP_AGENT_CAPACITY_UNITS":          "2", "CELLP_AGENT_ZONE": "z",
 		"CELLP_AGENT_HEARTBEAT_TTL": "30s", "CELLP_AGENT_HEARTBEAT_INTERVAL": "10s",
 		"CELLP_AGENT_RECONCILE_INTERVAL": "200ms", "CELLP_AGENT_MAX_BODY_BYTES": "1048576",
 		"CELLP_AGENT_REPLAY_MAX_ENTRIES": "4096",
-		"CELLP_AGENT_NODEREG_BASE_URL": controllerBase, "CELLP_AGENT_REGISTRY_RELAY_BASE_URL": controllerBase,
+		"CELLP_AGENT_NODEREG_BASE_URL":   controllerBase, "CELLP_AGENT_REGISTRY_RELAY_BASE_URL": controllerBase,
 		"CELLP_AGENT_RELAY_SCOPE_TTL": "90s", "CELLP_AGENT_CONTROLLER_TLS_SERVER_NAME": "127.0.0.1",
 	}
 	for k, v := range env {

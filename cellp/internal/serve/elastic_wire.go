@@ -193,68 +193,123 @@ func startElasticAgent(parent context.Context, cfg config.ElasticConfig, tlsMate
 		abortCancel()
 		return nil, errors.Join(err, abortErr)
 	}
+	bootResult := make(chan error, 1)
 	go func() {
 		defer close(loopsDone)
-		leaseExpiry := time.Now().UTC().Add(cfg.NodeHeartbeatTTL)
-		if err := store.RenewRuntimeNodeLease(ctx, cfg.NodeID, generation, leaseExpiry); err != nil {
-			if ctx.Err() == nil && agent.RuntimeNodeHeartbeatFatal(err) {
-				errCh <- fmt.Errorf("agent heartbeat: %w", err)
-				cancel()
-				return
-			}
-			if ctx.Err() == nil {
-				log.Printf("agent heartbeat transient: %v", err)
-			}
-		}
-		heartbeat := time.NewTicker(cfg.NodeHeartbeatInterval)
-		reconcile := time.NewTicker(cfg.AgentReconcileInterval)
-		defer heartbeat.Stop()
-		defer reconcile.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case err := <-runErr:
-				if err != nil && ctx.Err() == nil {
-					errCh <- fmt.Errorf("agent server: %w", err)
-				}
-				cancel()
-				return
-			case <-heartbeat.C:
-				if err := store.RenewRuntimeNodeLease(ctx, cfg.NodeID, generation, time.Now().UTC().Add(cfg.NodeHeartbeatTTL)); err != nil {
-					if ctx.Err() == nil && agent.RuntimeNodeHeartbeatFatal(err) {
-						errCh <- fmt.Errorf("agent heartbeat: %w", err)
-						cancel()
-						return
-					}
-					if ctx.Err() == nil {
-						log.Printf("agent heartbeat transient: %v", err)
-					}
-				}
-			case <-reconcile.C:
-				if err := handler.ReconcileNode(ctx, cfg.NodeID); err != nil {
-					if ctx.Err() == nil && agent.ReconcileNodeErrorFatal(err) {
-						errCh <- fmt.Errorf("agent reconcile: %w", err)
-						cancel()
-						return
-					}
-					if ctx.Err() == nil {
-						log.Printf("agent reconcile transient: %v", err)
-					}
-				}
-			}
-		}
+		runElasticAgentLoops(ctx, cancel, cfg, func(ctx context.Context) error {
+			return store.RenewRuntimeNodeLease(ctx, cfg.NodeID, generation, time.Now().UTC().Add(cfg.NodeHeartbeatTTL))
+		}, func(ctx context.Context) error {
+			return handler.ReconcileNode(ctx, cfg.NodeID)
+		}, runErr, bootResult, errCh)
 	}()
-	if err := handler.ReconcileNode(ctx, cfg.NodeID); err != nil {
+	var bootErr error
+	select {
+	case bootErr = <-bootResult:
+	case <-ctx.Done():
+		bootErr = ctx.Err()
+		select {
+		case err := <-bootResult:
+			if err != nil {
+				bootErr = err
+			}
+		default:
+		}
+	}
+	if bootErr == nil {
+		bootErr = ctx.Err()
+	}
+	if bootErr != nil {
 		abortCtx, abortCancel := context.WithTimeout(context.Background(), runShutdownTimeout)
 		abortErr := abortElasticStartup(abortCtx, cancel, store, cfg.NodeID, generation, server, done, loopsDone)
 		abortCancel()
-		return nil, errors.Join(fmt.Errorf("agent boot reconcile: %w", err), abortErr)
+		return nil, errors.Join(fmt.Errorf("agent boot reconcile: %w", bootErr), abortErr)
 	}
 	return &elasticAgent{
 		cancel: cancel, server: server, done: done, loopsDone: loopsDone,
 		store: store, nodeID: cfg.NodeID, generation: generation,
 	}, nil
+}
+
+// runElasticAgentLoops 将续租与串行的 boot/周期 reconcile 分离；返回前取消并等待 worker。
+func runElasticAgentLoops(ctx context.Context, cancel context.CancelFunc, cfg config.ElasticConfig, renew, reconcile func(context.Context) error, runErr <-chan error, bootResult chan<- error, errCh chan<- error) {
+	defer cancel()
+	fatal := func(kind string, err error) {
+		// A fatal takes the node offline and cancels the process context, so the first
+		// cause must be readable in the log even when errCh is already full: the
+		// shutdown messages that follow are consequences, not the reason.
+		log.Printf("agent %s fatal: %v", kind, err)
+		select {
+		case errCh <- fmt.Errorf("agent %s: %w", kind, err):
+		default:
+			// 已有 fatal 等待处理时也不能阻塞关闭。
+		}
+		cancel()
+	}
+	if err := renew(ctx); err != nil && ctx.Err() == nil {
+		if agent.RuntimeNodeHeartbeatFatal(err) {
+			fatal("heartbeat", err)
+			return
+		}
+		log.Printf("agent heartbeat transient: %v", err)
+	}
+	workerDone := make(chan struct{})
+	reconcileFatal := make(chan error, 1)
+	go func() {
+		defer close(workerDone)
+		err := reconcile(ctx)
+		bootResult <- err
+		if err != nil {
+			cancel()
+			return
+		}
+		ticker := time.NewTicker(cfg.AgentReconcileInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if ctx.Err() != nil {
+					return
+				}
+				if err := reconcile(ctx); err != nil && ctx.Err() == nil {
+					if agent.ReconcileNodeErrorFatal(err) {
+						reconcileFatal <- err
+						return
+					}
+					log.Printf("agent reconcile transient: %v", err)
+				}
+			}
+		}
+	}()
+	defer func() {
+		cancel()
+		<-workerDone
+	}()
+	heartbeat := time.NewTicker(cfg.NodeHeartbeatInterval)
+	defer heartbeat.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-runErr:
+			if err != nil && ctx.Err() == nil {
+				fatal("server", err)
+			}
+			return
+		case err := <-reconcileFatal:
+			fatal("reconcile", err)
+			return
+		case <-heartbeat.C:
+			if err := renew(ctx); err != nil && ctx.Err() == nil {
+				if agent.RuntimeNodeHeartbeatFatal(err) {
+					fatal("heartbeat", err)
+					return
+				}
+				log.Printf("agent heartbeat transient: %v", err)
+			}
+		}
+	}
 }
 
 func (a *elasticAgent) quiesce(ctx context.Context) (bool, error) {

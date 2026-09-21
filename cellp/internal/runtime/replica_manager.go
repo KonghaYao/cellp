@@ -19,9 +19,11 @@ type ReplicaKey struct {
 
 // ReplicaInstance is non-sensitive local process inventory.
 type ReplicaInstance struct {
-	Key     ReplicaKey
-	Host    string
-	Port    int
+	Key  ReplicaKey
+	Host string
+	Port int
+	// Alive reports the tracked process still exists, independent of celld health.
+	Alive   bool
 	Healthy bool
 }
 
@@ -72,6 +74,12 @@ func (m *Manager) ProbeReplica(ctx context.Context, key ReplicaKey) (ReplicaInst
 	if err := key.validate(); err != nil {
 		return ReplicaInstance{}, err
 	}
+	return m.probeReplicaUnlocked(ctx, key)
+}
+
+// probeReplicaUnlocked reads one replica's tracked process. Callers that must not observe
+// a restart's half-open window hold that replica's lifecycle lock around the call.
+func (m *Manager) probeReplicaUnlocked(ctx context.Context, key ReplicaKey) (ReplicaInstance, error) {
 	k := m.replicaKey(key)
 	m.mu.Lock()
 	proc, ok := m.processes[k]
@@ -80,7 +88,7 @@ func (m *Manager) ProbeReplica(ctx context.Context, key ReplicaKey) (ReplicaInst
 		return ReplicaInstance{}, fmt.Errorf("replica not running")
 	}
 	alive := proc.cmd == nil || processAlive(proc.cmd)
-	inst := ReplicaInstance{Key: key, Host: proc.externalHost(), Port: proc.port}
+	inst := ReplicaInstance{Key: key, Host: proc.externalHost(), Port: proc.port, Alive: alive}
 	inst.Healthy = alive && m.Health(ctx, proc.bindHostOrDefault(), inst.Port)
 	return inst, nil
 }
@@ -104,6 +112,11 @@ func (m *Manager) StopReplica(ctx context.Context, key ReplicaKey) error {
 }
 
 // ListReplicas returns only elastic instances currently tracked by this manager.
+//
+// Every entry is read under the replica's lifecycle lock, the same lock a restart and a
+// stop hold across their stop-then-start window. Without it an inventory read could fall
+// into the middle of a restart, report a live replica as gone, and make the reconciler
+// withdraw the endpoint and terminalize an assignment whose process is coming right back.
 func (m *Manager) ListReplicas(ctx context.Context) []ReplicaInstance {
 	m.mu.Lock()
 	keys := make([]string, 0, len(m.processes))
@@ -120,10 +133,13 @@ func (m *Manager) ListReplicas(ctx context.Context) []ReplicaInstance {
 		if len(parts) != 4 || parts[2] != "replicas" {
 			continue
 		}
-		inst, err := m.ProbeReplica(ctx, ReplicaKey{ProjectID: parts[0], VersionID: parts[1], ReplicaID: parts[3]})
+		key := ReplicaKey{ProjectID: parts[0], VersionID: parts[1], ReplicaID: parts[3]}
+		unlock := m.lockLifecycleKey(raw)
+		inst, err := m.probeReplicaUnlocked(ctx, key)
 		if err == nil {
 			out = append(out, inst)
 		}
+		unlock()
 	}
 	return out
 }

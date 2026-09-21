@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -150,7 +151,229 @@ func setupLifecycleWithOptions(t *testing.T, opts registry.OpenOptions) (*regist
 	}
 }
 
-func TestReconcileFailedReplicaWithLiveProcessPromotesReady(t *testing.T) {
+func TestReconcileNodeKeepsBootingReplicaProcess(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	// A booting replica: the process exists and is not healthy yet. celld withholds
+	// {"ok":true} until its ready gate settles, so reconcile must wait for the process
+	// instead of killing it: the kill leaves a lingering node lease in the version
+	// bucket and the replacement then waits that lease out (replica churn).
+	backend.inventory[scope.ReplicaID] = BackendReplica{
+		ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+		Host: "127.0.0.1", Port: 9101, Alive: true, Healthy: false,
+	}
+	h := NewLifecycleFromRegistry(true, store, backend)
+	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
+		t.Fatalf("reconcile booting replica: %v", err)
+	}
+	backend.mu.Lock()
+	stops, starts, alive := backend.stops, backend.starts, true
+	if _, ok := backend.inventory[scope.ReplicaID]; !ok {
+		alive = false
+	}
+	events := append([]string(nil), backend.events...)
+	backend.mu.Unlock()
+	if stops != 0 || !alive {
+		t.Fatalf("booting replica process was killed: stops=%d alive=%v events=%v", stops, alive, events)
+	}
+	if starts != 0 {
+		t.Fatalf("booting replica was restarted: starts=%d events=%v", starts, events)
+	}
+	rep, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.State == contract.ReplicaReady {
+		t.Fatalf("unhealthy booting replica published ready: %+v", rep)
+	}
+	// Once the gate opens the same process is published ready without a restart.
+	backend.mu.Lock()
+	healthyItem := backend.inventory[scope.ReplicaID]
+	healthyItem.Healthy = true
+	backend.inventory[scope.ReplicaID] = healthyItem
+	backend.mu.Unlock()
+	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
+		t.Fatalf("reconcile after gate open: %v", err)
+	}
+	rep, err = store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil || rep.State != contract.ReplicaReady {
+		t.Fatalf("gate open did not publish ready: rep=%+v err=%v", rep, err)
+	}
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.stops != 0 || backend.starts != 0 {
+		t.Fatalf("booting process churned: stops=%d starts=%d events=%v", backend.stops, backend.starts, backend.events)
+	}
+}
+
+func TestReconcileNodeDoesNotKeepTerminalOrDeadProcesses(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	h := NewLifecycleFromRegistry(true, store, backend)
+	spec := contract.StartReplicaSpec{Scope: scope, Bucket: "s3://cellp-celld/demo/v1"}
+	if _, err := h.StartReplica(ctx, spec, "terminal-key"); err != nil {
+		t.Fatal(err)
+	}
+	// A serving replica that lost health is an authoritative terminal decision upstream:
+	// withdraw the endpoint and stop the process, keeping slot and lease consistent.
+	backend.healthy = false
+	backend.mu.Lock()
+	item := backend.inventory[scope.ReplicaID]
+	item.Healthy = false
+	item.Alive = true
+	backend.inventory[scope.ReplicaID] = item
+	backend.mu.Unlock()
+	// The pass withdraws the endpoint, stops the process and retries the start; the
+	// retry fails here because the backend stays unhealthy. The assertions below are
+	// about the fail-closed decision, not about that retry succeeding.
+	_ = h.ReconcileNode(ctx, scope.NodeID)
+	rep, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.State == contract.ReplicaReady {
+		t.Fatalf("unhealthy serving replica kept its endpoint: %+v", rep)
+	}
+	backend.mu.Lock()
+	stops := backend.stops
+	backend.mu.Unlock()
+	if stops == 0 {
+		t.Fatal("terminal serving replica kept a live process")
+	}
+	// An inventory record for a process that already exited must not be mistaken for a
+	// running replica and must not keep the assignment alive.
+	store2, scope2 := setupLifecycle(t)
+	backend2 := newFakeLifecycleBackend()
+	backend2.inventory[scope2.ReplicaID] = BackendReplica{
+		ReplicaID: scope2.ReplicaID, ProjectID: scope2.ProjectID, VersionID: scope2.VersionID,
+		Host: "127.0.0.1", Port: 9102, Alive: false, Healthy: true,
+	}
+	// The record claims health but its process is gone; with no process to start the
+	// replica must not be published ready from that record alone.
+	backend2.startErr = errors.New("no process to start")
+	h2 := NewLifecycleFromRegistry(true, store2, backend2)
+	_ = h2.ReconcileNode(ctx, scope2.NodeID)
+	rep2, err := store2.GetRuntimeReplica(ctx, scope2.ReplicaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep2.State == contract.ReplicaReady {
+		t.Fatalf("dead process record published ready: %+v", rep2)
+	}
+	backend2.mu.Lock()
+	starts := backend2.starts
+	backend2.mu.Unlock()
+	if starts == 0 {
+		t.Fatal("dead process record left the assignment without a start attempt")
+	}
+}
+
+// movedLeaseOnceStore fails the first ready commit the way a concurrent renewal does:
+// the stored lease no longer matches the one the attempt was claimed with.
+type movedLeaseOnceStore struct {
+	LifecycleStore
+	mu     sync.Mutex
+	fails  int
+	failed int
+}
+
+func (s *movedLeaseOnceStore) RecordObservationAndCompleteAgentCommand(ctx context.Context, obs registry.ReplicaObservation, command registry.AgentCommand) error {
+	s.mu.Lock()
+	s.fails++
+	first := s.fails == 1
+	if first {
+		s.failed++
+	}
+	s.mu.Unlock()
+	if first {
+		return registry.ErrObservationStale
+	}
+	return s.LifecycleStore.RecordObservationAndCompleteAgentCommand(ctx, obs, command)
+}
+
+func TestStartReplicaCommitRetriesMovedLeaseWithoutStopping(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	adapter := RegistryStores{Store: store}
+	faults := &movedLeaseOnceStore{LifecycleStore: adapter}
+	h := NewLifecycleHandler(true, adapter, faults, backend)
+	spec := contract.StartReplicaSpec{Scope: scope, Bucket: "s3://cellp-celld/demo/v1"}
+	rep, err := h.StartReplica(ctx, spec, "moved-lease-key")
+	if err != nil {
+		t.Fatalf("start with a moved lease: %v", err)
+	}
+	if rep.State != contract.ReplicaReady {
+		t.Fatalf("ready commit lost the moved lease: %+v", rep)
+	}
+	if faults.failed == 0 {
+		t.Fatal("test did not exercise the moved-lease commit")
+	}
+	backend.mu.Lock()
+	stops := backend.stops
+	_, alive := backend.inventory[scope.ReplicaID]
+	backend.mu.Unlock()
+	if stops != 0 || !alive {
+		t.Fatalf("moved lease stopped a serving process: stops=%d alive=%v", stops, alive)
+	}
+	stored, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil || stored.State != contract.ReplicaReady {
+		t.Fatalf("ready not committed after retry: rep=%+v err=%v", stored, err)
+	}
+}
+
+func TestReconcileNodeExpiredLocalLeaseCleansUpWhileMovedLeaseWaits(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		err         error
+		wantStopped bool
+	}{
+		{name: "expired", err: registry.ErrLeaseExpired, wantStopped: true},
+		{name: "moved", err: registry.ErrAssignmentCASConflict, wantStopped: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			store, scope := setupLifecycle(t)
+			backend := newFakeLifecycleBackend()
+			backend.inventory[scope.ReplicaID] = BackendReplica{
+				ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+				Host: "127.0.0.1", Port: 9103, Alive: true, Healthy: true,
+			}
+			adapter := RegistryStores{Store: store}
+			h := NewLifecycleHandler(true, adapter, faultLifecycleStore{LifecycleStore: adapter, validateAssignmentErr: tc.err}, backend)
+			err := h.ReconcileNode(ctx, scope.NodeID)
+			if !tc.wantStopped && err == nil {
+				t.Fatal("an uncertain assignment must report the read error instead of acting")
+			}
+			backend.mu.Lock()
+			stops := backend.stops
+			_, alive := backend.inventory[scope.ReplicaID]
+			backend.mu.Unlock()
+			rep, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantStopped {
+				// An expired assignment is authoritative for this node: the process must go.
+				if stops == 0 || alive || rep.State == contract.ReplicaReady {
+					t.Fatalf("expired assignment kept serving: stops=%d alive=%v rep=%+v", stops, alive, rep)
+				}
+				return
+			}
+			if stops != 0 || !alive || rep.State == contract.ReplicaStopped {
+				t.Fatalf("moved lease cleaned up a live replica: stops=%d alive=%v rep=%+v", stops, alive, rep)
+			}
+		})
+	}
+}
+
+// A terminal replica is authoritative. The agent owns local process cleanup, the
+// scheduler owns replacement through a new assignment, so reconcile must never turn a
+// failed or stopped replica back into a ready one — not even when a healthy process of
+// that replica is still around, and not by recording `starting` again.
+func TestReconcileTerminalReplicaIsCleanedNotPromoted(t *testing.T) {
 	ctx := context.Background()
 	store, scope := setupLifecycle(t)
 	backend := newFakeLifecycleBackend()
@@ -159,23 +382,48 @@ func TestReconcileFailedReplicaWithLiveProcessPromotesReady(t *testing.T) {
 	if _, err := h.StartReplica(ctx, spec, "start-1"); err != nil {
 		t.Fatal(err)
 	}
+	// The command path marks the replica failed (probe loss) and stops the process.
 	backend.healthy = false
 	probe := scope
 	probe.Action = contract.ActionProbeReplica
 	if _, err := h.ProbeReplica(ctx, probe); err != nil {
 		t.Fatal(err)
 	}
+	// A healthy leftover process for the same failed replica must not be promoted.
 	backend.healthy = true
+	backend.mu.Lock()
+	backend.inventory[scope.ReplicaID] = BackendReplica{
+		ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+		Host: "127.0.0.1", Port: 9101, Alive: true, Healthy: true,
+	}
+	startsBefore := backend.starts
+	backend.mu.Unlock()
 	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	rep, err := store.ValidateAgentAssignment(ctx, scope, time.Now().UTC())
-	if err != nil || rep == nil || rep.State != contract.ReplicaReady {
-		t.Fatalf("after reconcile: rep=%+v err=%v", rep, err)
+	backend.mu.Lock()
+	stops, starts := backend.stops, backend.starts
+	_, alive := backend.inventory[scope.ReplicaID]
+	events := append([]string(nil), backend.events...)
+	backend.mu.Unlock()
+	if starts != startsBefore {
+		t.Fatalf("reconcile restarted a terminal replica: starts=%d -> %d events=%v", startsBefore, starts, events)
+	}
+	if alive || stops == 0 {
+		t.Fatalf("terminal replica process was not cleaned up: stops=%d alive=%v", stops, alive)
+	}
+	rep, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.State == contract.ReplicaReady || rep.State == contract.ReplicaStarting {
+		t.Fatalf("terminal replica was revived by reconcile: %+v", rep)
 	}
 }
 
-func TestReconcileRestartFromFailedRecordsStartingBeforeReady(t *testing.T) {
+// Replacement belongs to the scheduler: it starts the version again through a new
+// assignment and command, which the agent then executes. Reconcile alone must not.
+func TestSchedulerStartCommandRevivesPreviouslyFailedReplica(t *testing.T) {
 	ctx := context.Background()
 	store, scope := setupLifecycle(t)
 	backend := newFakeLifecycleBackend()
@@ -192,12 +440,19 @@ func TestReconcileRestartFromFailedRecordsStartingBeforeReady(t *testing.T) {
 	}
 	delete(backend.inventory, scope.ReplicaID)
 	backend.healthy = true
-	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
-		t.Fatalf("reconcile: %v", err)
+	rep, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil || rep.State != contract.ReplicaFailed {
+		t.Fatalf("setup: rep=%+v err=%v", rep, err)
 	}
-	rep, err := store.ValidateAgentAssignment(ctx, scope, time.Now().UTC())
-	if err != nil || rep == nil || rep.State != contract.ReplicaReady {
-		t.Fatalf("after reconcile restart: rep=%+v err=%v", rep, err)
+	// The scheduler re-issues start for the same assignment after a fresh claim.
+	probeScope := scope
+	probeScope.Action = contract.ActionStartReplica
+	got, err := h.StartReplica(ctx, spec, "start-2")
+	if err != nil {
+		t.Fatalf("scheduler start after failure: %v", err)
+	}
+	if got.State != contract.ReplicaReady {
+		t.Fatalf("scheduler start revived: %+v", got)
 	}
 }
 
@@ -876,5 +1131,151 @@ func TestLifecycleProbeDrainStopAndReconcile(t *testing.T) {
 	stop.Action = contract.ActionStopReplica
 	if _, err := h2.StopReplica(ctx, stop); err != nil || backend2.stops != 1 {
 		t.Fatalf("terminal stop replay: err=%v stops=%d", err, backend2.stops)
+	}
+}
+
+// staleNodeOnceStore hands out one expired node snapshot, as a reconcile that read the
+// node before a slow inventory leaves behind, and the live row afterwards.
+type staleNodeOnceStore struct {
+	NodeStore
+	stale     *contract.RuntimeNode
+	delivered bool
+	mu        sync.Mutex
+}
+
+func (s *staleNodeOnceStore) GetRuntimeNode(ctx context.Context, nodeID string) (*contract.RuntimeNode, error) {
+	s.mu.Lock()
+	if !s.delivered && s.stale != nil {
+		s.delivered = true
+		stale := s.stale
+		s.mu.Unlock()
+		return stale, nil
+	}
+	s.mu.Unlock()
+	return s.NodeStore.GetRuntimeNode(ctx, nodeID)
+}
+
+// The inventory read can outlive the node snapshot it was taken with. A node whose lease
+// has since been renewed is not inactive: deciding from the stale snapshot would take a
+// healthy node — and with it every replica — offline.
+func TestReconcileNodeRereadsNodeBeforeDeclaringItInactive(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	backend.inventory[scope.ReplicaID] = BackendReplica{
+		ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+		Host: "127.0.0.1", Port: 9101, Alive: true, Healthy: false,
+	}
+	live, err := store.GetRuntimeNode(ctx, scope.NodeID)
+	if err != nil || live == nil {
+		t.Fatalf("node: %+v err=%v", live, err)
+	}
+	stale := *live
+	stale.LeaseExpiry = time.Now().UTC().Add(-time.Minute)
+	adapter := RegistryStores{Store: store}
+	h := NewLifecycleHandler(true, &staleNodeOnceStore{NodeStore: adapter, stale: &stale}, adapter, backend)
+	if err := h.ReconcileNode(ctx, scope.NodeID); err != nil {
+		if ErrReconcileAuthorityFatal(err) {
+			t.Fatalf("stale node snapshot was reported as authority loss: %v", err)
+		}
+		t.Fatalf("reconcile with a stale node snapshot: %v", err)
+	}
+
+	rep, err := store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.State == contract.ReplicaFailed || rep.State == contract.ReplicaStopped {
+		t.Fatalf("stale node snapshot terminalized a live assignment: %+v", rep)
+	}
+	backend.mu.Lock()
+	stops := backend.stops
+	alive := true
+	backend.mu.Unlock()
+	if stops != 0 || !alive {
+		t.Fatalf("stale node snapshot stopped a replica: stops=%d", stops)
+	}
+}
+
+// withdrawOrderBackend inspects routing durability inside the only window that matters:
+// the moment before the local process is stopped.
+type withdrawOrderBackend struct {
+	*fakeLifecycleBackend
+	store   *registry.SQLiteStore
+	before  int64
+	checked bool
+	err     error
+}
+
+func (b *withdrawOrderBackend) Stop(ctx context.Context, scope contract.CommandScope) error {
+	rev, err := b.store.GetRouteRevision(ctx)
+	if err != nil {
+		b.err = err
+		return err
+	}
+	rep, err := b.store.GetRuntimeReplica(ctx, scope.ReplicaID)
+	if err != nil {
+		b.err = err
+		return err
+	}
+	b.checked = true
+	if rev <= b.before {
+		b.err = fmt.Errorf("routing revision %d was not bumped before the process stop (was %d)", rev, b.before)
+	}
+	if rep == nil || rep.State != contract.ReplicaDraining {
+		b.err = fmt.Errorf("replica state %+v is still routable at the process stop", rep)
+	}
+	return b.fakeLifecycleBackend.Stop(ctx, scope)
+}
+
+// A Gateway routes from the published revision, so the durable withdrawal (endpoint
+// removed + route revision bumped) must land before the local process is stopped.
+// Otherwise a holder of the previous snapshot dials a port whose process is already gone.
+func TestStopReplicaWithdrawsRoutingBeforeStoppingProcess(t *testing.T) {
+	ctx := context.Background()
+	store, scope := setupLifecycle(t)
+	backend := newFakeLifecycleBackend()
+	backend.inventory[scope.ReplicaID] = BackendReplica{
+		ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+		Host: "127.0.0.1", Port: 9101, Alive: true, Healthy: true,
+	}
+	lease := scope.LeaseExpiry
+	for _, obs := range []registry.ReplicaObservation{
+		{
+			ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+			NodeID: scope.NodeID, Generation: scope.Generation, State: contract.ReplicaStarting,
+			AssignmentValidUntil: &lease,
+		},
+		{
+			ReplicaID: scope.ReplicaID, ProjectID: scope.ProjectID, VersionID: scope.VersionID,
+			NodeID: scope.NodeID, Generation: scope.Generation, State: contract.ReplicaReady,
+			ListenHost: "127.0.0.1", ListenPort: 9101, EndpointState: contract.EndpointReady,
+			AssignmentValidUntil: &lease, EndpointValidUntil: &lease,
+		},
+	} {
+		if err := store.RecordObservation(ctx, obs); err != nil {
+			t.Fatal(err)
+		}
+	}
+	revBefore, err := store.GetRouteRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	probe := &withdrawOrderBackend{fakeLifecycleBackend: backend, store: store, before: revBefore}
+	h := NewLifecycleFromRegistry(true, store, probe)
+	stopScope := scope
+	stopScope.Action = contract.ActionStopReplica
+	if _, err := h.StopReplica(ctx, stopScope); err != nil {
+		t.Fatalf("stop replica: %v", err)
+	}
+	if !probe.checked {
+		t.Fatal("backend stop was never reached")
+	}
+	if probe.err != nil {
+		t.Fatal(probe.err)
+	}
+	if revAfter, err := store.GetRouteRevision(ctx); err != nil || revAfter <= revBefore {
+		t.Fatalf("route revision after stop: %d err=%v (was %d)", revAfter, err, revBefore)
 	}
 }

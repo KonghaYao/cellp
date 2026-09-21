@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -52,6 +53,18 @@ type ProbeResult struct {
 }
 
 var safeStoragePathID = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,126}[A-Za-z0-9])?$`)
+
+// readyCommitAttempts bounds the authoritative re-read of a ready commit. The lease
+// moves on every node heartbeat, so one retry after a lost CAS is normally enough;
+// the bound keeps a pathological mover from spinning.
+const readyCommitAttempts = 3
+
+// readyCommitRetryable reports whether a ready commit lost a lease race rather than
+// hitting an authoritative fence. Only the race is retried; fences and expiry stay
+// terminal and are never retried into a successful commit.
+func readyCommitRetryable(err error) bool {
+	return errors.Is(err, registry.ErrObservationStale) || errors.Is(err, registry.ErrAssignmentCASConflict)
+}
 
 func validateStorageScope(scope contract.CommandScope) error {
 	for name, value := range map[string]string{"project_id": scope.ProjectID, "version_id": scope.VersionID} {
@@ -203,12 +216,59 @@ func (h *Handler) StartReplica(ctx context.Context, spec contract.StartReplicaSp
 	if ownershipErr := checkOwnership(); ownershipErr != nil {
 		return contract.RuntimeReplica{}, h.commandStoreError(ownershipErr)
 	}
-	command.Status, command.ResultState = "succeeded", contract.ReplicaReady
-	if err := h.store.RecordObservationAndCompleteAgentCommand(ctx, readyObservation(*rep, host, port), command); err != nil {
-		return fail(contract.ReasonGenerationStale, err, true)
+	// The ready observation must carry the assignment lease the registry holds now,
+	// not the one this attempt was claimed with: the lease moves on every node
+	// heartbeat and renewal. Committing the stale value fails the CAS, and the old
+	// path answered that with cleanup=true, which stopped a process that was already
+	// serving. Re-read the authoritative identity instead and only fail closed when
+	// the assignment is genuinely fenced or expired — and then without killing a
+	// serving process.
+	commitReady := func() error {
+		live, readErr := h.store.ValidateAgentCleanupAssignment(ctx, spec.Scope)
+		if readErr != nil {
+			return h.commandStoreError(readErr)
+		}
+		if live == nil {
+			return errReplicaNotFound
+		}
+		if live.Generation != rep.Generation || live.State == contract.ReplicaStopped || live.State == contract.ReplicaFailed {
+			return &CommandError{Reason: contract.ReasonGenerationStale, Message: "assignment fenced before ready commit"}
+		}
+		now := h.now().UTC()
+		if live.ValidUntil == nil || !live.ValidUntil.After(now) {
+			return &CommandError{Reason: contract.ReasonLeaseExpired, Message: "assignment lease expired before ready commit"}
+		}
+		command.Status, command.ResultState = "succeeded", contract.ReplicaReady
+		if err := h.store.RecordObservationAndCompleteAgentCommand(ctx, readyObservation(*live, host, port), command); err != nil {
+			return err
+		}
+		rep.State = contract.ReplicaReady
+		return nil
 	}
-	rep.State = contract.ReplicaReady
-	return *rep, nil
+	var commitErr error
+	for attempt := 0; attempt < readyCommitAttempts; attempt++ {
+		if commitErr = commitReady(); commitErr == nil {
+			return *rep, nil
+		}
+		if !readyCommitRetryable(commitErr) {
+			break
+		}
+	}
+	var commandErr *CommandError
+	reason := contract.ReasonGenerationStale
+	if errors.As(commitErr, &commandErr) {
+		reason = commandErr.Reason
+	}
+	if !readyCommitRetryable(commitErr) {
+		// An authoritative fence or an expired lease: this attempt no longer owns the
+		// assignment, so its process must not keep serving. Clean it up deterministically.
+		return fail(reason, commitErr, true)
+	}
+	// A lost lease race only. Complete the command as failed so the scheduler is not left
+	// waiting, but never with cleanup: the process may already serve, and a moved lease
+	// must not stop it. Any earlier ready endpoint stays published until its own lease
+	// expires.
+	return fail(reason, commitErr, false)
 }
 
 func (h *Handler) startCompatibility(ctx context.Context, spec contract.StartReplicaSpec) (contract.RuntimeReplica, error) {
@@ -355,22 +415,58 @@ func (h *Handler) ListReplicas(ctx context.Context, scope contract.CommandScope)
 }
 
 // ReconcileNode restores/verifies valid assignments and stops orphan or expired local processes.
+// reconcileAuthorityRead marks a read that found the node's leases gone. Reading the
+// inventory and finding lease expiry is the node's own proof that it lost ownership, so
+// it takes the node offline (fail closed) exactly like a lost heartbeat; other read
+// failures stay transient.
+func reconcileAuthorityRead(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, registry.ErrLeaseExpired) || errors.Is(err, registry.ErrNodeLeaseCASConflict) {
+		return errors.Join(ErrReconcileAuthority, err)
+	}
+	return err
+}
+
 func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 	if h.store == nil || h.backend == nil {
 		return fmt.Errorf("lifecycle backend and store required")
 	}
 	node, nodeErr := h.nodes.GetRuntimeNode(ctx, nodeID)
 	if nodeErr != nil {
-		return fmt.Errorf("runtime node read: %w", nodeErr)
+		return reconcileAuthorityRead(fmt.Errorf("runtime node read: %w", nodeErr))
 	}
 	facts, factsErr := h.store.ListRuntimeReplicasByNode(ctx, nodeID)
 	inventory, inventoryErr := h.backend.List(ctx)
 	if factsErr != nil || inventoryErr != nil {
-		return errors.Join(factsErr, inventoryErr)
+		return reconcileAuthorityRead(errors.Join(factsErr, inventoryErr))
 	}
 	now := h.now().UTC()
+	// The inventory read can take tens of seconds — it shares the replica lifecycle lock,
+	// which a restart holds across its stop-then-start window — while the node row above
+	// was read before it. Deciding inactivity from that snapshot compares an old lease
+	// against a fresh clock and takes a healthy node offline. Re-read the node under the
+	// decision's own clock, and only then may a genuinely inactive node be authoritative.
+	if node == nil || node.Cordoned || !node.LeaseExpiry.After(now) {
+		fresh, freshErr := h.nodes.GetRuntimeNode(ctx, nodeID)
+		if freshErr != nil {
+			return reconcileAuthorityRead(fmt.Errorf("runtime node re-read: %w", freshErr))
+		}
+		node = fresh
+		now = h.now().UTC()
+	}
 	nodeActive := node != nil && !node.Cordoned && node.LeaseExpiry.After(now)
 	if !nodeActive {
+		// The node's own authority is gone. Record what the reconcile saw before taking
+		// every replica down, so the first cause is not inferred from shutdown noise.
+		lease := time.Time{}
+		cordoned := false
+		if node != nil {
+			lease, cordoned = node.LeaseExpiry, node.Cordoned
+		}
+		log.Printf("agent reconcile: node inactive node=%s present=%v cordoned=%v lease_expiry=%s now=%s",
+			nodeID, node != nil, cordoned, lease.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 		var cleanupErrs []error
 		for _, rep := range facts {
 			if rep.State != contract.ReplicaStopped && rep.State != contract.ReplicaFailed {
@@ -397,9 +493,14 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 	for _, rep := range facts {
 		stopScope := scopeFor(rep, rep.Generation, contract.ActionStopReplica)
 		validated, assignmentErr := h.store.ValidateAgentAssignment(ctx, stopScope, h.now().UTC())
+		// The agent reads the registry in-process, so an expired assignment lease here
+		// is authoritative for this node: the process must be terminalized and stopped
+		// instead of being held as uncertain forever. Only this local decision carries
+		// that reading; the remote/wire sentinel semantics stay unchanged, and a moved
+		// lease (a lost CAS) stays uncertain and is retried on the next reconcile.
 		authoritativelyInvalid := validated == nil && assignmentErr == nil ||
 			registrywire.IsAuthoritativeGenerationStale(assignmentErr) || registrywire.IsAuthoritativeLeaseExpired(assignmentErr) ||
-			errors.Is(assignmentErr, registry.ErrObservationStale)
+			errors.Is(assignmentErr, registry.ErrObservationStale) || errors.Is(assignmentErr, registry.ErrLeaseExpired)
 		if assignmentErr != nil && !authoritativelyInvalid {
 			uncertain[rep.ReplicaID] = struct{}{}
 			allErrs = append(allErrs, fmt.Errorf("validate assignment for replica %s: %w", rep.ReplicaID, assignmentErr))
@@ -419,31 +520,48 @@ func (h *Handler) ReconcileNode(ctx context.Context, nodeID string) error {
 			}
 			continue
 		}
-		valid[rep.ReplicaID] = rep
-		item, running := local[rep.ReplicaID]
-		identityHealthy := running && backendMatches(rep, item)
-		if identityHealthy && rep.State != contract.ReplicaDraining {
-			if err := h.recordReadyIfRunning(ctx, &rep, item.Host, item.Port); err != nil {
-				allErrs = append(allErrs, fmt.Errorf("record ready replica %s: %w", rep.ReplicaID, err))
-			}
-			continue
-		}
-		if rep.State == contract.ReplicaDraining && !running {
-			if err := h.store.TerminalizeReplica(ctx, rep.ReplicaID, rep.NodeID, rep.Generation, contract.ReplicaStopped); err != nil {
-				allErrs = append(allErrs, fmt.Errorf("terminalize drained replica %s: %w", rep.ReplicaID, err))
-			}
-			continue
-		}
-		if (rep.State == contract.ReplicaStopped || rep.State == contract.ReplicaFailed || rep.State == contract.ReplicaDraining) && running {
-			if stopErr := h.backend.Stop(ctx, stopScope); stopErr != nil {
-				allErrs = append(allErrs, fmt.Errorf("stop terminal replica %s: %w", rep.ReplicaID, stopErr))
-				continue
+		item, inInventory := local[rep.ReplicaID]
+		running := inInventory && item.Alive
+		// Terminal states are authoritative and are cleaned before anything else looks at
+		// health: a stopped, failed or draining replica that still has a process must not
+		// be promoted to ready from a leftover healthy process, and reconcile never
+		// revives one. The scheduler owns replacement, through a new assignment. Such a
+		// replica stays out of `valid`, so a dead inventory record for it is swept below.
+		if rep.State == contract.ReplicaStopped || rep.State == contract.ReplicaFailed || rep.State == contract.ReplicaDraining {
+			if running {
+				if stopErr := h.backend.Stop(ctx, stopScope); stopErr != nil {
+					allErrs = append(allErrs, fmt.Errorf("stop terminal replica %s: %w", rep.ReplicaID, stopErr))
+					continue
+				}
 			}
 			if rep.State != contract.ReplicaStopped {
 				if err := h.record(ctx, rep, contract.ReplicaStopped, "", 0); err != nil && !ReconcileRecordBenign(err) {
 					allErrs = append(allErrs, fmt.Errorf("terminalize cleaned replica %s: %w", rep.ReplicaID, err))
 				}
 			}
+			continue
+		}
+		valid[rep.ReplicaID] = rep
+		identityHealthy := running && backendMatches(rep, item)
+		if identityHealthy {
+			if err := h.recordReadyIfRunning(ctx, &rep, item.Host, item.Port); err != nil {
+				allErrs = append(allErrs, fmt.Errorf("record ready replica %s: %w", rep.ReplicaID, err))
+			}
+			continue
+		}
+		// celld withholds {"ok":true} until its ready gate settles; after a handoff or a
+		// dead peer lease that takes tens of seconds, and `Start` is answered as soon as
+		// the process exists. Killing a process that is still booting leaves a lingering
+		// node lease in the version bucket, and the replacement then waits that lease out
+		// before it can serve: one slow boot becomes replica churn.
+		//
+		// Only a non-terminal replica may be kept: a stopped, failed or draining replica
+		// is an authoritative decision, and a serving replica that lost health is
+		// withdrawn and replaced exactly as upstream does. Slot, lease and process state
+		// stay consistent because a kept replica is still `pending`/`starting`, so it
+		// holds no endpoint and no slot beyond the assignment it already owns.
+		if running && backendIdentityMatches(rep, item) && !backendMatches(rep, item) &&
+			(rep.State == contract.ReplicaPending || rep.State == contract.ReplicaStarting) {
 			continue
 		}
 		if rep.State == contract.ReplicaReady {
@@ -578,6 +696,13 @@ func (h *Handler) cleanupAssignment(ctx context.Context, scope contract.CommandS
 func (h *Handler) assignment(ctx context.Context, scope contract.CommandScope) (*contract.RuntimeReplica, error) {
 	rep, err := h.store.ValidateAgentAssignment(ctx, scope, h.now().UTC())
 	if err != nil {
+		// A lease that moved under us (node heartbeat / renewal) is a lost CAS race, not a
+		// fence. Reporting it as generation_stale would make the scheduler terminalize a
+		// serving replica on every renewal, so it stays retryable; genuine fences and
+		// expired leases keep failing closed.
+		if errors.Is(err, registry.ErrAssignmentCASConflict) {
+			return nil, &CommandError{Reason: contract.ReasonColdActivating, Message: "assignment lease moved"}
+		}
 		if errors.Is(err, registry.ErrObservationStale) || errors.Is(err, registry.ErrLeaseExpired) {
 			return nil, &CommandError{Reason: contract.ReasonGenerationStale, Message: "assignment mismatch"}
 		}

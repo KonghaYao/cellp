@@ -109,6 +109,10 @@ func Run(ctx context.Context) (retErr error) {
 	rm.SetWorkerEnvLoader(func(ctx context.Context, project, version string) (map[string]string, error) {
 		return store.GetVersionEnv(ctx, project, version)
 	})
+	// Operator commands (celld kv|queue|r2) need a live fleet, so a cold version is woken
+	// through the same ensure-desire the Gateway uses and released again afterwards. This
+	// keeps scale-to-zero on by default instead of pinning every version up.
+	rm.SetEnsureServing(newOperatorServingEnsurer(baseStore, &activator.RegistryEnsureClient{Store: baseStore, Guard: activationGuard}).Ensure)
 	as := &artifact.Store{
 		Bucket:      cfg.ArtifactsBucket,
 		LocalDir:    cfg.ArtifactsDir,

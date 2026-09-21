@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,19 +25,22 @@ import (
 
 // Manager manages celld subprocess lifecycle per version (AD-1).
 type Manager struct {
-	basePort     int
-	endpoint     string
-	region       string
-	bucket       string // Retained for constructor compatibility; AD-1 per-version paths never derive from it.
-	accessKey    string
-	secretKey    string
-	mu           sync.Mutex
-	processes    map[string]*celldProc
-	ports        map[string]int
-	lifecycle    map[string]*lifecycleLock
-	nextN        int
-	envLoader    WorkerEnvLoader
-	replicaHosts ReplicaHostConfig
+	basePort      int
+	endpoint      string
+	region        string
+	bucket        string // Retained for constructor compatibility; AD-1 per-version paths never derive from it.
+	accessKey     string
+	secretKey     string
+	mu            sync.Mutex
+	processes     map[string]*celldProc
+	ports         map[string]int
+	lifecycle     map[string]*lifecycleLock
+	nextN         int
+	envLoader     WorkerEnvLoader
+	ensureServing EnsureServing
+	// fleetRetryGap overrides the operator fleet retry delay in tests.
+	fleetRetryGap time.Duration
+	replicaHosts  ReplicaHostConfig
 }
 
 // WorkerEnvLoader returns dashboard/CD Worker vars for a version (not platform keys).
@@ -74,6 +78,28 @@ func New(basePort int, endpoint, region, bucket, accessKey, secretKey string) *M
 // SetWorkerEnvLoader supplies per-version Worker vars written to CELLD_VARS_FILE at Start.
 func (m *Manager) SetWorkerEnvLoader(fn WorkerEnvLoader) {
 	m.envLoader = fn
+}
+
+// EnsureServing wakes a cold version for an operator command and returns a release that
+// drops the wake pin. Wired by serve with the elastic activator client; nil means the
+// version is served by the legacy track and needs no wake.
+type EnsureServing func(ctx context.Context, projectID, versionID string) (release func(), err error)
+
+// SetEnsureServing installs the operator wake hook.
+func (m *Manager) SetEnsureServing(fn EnsureServing) {
+	m.mu.Lock()
+	m.ensureServing = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) ensureServingNode(ctx context.Context, project, version string) (func(), error) {
+	m.mu.Lock()
+	fn := m.ensureServing
+	m.mu.Unlock()
+	if fn == nil {
+		return nil, nil
+	}
+	return fn(ctx, project, version)
 }
 
 func (m *Manager) key(project, version string) string {
@@ -202,7 +228,22 @@ func (m *Manager) Start(ctx context.Context, project, version string) (string, i
 }
 
 // Restart stops then starts celld so CELLD_VARS_FILE is re-read.
+//
+// In the single scheduler+agent track the serving processes of a version are its
+// elastic replicas, keyed by replica id: restarting only the legacy project/version
+// key would write a vars file no running process reads, and the version keeps serving
+// the previous environment. Restart the replicas when the version has any, and fall
+// back to the legacy key otherwise.
 func (m *Manager) Restart(ctx context.Context, project, version string) error {
+	if keys := m.replicaKeysFor(project, version); len(keys) > 0 {
+		var errs []error
+		for _, key := range keys {
+			if _, err := m.restartReplica(ctx, key); err != nil {
+				errs = append(errs, fmt.Errorf("restart replica %s: %w", key.ReplicaID, err))
+			}
+		}
+		return errors.Join(errs...)
+	}
 	unlock := m.lockLifecycle(project, version)
 	defer unlock()
 
@@ -218,6 +259,74 @@ func (m *Manager) Restart(ctx context.Context, project, version string) error {
 	}
 	_, _, err := m.startOnPortLocked(ctx, project, version, "127.0.0.1", port)
 	return err
+}
+
+// replicaKeysFor lists the elastic replicas tracked for one version.
+func (m *Manager) replicaKeysFor(project, version string) []ReplicaKey {
+	prefix := project + "/" + version + "/replicas/"
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var keys []ReplicaKey
+	for k := range m.processes {
+		id, ok := strings.CutPrefix(k, prefix)
+		if !ok || id == "" {
+			continue
+		}
+		keys = append(keys, ReplicaKey{ProjectID: project, VersionID: version, ReplicaID: id})
+	}
+	slices.SortFunc(keys, func(a, b ReplicaKey) int { return strings.Compare(a.ReplicaID, b.ReplicaID) })
+	return keys
+}
+
+// restartReplica re-spawns one replica on its own port with a freshly written vars file.
+//
+// It restarts a replica that is still running and never creates one: a restart races the
+// reconciler, the scheduler and archives, and any of them may stop the process between
+// the snapshot that listed this replica and the moment the lifecycle lock is taken.
+// Re-spawning then would resurrect a stopped identity, with a process the registry has
+// already terminalized. The lock is shared with StopReplica, so a restart sees the
+// stop's effect and reports that there was nothing to restart.
+func (m *Manager) restartReplica(ctx context.Context, key ReplicaKey) (bool, error) {
+	if err := key.validate(); err != nil {
+		return false, err
+	}
+	bucket, err := m.ExpectedReplicaBucket(key)
+	if err != nil {
+		return false, err
+	}
+	k := m.replicaKey(key)
+	unlock := m.lockLifecycleKey(k)
+	defer unlock()
+	m.mu.Lock()
+	proc, tracked := m.processes[k]
+	alive := tracked && proc != nil && processAliveOrUntracked(proc)
+	port := 0
+	if tracked && proc != nil {
+		port = proc.port
+	}
+	m.mu.Unlock()
+	if !alive || port <= 0 {
+		return false, nil
+	}
+	if err := m.stopManagedLocked(ctx, k, false); err != nil {
+		return false, err
+	}
+	if CelldInstalled() {
+		if err := waitForTCPPortFree("127.0.0.1", port, celldListenPortSettleDuration()); err != nil {
+			return false, err
+		}
+	}
+	bindHost, advertiseHost := m.replicaBindAdvertise()
+	if _, _, err := m.startManagedOnPortLocked(ctx, k, key.ProjectID, key.VersionID, replicaComponent(key.VersionID, key.ReplicaID), bucket, bindHost, advertiseHost, port); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// processAliveOrUntracked reports a tracked process that still exists. A record without a
+// command is the stub-process shape used when celld is absent.
+func processAliveOrUntracked(proc *celldProc) bool {
+	return proc.cmd == nil || processAlive(proc.cmd)
 }
 
 // StartOnPort launches celld on host:port for the version.

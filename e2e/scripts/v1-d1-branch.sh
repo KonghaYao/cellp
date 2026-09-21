@@ -174,56 +174,96 @@ if [[ "$PARENT_AFTER" != "$EXPECTED" ]]; then
 fi
 log "parent isolation OK count=${PARENT_AFTER}"
 
-# B5: kill child celld, start fresh ephemeral watch, restore from S3 only.
+# B5: cold restore from S3 only.
+#
+# The single scheduler+agent track owns the version's celld processes, and replica ports
+# come from a pool shared by every version, so the previous "kill whatever listens on the
+# child's registered port and start our own celld there" stole another version's process
+# and collided with the manager's own replacement. Retire the child through the platform
+# instead (archive stops its replicas and discards their ephemeral watches, wake makes it
+# serve again) and let the platform bring a brand-new process up with a brand-new watch:
+# that is the same S3-only restore, driven through the production path rather than around
+# it. The assertions are unchanged and stronger: the count is read through the Gateway
+# Host route served by the platform's own replica, and the new replica's celld log must
+# show a remote restore.
 REGISTRY_DB="${CELLP_REGISTRY_DB:-${E2E_ROOT}/dev/data/cellp-registry.sqlite}"
 if [[ "$REGISTRY_DB" != /* ]]; then
   REGISTRY_DB="${E2E_ROOT}/${REGISTRY_DB#./}"
 fi
-CHILD_PORT=$(sqlite3 "$REGISTRY_DB" \
-  "SELECT upstream_port FROM routes WHERE project_id='${PROJECT}' AND version_id='${CHILD}';")
-if [[ -z "$CHILD_PORT" || "$CHILD_PORT" == "0" ]]; then
-  fail "B5: no upstream_port in registry for ${PROJECT}/${CHILD}"
-fi
-WATCH="$(mktemp -d "${TMPDIR:-/tmp}/cellp-b5-watch.XXXXXX")"
-log "B5 kill child celld :${CHILD_PORT} then fresh watch ${WATCH} (S3 restore)"
-if command -v lsof >/dev/null 2>&1; then
-  extra="$(lsof -tiTCP:"${CHILD_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
-  if [[ -n "$extra" ]]; then
-    # shellcheck disable=SC2086
-    kill $extra 2>/dev/null || true
-    sleep 1
-    extra="$(lsof -tiTCP:"${CHILD_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
-    if [[ -n "$extra" ]]; then
-      # shellcheck disable=SC2086
-      kill -9 $extra 2>/dev/null || true
-      sleep 1
-    fi
-  fi
-fi
-export CELLD_WATCH="$WATCH"
-export CELLD_VAR_PROJECT_ID="$PROJECT"
-export CELLD_VAR_VERSION_ID="$CHILD"
-export CELLD_READY_FLEET_GATE_MS="${CELLD_READY_FLEET_GATE_MS:-5000}"
-celld --bucket "$CHILD_BUCKET" --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" \
-  --listen "127.0.0.1:${CHILD_PORT}" \
-  >>"${EVIDENCE_DIR}/d1-branch-b5-celld.log" 2>&1 &
-B5_PID=$!
-healthy=0
+B5_PREV_REPLICA=$(sqlite3 "$REGISTRY_DB" \
+  "SELECT replica_id FROM runtime_replicas WHERE project_id='${PROJECT}' AND version_id='${CHILD}' AND state NOT IN ('stopped','failed') ORDER BY updated_at DESC LIMIT 1;")
+log "B5 archive+wake ${PROJECT}/${CHILD} (prev replica ${B5_PREV_REPLICA:-none}); platform restores from ${CHILD_BUCKET} with a fresh watch"
+api_status POST "/v1/projects/${PROJECT}/versions/${CHILD}/archive" ""
+[[ "$API_STATUS" == "200" ]] || fail "B5 archive child → HTTP ${API_STATUS}"
+stopped=0
 for _ in $(seq 1 60); do
-  if curl -sf "http://127.0.0.1:${CHILD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
-    healthy=1
+  remaining=$(sqlite3 "$REGISTRY_DB" \
+    "SELECT COUNT(*) FROM runtime_replicas WHERE project_id='${PROJECT}' AND version_id='${CHILD}' AND state NOT IN ('stopped','failed');")
+  if [[ "${remaining:-1}" == "0" ]]; then
+    stopped=1
     break
   fi
   sleep 1
 done
-if [[ "$healthy" != "1" ]]; then
-  fail "B5 new celld not healthy on :${CHILD_PORT} after S3-only restore (pid ${B5_PID})"
-fi
-wait_http_200_version "$PROJECT" "$CHILD" "/count" 90
+[[ "$stopped" == "1" ]] || fail "B5 child replica did not retire after archive"
+api_status POST "/v1/projects/${PROJECT}/versions/${CHILD}/wake" ""
+[[ "$API_STATUS" == "200" ]] || fail "B5 wake child → HTTP ${API_STATUS}"
+poll_version "$PROJECT" "$CHILD" ready 120 >/dev/null
+# The platform serves the child again from a fresh replica: cold activation plus the
+# Gateway Host route, with the whole child state restored from the bucket.
+wait_http_200_version "$PROJECT" "$CHILD" "/count" 180
 B5_COUNT=$(curl_version "$PROJECT" "$CHILD" "/count" | jq -r '.count // empty')
 if [[ "$B5_COUNT" != "$CHILD_AFTER" ]]; then
   fail "B5 restore count=${B5_COUNT:-?} expected ${CHILD_AFTER}"
 fi
-log "B5 S3-only restore OK count=${B5_COUNT}"
+B5_NEW_REPLICA=$(sqlite3 "$REGISTRY_DB" \
+  "SELECT replica_id FROM runtime_replicas WHERE project_id='${PROJECT}' AND version_id='${CHILD}' AND state NOT IN ('stopped','failed') ORDER BY updated_at DESC LIMIT 1;")
+if [[ -z "$B5_NEW_REPLICA" ]]; then
+  fail "B5: no live replica after wake"
+fi
+if [[ -n "$B5_PREV_REPLICA" && "$B5_NEW_REPLICA" == "$B5_PREV_REPLICA" ]]; then
+  fail "B5: wake reused the retired replica ${B5_PREV_REPLICA} (no fresh process)"
+fi
+# Evidence must come from the new replica's own celld log (the log name carries the
+# replica id) and must be a remote restore: a local reuse would mean the state came from
+# something other than the bucket.
+# celldLogPath encodes the whole "<base64url(version)>.<base64url(replica)>" component a
+# second time, so the replica id is only reachable through the doubly-encoded name.
+B5_REPLICA_TOKEN=$(python3 -c 'import base64,sys
+e=lambda v: base64.urlsafe_b64encode(v.encode()).decode().rstrip("=")
+print(e(e(sys.argv[1])+"."+e(sys.argv[2])))' "$CHILD" "$B5_NEW_REPLICA")
+B5_LOG_EVIDENCE=0
+while IFS= read -r f; do
+  [[ -n "$f" && -f "$f" ]] || continue
+  [[ "$(basename "$f")" == *"$B5_REPLICA_TOKEN"* ]] || continue
+  # A branch child restores through its parent ("restored branched remote replica"); a
+  # plain cell reads "restored remote replica". Either way the state came from the bucket.
+  if grep -qE "restored (branched )?remote replica" "$f" 2>/dev/null; then
+    if grep -qE "resumed clean local replica|reused local eviction snapshot" "$f" 2>/dev/null; then
+      fail "B5: new replica served from a local image instead of the bucket ($(basename "$f"))"
+    fi
+    B5_LOG_EVIDENCE=1
+    log "B5 remote-restore evidence in the new replica's log $(basename "$f")"
+    break
+  fi
+done < <(celld_log_paths "$PROJECT" "$CHILD")
+if [[ "$B5_LOG_EVIDENCE" != "1" ]]; then
+  # The replica's own log is authoritative; enumerating it directly keeps the assertion
+  # honest even if the shared helper is unavailable.
+  while IFS= read -r f; do
+    [[ -n "$f" && -f "$f" ]] || continue
+    [[ "$(basename "$f")" == *"$B5_REPLICA_TOKEN"* ]] || continue
+    if grep -qE "restored (branched )?remote replica" "$f" 2>/dev/null \
+      && ! grep -qE "resumed clean local replica|reused local eviction snapshot" "$f" 2>/dev/null; then
+      B5_LOG_EVIDENCE=1
+      log "B5 remote-restore evidence in the new replica's log $(basename "$f")"
+      break
+    fi
+  done < <(ls -1t "${TMPDIR:-/tmp}"/celld-*.log 2>/dev/null)
+fi
+[[ "$B5_LOG_EVIDENCE" == "1" ]] || fail "B5: no remote-restore evidence in new replica ${B5_NEW_REPLICA}'s celld log"
+PARENT_STILL=$(curl_version "$PROJECT" "$PARENT" "/count" | jq -r '.count // empty')
+[[ "$PARENT_STILL" == "$EXPECTED" ]] || fail "B5 parent count changed: ${PARENT_STILL:-?} expected ${EXPECTED}"
+log "B5 cold S3-only restore OK count=${B5_COUNT} parent=${PARENT_STILL} replica ${B5_PREV_REPLICA:-none} → ${B5_NEW_REPLICA}"
 
 pass "D1 branch parent=${EXPECTED} child=${CHILD_COUNT} isolation OK"

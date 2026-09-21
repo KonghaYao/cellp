@@ -636,3 +636,54 @@ func TestCompareAndSetElasticVersionStatus(t *testing.T) {
 		t.Fatalf("prod scale-to-zero transition: %v", err)
 	}
 }
+
+func TestValidateAgentAssignmentSeparatesMovedLeaseFromFence(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(t.TempDir() + "/moved-lease.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := seedElasticClaimBase(ctx, store, "n1"); err != nil {
+		t.Fatal(err)
+	}
+	exp := time.Now().UTC().Add(time.Hour).Truncate(time.Microsecond)
+	if err := store.ClaimAssignment(ctx, AssignmentClaim{
+		ReplicaID: "r1", ProjectID: "demo", VersionID: "v1", NodeID: "n1",
+		Generation: 1, ExpectedNodeGeneration: 1, ValidUntil: exp,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	scope := contract.CommandScope{
+		NodeID: "n1", ProjectID: "demo", VersionID: "v1", ReplicaID: "r1",
+		Generation: 1, LeaseExpiry: exp,
+	}
+	// A lease that moved while staying live is a lost CAS race. Callers terminalize
+	// replicas on stale-generation signals, so it must not be reported as one.
+	moved := exp.Add(time.Second)
+	// The node heartbeat advances the node lease first; assignments may never outlive it.
+	if err := store.UpsertRuntimeNode(ctx, contract.RuntimeNode{NodeID: "n1", CapacityUnits: 4, Generation: 1, LeaseExpiry: moved}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RenewAssignmentLease(ctx, "r1", "n1", 1, 1, exp, moved); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ValidateAgentAssignment(ctx, scope, time.Now().UTC()); !errors.Is(err, ErrAssignmentCASConflict) {
+		t.Fatalf("moved live lease: want ErrAssignmentCASConflict, got %v", err)
+	}
+	// The moved lease is accepted under its authoritative value.
+	movedScope := scope
+	movedScope.LeaseExpiry = moved
+	if _, err := store.ValidateAgentAssignment(ctx, movedScope, time.Now().UTC()); err != nil {
+		t.Fatalf("moved lease rejected under authoritative value: %v", err)
+	}
+	// A fenced generation stays authoritative, and an expired node lease stays expired.
+	fenced := movedScope
+	fenced.Generation = 2
+	if _, err := store.ValidateAgentAssignment(ctx, fenced, time.Now().UTC()); !errors.Is(err, ErrObservationStale) {
+		t.Fatalf("fenced generation: want ErrObservationStale, got %v", err)
+	}
+	if _, err := store.ValidateAgentAssignment(ctx, movedScope, moved.Add(time.Second)); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatalf("expired lease: want ErrLeaseExpired, got %v", err)
+	}
+}

@@ -2,6 +2,7 @@ package orch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -128,6 +129,14 @@ func (o *Orchestrator) Wake(ctx context.Context, projectID, versionID string) er
 		return fmt.Errorf("version not archived: %s", v.Status)
 	}
 
+	// The single scheduler+agent track owns the serving processes, so an enrolled version
+	// is brought back by the scheduler, not by a legacy per-version instance: mark it
+	// ready, raise its serving desire, and let placement start a fresh replica with a
+	// fresh watch (the archived process is gone, so the restore reads the bucket).
+	if policy, err := o.store.GetServingPolicy(ctx, projectID, versionID); err == nil && policy != nil && policy.ElasticEnrolled {
+		return o.wakeElastic(ctx, projectID, versionID)
+	}
+
 	host, port, err := o.runtime.Start(ctx, projectID, versionID)
 	if err != nil {
 		return fmt.Errorf("start celld: %w", err)
@@ -148,6 +157,85 @@ func (o *Orchestrator) Wake(ctx context.Context, projectID, versionID string) er
 		return err
 	}
 	return o.store.TouchLastAccess(ctx, projectID, versionID)
+}
+
+// wakeElastic restores an archived enrolled version through the elastic track.
+func (o *Orchestrator) wakeElastic(ctx context.Context, projectID, versionID string) error {
+	if err := o.store.UpdateVersionStatus(ctx, projectID, versionID, registry.StatusReady, nil); err != nil {
+		return err
+	}
+	target := 1
+	cur, err := o.store.GetServingDesire(ctx, projectID, versionID)
+	if err != nil {
+		return err
+	}
+	if cur != nil && cur.DesiredReplicas >= target {
+		target = cur.DesiredReplicas
+	}
+	expectGen, nextGen := int64(0), int64(1)
+	raised := cur == nil || cur.DesiredReplicas < target
+	if cur != nil {
+		expectGen, nextGen = cur.Generation, cur.Generation+1
+	}
+	for attempt := 0; attempt < qualificationDesireCASAttempts; attempt++ {
+		err := o.store.CompareAndSetDesired(ctx, projectID, versionID, expectGen, registry.ServingDesireRow{
+			ProjectID: projectID, VersionID: versionID,
+			DesiredReplicas: target, Generation: nextGen, Reason: desireReasonPromoteActivate,
+		})
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, registry.ErrDesiredCASConflict) {
+			return err
+		}
+		cur, err = o.store.GetServingDesire(ctx, projectID, versionID)
+		if err != nil {
+			return err
+		}
+		if cur != nil && cur.DesiredReplicas >= 1 {
+			break
+		}
+		if cur != nil {
+			expectGen, nextGen = cur.Generation, cur.Generation+1
+		}
+	}
+	if err := o.waitBranchChildReplica(ctx, projectID, versionID); err != nil {
+		return fmt.Errorf("wake %s/%s: %w", projectID, versionID, err)
+	}
+	if _, _, err := o.ensurePreviewIngress(ctx, projectID, versionID); err != nil {
+		return fmt.Errorf("preview ingress: %w", err)
+	}
+	// Wake restores readiness, not residency: the pin existed only to let the scheduler
+	// place the replica, and it is dropped again so the version keeps scaling to zero like
+	// any other ready version. A wake that left its desire raised would be a permanent pin
+	// that hides scale-to-zero for that version.
+	if raised {
+		o.releaseWakePin(ctx, projectID, versionID, cur)
+	}
+	return o.store.TouchLastAccess(ctx, projectID, versionID)
+}
+
+// releaseWakePin drops the desire a wake raised, and only that one.
+func (o *Orchestrator) releaseWakePin(ctx context.Context, projectID, versionID string, before *registry.ServingDesireRow) {
+	current, err := o.store.GetServingDesire(ctx, projectID, versionID)
+	if err != nil || current == nil {
+		return
+	}
+	if current.DesiredReplicas < 1 || current.Reason != desireReasonPromoteActivate {
+		// Someone else (the activator, a promotion) owns the demand now.
+		return
+	}
+	restore, reason := 0, desireReasonIdle
+	if before != nil && before.DesiredReplicas > 0 {
+		restore = before.DesiredReplicas
+		if before.Reason != "" {
+			reason = before.Reason
+		}
+	}
+	_ = o.store.CompareAndSetDesired(ctx, projectID, versionID, current.Generation, registry.ServingDesireRow{
+		ProjectID: projectID, VersionID: versionID,
+		DesiredReplicas: restore, Generation: current.Generation + 1, Reason: reason,
+	})
 }
 
 // RunArchiveReaperOnce archives idle-ready versions that pass MayArchive.

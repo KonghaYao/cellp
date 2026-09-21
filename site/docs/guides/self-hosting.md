@@ -31,6 +31,12 @@ export CELLP_IMAGE=ghcr.io/konghayo/cellp:latest
 docker compose up -d
 ```
 
+## 节点续租与启动就绪
+
+embedded Node Agent 的 heartbeat 独立于耗时的 replica reconcile；boot reconcile 与周期 reconcile 串行执行。celld v0.5.1 的 ready gate 保持 fail-closed：启动超过 heartbeat 周期时仍续租，但不会提前将未就绪的 replica 标记为 ready，也不通过增大 TTL 掩盖阻塞。
+
+权威 lease/generation 丢失或 fatal reconcile 仍导致退出。关闭时取消并等待 reconcile 结束，只有确认后台工作停止后才释放 node lease；未能安全收敛时保留 lease 自然到期。重启前应等待旧 lease 到期，并检查节点剩余 capacity；不要为验证新版本擅自删除既有版本。
+
 ## Environment
 
 Match names in `dev/.env.example`. Compose fills container networking defaults.

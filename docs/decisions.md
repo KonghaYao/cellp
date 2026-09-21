@@ -481,7 +481,7 @@ cellp 是 **Workers 平台控制面**：在每次 CD 时 version 化 **App + Dat
 | Version 生命周期 | 保留 `ready` 语义；**additive** `deploy_ready`（可启动、无保证 serving endpoint） |
 | Serving | `0..N` replica；cold/warm 等为 **派生** 视图，不替代 Version 状态 |
 | 控制面 | `ServingPolicy` / `ServingDesire` / `RuntimeReplica` / `RouteSnapshot`；E1/E2 **单 active** `cellpd` writer + singleton guard |
-| Node Agent | 本机/远程统一 **HTTP+mTLS**；secret reference only |
+| Node Agent | 本机/远程统一 **HTTP+mTLS**；secret reference only；embedded heartbeat 独立于串行 boot/周期 reconcile，fatal 退出，取消并 join 后才可释放 lease；保留 celld fail-closed ready gate |
 | Gateway | E1/E2：SQLite revision → 进程内不可变 snapshot 原子替换 |
 | Branch 父版 | `ready` · `deploy_ready` · `archived`（存储证明 fail-closed）；**不改** D1 frozen RPC |
 | Archive vs cold | 互斥；cold **不**隐式 archived；`POST wake` 仍仅 `archived` |

@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"context"
+	"errors"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -77,8 +79,66 @@ func (g *Gateway) proxySnapshotUpstream(w http.ResponseWriter, r *http.Request, 
 	g.proxyIngress(w, r, &registry.Route{
 		ProjectID: projectID, VersionID: versionID, Active: true,
 		UpstreamHost: host, UpstreamPort: port,
-	}, binding, projectID, versionID)
+	}, binding, projectID, versionID, g.elasticDialColdMiss(projectID, versionID))
 	return true
+}
+
+// elasticDialColdMiss turns a pre-dispatch connect failure into the Gateway's existing
+// cold-start contract for an enrolled version: the snapshot named an endpoint whose
+// process is already gone (a retired replica), which is a cold miss rather than a bad
+// gateway. The request is never forwarded again — a mutation must not be replayed — the
+// caller gets the activation response (503 + Retry-After) and retries on its own.
+//
+// The stale snapshot entry is not consulted to decide whether the version is warm: that
+// entry is the very thing the refused connect just disproved, so asking it again would
+// answer "warm" and fall through to 502. Capacity is refreshed through the same ensure
+// the cold path uses, and anything after dispatch keeps the 502 path.
+func (g *Gateway) elasticDialColdMiss(projectID, versionID string) func(http.ResponseWriter, *http.Request, error) bool {
+	return func(w http.ResponseWriter, r *http.Request, proxyErr error) bool {
+		act := g.elasticActivator()
+		if !preDispatchDialFailure(proxyErr) || !act.Enabled() {
+			return false
+		}
+		version, err := g.store.GetVersion(r.Context(), projectID, versionID)
+		if err != nil || version == nil ||
+			version.Status == registry.StatusArchived || version.Status == registry.StatusFailed {
+			return false
+		}
+		policy, err := g.store.GetServingPolicy(r.Context(), projectID, versionID)
+		if err != nil || policy == nil || !policy.ElasticEnrolled {
+			return false
+		}
+		desired, err := g.store.GetServingDesire(r.Context(), projectID, versionID)
+		if err != nil {
+			g.writeActivationResponse(w, activator.AdmitResult{Reason: activator.ReasonControlUnavailable})
+			return true
+		}
+		desiredGen := int64(0)
+		if desired != nil {
+			desiredGen = desired.Generation
+		}
+		res := act.WakeAfterDeadEndpoint(projectID, versionID, version.Status, desiredGen, func() (string, bool) {
+			return g.snapshots.LookupElasticUpstream(projectID, versionID)
+		})
+		if res.AllowProxy {
+			return false
+		}
+		log.Printf("gateway cold miss project=%q version=%q status=%s class=%s reason=%s",
+			projectID, versionID, version.Status, classifyProxyError(proxyErr), res.Reason)
+		g.writeActivationResponse(w, res)
+		return true
+	}
+}
+
+// preDispatchDialFailure reports a connect failure: it happened before any request byte
+// reached an upstream, so nothing can have executed there. Failures after dispatch
+// (reset mid-response, timeout) are not this.
+func preDispatchDialFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	var opErr *net.OpError
+	return errors.As(err, &opErr) && opErr.Op == "dial"
 }
 
 // tryColdActivator returns true if the request was fully handled.

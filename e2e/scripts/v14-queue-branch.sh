@@ -43,9 +43,9 @@ api_status GET "${BASE_P}/bindings"
 QUEUE_NAME=$(echo "$API_BODY" | jq -r '.queues[0].name // empty')
 [[ -n "$QUEUE_NAME" ]] || fail "no queue in parent bindings"
 
-GW="${GATEWAY_URL}"
-PROD_H="$(prod_host "$PROJECT")"
-curl -fsS -X POST -H "Host: $(preview_host "$PROJECT" "$PARENT")" "${GW}/enqueue" -H 'Content-Type: application/json' \
+# The parent just scaled to zero, so the first gateway request may be answered with the
+# documented cold contract (503 + Retry-After); the helper retries only that.
+curl_version_method_cold POST "$PROJECT" "$PARENT" "/enqueue" -H 'Content-Type: application/json' \
   -d '{"body":"branch-test"}' >/dev/null || fail "parent enqueue via gateway"
 
 create_version "$PROJECT" "$CHILD" "$PARENT" | jq -r .id >/dev/null

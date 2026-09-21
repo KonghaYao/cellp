@@ -14,6 +14,7 @@ import (
 	"github.com/cellp/cellp/internal/artifact"
 	"github.com/cellp/cellp/internal/branch"
 	"github.com/cellp/cellp/internal/config"
+	"github.com/cellp/cellp/internal/elastic/contract"
 	"github.com/cellp/cellp/internal/job"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
@@ -276,11 +277,13 @@ func (o *Orchestrator) runDeploy(ctx context.Context, j *registry.Job, workerID 
 	var host string
 	var port int
 	if bindingPlan.UseBranch {
+		if err := o.ensureBindingBranchChildNode(ctx, j, bundleDir, armCron); err != nil {
+			return err
+		}
 		if err := o.runBindingBranches(ctx, j.ProjectID, j.VersionID, bindingPlan.ParentID, bundleDir); err != nil {
 			return err
 		}
 	}
-
 
 	if err := o.assertDeployOperation(ctx, j); err != nil {
 		return err
@@ -555,6 +558,65 @@ func ValidateForkProd(parentVersionID *string, prodVersionID *string, gitRef str
 		return fmt.Errorf("cannot fork prod data for PR preview")
 	}
 	return nil
+}
+
+// ensureBindingBranchChildNode brings the child version's own node up before the binding
+// branch steps.
+//
+// `celld kv|r2|queue branch` fork through the child's live fleet: the CLI opens the
+// child namespace on a node of the child bucket. A child that is still deploying has no
+// node yet, so the branch fails with "no node leases in the bucket" unless the deploy
+// activates the child first. This reuses the deploy qualification desire (same job-owned
+// reason) and the qualification endpoint wait, so the single serving track is unchanged:
+// the child's replica comes from the elastic scheduler like every other replica.
+func (o *Orchestrator) ensureBindingBranchChildNode(ctx context.Context, j *registry.Job, bundleDir string, armCron bool) error {
+	if err := o.ensureDefaultElasticServingPolicy(ctx, j.ProjectID, j.VersionID, bundleDir, armCron); err != nil {
+		return fmt.Errorf("serving policy: %w", err)
+	}
+	if o.elasticSchedulerTick == nil {
+		return nil
+	}
+	if err := o.ensureDeployQualificationDesire(ctx, j); err != nil {
+		return fmt.Errorf("branch child activation: %w", err)
+	}
+	if err := o.waitBranchChildReplica(ctx, j.ProjectID, j.VersionID); err != nil {
+		return fmt.Errorf("branch child activation: %w", err)
+	}
+	return nil
+}
+
+// waitBranchChildReplica waits until the child version has a live replica.
+//
+// The qualification endpoint view only lists versions already in deploy_ready, so the
+// branch step cannot use it: it waits on the assignment itself instead. A ready replica
+// is a started celld, and the node lease that celld wrote into the child bucket is what
+// `celld kv|r2|queue branch` forks through.
+func (o *Orchestrator) waitBranchChildReplica(ctx context.Context, projectID, versionID string) error {
+	deadline := time.Now().Add(defaultQualificationWait)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := o.elasticSchedulerTick(ctx); err != nil {
+			return err
+		}
+		replicas, err := o.store.ListRuntimeReplicas(ctx, projectID, versionID)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		for _, rep := range replicas {
+			if rep.State == contract.ReplicaReady && contract.AssignmentOccupiesSlot(rep, now) {
+				return nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("no live replica for %s/%s", projectID, versionID)
+		}
+		if err := sleepUntil(ctx, qualificationSchedulerPollInterval); err != nil {
+			return err
+		}
+	}
 }
 
 // runBindingBranches always fail-closed (same as deployFailClosed default); no lenient path.

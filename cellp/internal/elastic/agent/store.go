@@ -55,7 +55,11 @@ type BackendReplica struct {
 	VersionID string
 	Host      string
 	Port      int
-	Healthy   bool
+	// Alive reports that the local process still exists. Inventory may hold a
+	// record for a process that already exited; such a record must never be
+	// mistaken for a running replica.
+	Alive   bool
+	Healthy bool
 }
 
 func validateRuntimeNode(n contract.RuntimeNode) error {

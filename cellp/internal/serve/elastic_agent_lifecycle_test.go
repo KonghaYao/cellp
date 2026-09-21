@@ -9,9 +9,157 @@ import (
 	"testing"
 	"time"
 
+	"sync/atomic"
+
+	"github.com/cellp/cellp/internal/config"
 	"github.com/cellp/cellp/internal/elastic/contract"
 	"github.com/cellp/cellp/internal/registry"
 )
+
+func TestElasticAgentLoopsSlowReconcileRenewsAndJoins(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.ElasticConfig{NodeHeartbeatInterval: 5 * time.Millisecond, AgentReconcileInterval: time.Millisecond}
+	boot := make(chan error, 1)
+	errs := make(chan error, 1)
+	done := make(chan struct{})
+	entered := make(chan int, 2)
+	releaseBoot := make(chan struct{})
+	releaseWorker := make(chan struct{})
+	defer close(releaseWorker)
+	var beats, calls, active atomic.Int32
+	go func() {
+		defer close(done)
+		runElasticAgentLoops(ctx, cancel, cfg, func(context.Context) error {
+			beats.Add(1)
+			return nil
+		}, func(ctx context.Context) error {
+			if active.Add(1) != 1 {
+				t.Error("reconcile overlapped")
+			}
+			defer active.Add(-1)
+			n := int(calls.Add(1))
+			entered <- n
+			if n == 1 {
+				select {
+				case <-releaseBoot:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			<-ctx.Done()
+			<-releaseWorker
+			return ctx.Err()
+		}, nil, boot, errs)
+	}()
+	for phase := 1; phase <= 2; phase++ {
+		select {
+		case n := <-entered:
+			if n != phase {
+				t.Fatalf("phase=%d call=%d", phase, n)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("reconcile did not start")
+		}
+		before := beats.Load()
+		deadline := time.After(time.Second)
+		tick := time.NewTicker(time.Millisecond)
+		for beats.Load() < before+5 {
+			select {
+			case <-deadline:
+				tick.Stop()
+				t.Fatal("heartbeat blocked by reconcile")
+			case <-tick.C:
+			}
+		}
+		tick.Stop()
+		if calls.Load() != int32(phase) {
+			t.Fatal("reconcile must remain serial")
+		}
+		if phase == 1 {
+			close(releaseBoot)
+		}
+	}
+	cancel()
+	select {
+	case <-done:
+		t.Fatal("loops returned before worker joined")
+	case <-time.After(20 * time.Millisecond):
+	}
+	// 先让 worker 退出，再验证 loopsDone 和活动调用数。
+	releaseWorker <- struct{}{}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("loops failed to join")
+	}
+	if active.Load() != 0 {
+		t.Fatal("worker leaked")
+	}
+}
+
+func TestElasticAgentLoopsFatalAndCancellation(t *testing.T) {
+	for _, mode := range []string{"reconcile", "heartbeat", "server", "boot", "cancel", "full-errors"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			cfg := config.ElasticConfig{NodeHeartbeatInterval: time.Millisecond, AgentReconcileInterval: time.Millisecond}
+			boot := make(chan error, 1)
+			errs := make(chan error, 1)
+			server := make(chan error, 1)
+			done := make(chan struct{})
+			fatalErr := registry.ErrNodeLeaseCASConflict
+			if mode == "full-errors" {
+				errs <- fatalErr
+			}
+			calls := 0
+			go func() {
+				defer close(done)
+				runElasticAgentLoops(ctx, cancel, cfg, func(context.Context) error {
+					if mode == "heartbeat" || mode == "full-errors" {
+						return fatalErr
+					}
+					return nil
+				}, func(context.Context) error {
+					calls++
+					if mode == "boot" || mode == "reconcile" && calls > 1 {
+						return fatalErr
+					}
+					return nil
+				}, server, boot, errs)
+			}()
+			if mode == "server" {
+				server <- fatalErr
+			}
+			if mode == "cancel" {
+				cancel()
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("loops did not exit")
+			}
+			if ctx.Err() == nil {
+				t.Fatal("context not canceled")
+			}
+			if mode == "boot" {
+				if err := <-boot; !errors.Is(err, fatalErr) {
+					t.Fatalf("boot error: %v", err)
+				}
+			} else if mode != "cancel" {
+				select {
+				case err := <-errs:
+					if !errors.Is(err, fatalErr) {
+						t.Fatalf("fatal error: %v", err)
+					}
+				default:
+					t.Fatal("fatal error lost")
+				}
+			}
+		})
+	}
+}
 
 func TestNextRuntimeNodeGeneration(t *testing.T) {
 	now := time.Now().UTC()

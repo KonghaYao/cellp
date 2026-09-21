@@ -184,6 +184,32 @@ func (a *Activator) Admit(ctx context.Context, r *http.Request, projectID, versi
 	return a.reject(ReasonWakeRetry)
 }
 
+// WakeAfterDeadEndpoint answers a request whose snapshot endpoint proved dead on connect:
+// the connect was refused, so nothing was ever dispatched and the endpoint cannot serve
+// this version any more.
+//
+// The dead address came from the immutable snapshot, so that same snapshot must not be
+// asked whether the version is warm — its stale entry is exactly what failed. The capacity
+// bump is therefore issued regardless of what the snapshot keeps reporting; lookup only
+// ends the shared flight once a replacement appears and is never used for routing here.
+// The caller gets the Gateway's existing cold-start retry contract and the request is
+// never dispatched again: a mutation must not be replayed.
+func (a *Activator) WakeAfterDeadEndpoint(projectID, versionID, versionStatus string, desiredGeneration int64, lookup EndpointLookup) AdmitResult {
+	if a == nil || !a.enabled {
+		return AdmitResult{AllowProxy: true}
+	}
+	if versionStatus != contract.StatusDeployReady && versionStatus != contract.StatusReady {
+		return AdmitResult{AllowProxy: true}
+	}
+	if a.client == nil || a.workCtx == nil || a.workCtx.Err() != nil {
+		return a.reject(ReasonControlUnavailable)
+	}
+	if !a.beginSharedActivation(singleflightKey(projectID, versionID, desiredGeneration), projectID, versionID, lookup) {
+		return a.reject(ReasonWakeQueueFull)
+	}
+	return a.reject(ReasonWakeRetry)
+}
+
 func (a *Activator) finishAdmit(value interface{}, err error) AdmitResult {
 	if err != nil {
 		if errors.Is(err, errFlightAdmissionDenied) {

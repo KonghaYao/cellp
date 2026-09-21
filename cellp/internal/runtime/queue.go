@@ -135,7 +135,7 @@ func (m *Manager) queueJSON(ctx context.Context, project, version, projectDir, n
 	}
 	args := append([]string{"queue"}, argv...)
 	args = m.appendFleet(args, project, version, true)
-	out, err := m.execCelld(ctx, project, version, args)
+	out, err := m.execCelldOnFleet(ctx, project, version, args, false)
 	if err != nil {
 		return nil, err
 	}

@@ -217,6 +217,169 @@ func TestPickNodeDeterministicEligibilityCapacityAndSpread(t *testing.T) {
 	}
 }
 
+func TestRenewAssignmentsKeepsHealthyReplicaInsideBlockedPass(t *testing.T) {
+	fix := newSchedulerFixture(t, 1, eligibleNode("n1", 2, 1))
+	ctx := context.Background()
+	if _, err := fix.ctrl.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reps, err := fix.store.ListRuntimeReplicas(ctx, "demo", "v1")
+	if err != nil || len(reps) != 1 || reps[0].ValidUntil == nil {
+		t.Fatalf("placement: %+v err=%v", reps, err)
+	}
+	oldExpiry := *reps[0].ValidUntil
+	// The node heartbeat keeps advancing while a pass blocks in an agent call.
+	if err := fix.store.RenewRuntimeNodeLease(ctx, "n1", 1, fix.now.Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	fix.ctrl.Now = func() time.Time { return oldExpiry.Add(-10 * time.Second) }
+	if err := fix.ctrl.RenewAssignments(ctx); err != nil {
+		t.Fatalf("renewal lane: %v", err)
+	}
+	renewed, err := fix.store.GetRuntimeReplica(ctx, reps[0].ReplicaID)
+	if err != nil || renewed.ValidUntil == nil || !renewed.ValidUntil.After(oldExpiry) {
+		t.Fatalf("renewal lane did not extend a live assignment: %+v err=%v", renewed, err)
+	}
+	// Fail closed: a replica whose assignment already lapsed is left to the pass, which
+	// owns terminalization with an authoritative node view.
+	lapsed := *renewed.ValidUntil
+	fix.ctrl.Now = func() time.Time { return lapsed.Add(time.Second) }
+	if err := fix.ctrl.RenewAssignments(ctx); err != nil {
+		t.Fatalf("renewal lane on expired assignment: %v", err)
+	}
+	after, err := fix.store.GetRuntimeReplica(ctx, reps[0].ReplicaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.ValidUntil == nil || after.ValidUntil.After(lapsed) {
+		t.Fatalf("renewal lane resurrected an expired assignment: %+v", after)
+	}
+}
+
+// controllerWithStore builds a controller that reads through another store and shares
+// the fixture's guard, clock and clients. Controller embeds a mutex, so it is built
+// field by field and never copied.
+func controllerWithStore(fix *schedulerFixture, store Store) *Controller {
+	return &Controller{Store: store, Guard: fix.ctrl.Guard, Now: fix.ctrl.Now, Clients: fix.ctrl.Clients}
+}
+
+// staleNodeStore reports a stale node snapshot once (as a pass that started long before
+// its blocking agent call would) and then delegates to the live registry.
+type staleNodeStore struct {
+	Store
+	stale     []contract.RuntimeNode
+	delivered bool
+	mu        sync.Mutex
+}
+
+func (s *staleNodeStore) ListRuntimeNodes(ctx context.Context) ([]contract.RuntimeNode, error) {
+	s.mu.Lock()
+	if !s.delivered {
+		s.delivered = true
+		stale := s.stale
+		s.mu.Unlock()
+		return stale, nil
+	}
+	s.mu.Unlock()
+	return s.Store.ListRuntimeNodes(ctx)
+}
+
+func TestControllerStaleNodeSnapshotKeepsReadyReplica(t *testing.T) {
+	fix := newSchedulerFixture(t, 1, eligibleNode("n1", 2, 1))
+	ctx := context.Background()
+	if _, err := fix.ctrl.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reps, err := fix.store.ListRuntimeReplicas(ctx, "demo", "v1")
+	if err != nil || len(reps) != 1 {
+		t.Fatalf("placement: %+v err=%v", reps, err)
+	}
+	if err := fix.store.CompareAndSetDesired(ctx, "demo", "v1", 1, registry.ServingDesireRow{
+		DesiredReplicas: 1, Generation: 2, Reason: "activator_ensure",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate the node snapshot a pass read before it blocked in an agent call.
+	expired := eligibleNode("n1", 2, 1)
+	expired.LeaseExpiry = fix.now.Add(-time.Minute)
+	ctrl := controllerWithStore(fix, &staleNodeStore{Store: RegistryStoreFromServing(fix.store), stale: []contract.RuntimeNode{expired}})
+	if _, err := ctrl.Tick(ctx); err != nil {
+		t.Fatalf("tick with stale node snapshot: %v", err)
+	}
+	after, err := fix.store.ListRuntimeReplicas(ctx, "demo", "v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 1 || after[0].ReplicaID != reps[0].ReplicaID || after[0].State == contract.ReplicaFailed || after[0].State == contract.ReplicaStopped {
+		t.Fatalf("stale node snapshot terminalized a live assignment: before=%+v after=%+v", reps, after)
+	}
+}
+
+// concurrentRenewalStore simulates a lease that a concurrent renewal moved after the
+// pass read its snapshot: the CAS the pass issues no longer matches the stored value.
+type concurrentRenewalStore struct {
+	Store
+	mu         sync.Mutex
+	conflicted bool
+}
+
+func (s *concurrentRenewalStore) ValidateAgentAssignment(ctx context.Context, scope contract.CommandScope, now time.Time) (*contract.RuntimeReplica, error) {
+	s.mu.Lock()
+	first := !s.conflicted
+	s.conflicted = true
+	s.mu.Unlock()
+	if first {
+		return nil, nil
+	}
+	return s.Store.ValidateAgentAssignment(ctx, scope, now)
+}
+
+func TestControllerKeepsReplicaWhenRenewalLaneMovesLease(t *testing.T) {
+	fix := newSchedulerFixture(t, 1, eligibleNode("n1", 2, 1))
+	ctx := context.Background()
+	if _, err := fix.ctrl.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reps, err := fix.store.ListRuntimeReplicas(ctx, "demo", "v1")
+	if err != nil || len(reps) != 1 || reps[0].ValidUntil == nil {
+		t.Fatalf("placement: %+v err=%v", reps, err)
+	}
+	fix.ctrl.Now = func() time.Time { return reps[0].ValidUntil.Add(-10 * time.Second) }
+	ctrl := controllerWithStore(fix, &concurrentRenewalStore{Store: RegistryStoreFromServing(fix.store)})
+	if _, err := ctrl.Tick(ctx); err != nil {
+		t.Fatalf("pass with concurrent renewal: %v", err)
+	}
+	after, err := fix.store.GetRuntimeReplica(ctx, reps[0].ReplicaID)
+	if err != nil || after == nil {
+		t.Fatalf("replica: %+v err=%v", after, err)
+	}
+	if after.State == contract.ReplicaFailed || after.State == contract.ReplicaStopped {
+		t.Fatalf("CAS conflict terminalized a live assignment: %+v", after)
+	}
+	for _, client := range fix.clients {
+		_, _, drains, stops := client.counts()
+		if drains != 0 || stops != 0 {
+			t.Fatalf("CAS conflict dispatched drain/stop: drains=%d stops=%d", drains, stops)
+		}
+	}
+}
+
+func TestRunForegroundReturnsAfterSingleTick(t *testing.T) {
+	fix := newSchedulerFixture(t, 0, eligibleNode("n1", 2, 1))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Background=false runs one tick and returns; the renewal lane must be
+		// cancelled with it instead of waiting for a stop that never comes.
+		Run(context.Background(), fix.ctrl, Config{Background: false}, nil)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("foreground scheduler run did not return after its single tick")
+	}
+}
+
 func TestControllerZeroToNOneToNScaleDownAndRestart(t *testing.T) {
 	fix := newSchedulerFixture(t, 2, eligibleNode("n1", 2, 1), eligibleNode("n2", 2, 1))
 	ctx := context.Background()

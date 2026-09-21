@@ -45,32 +45,34 @@ GW="${GATEWAY_URL}"
 HOST_P="$(preview_host "$PROJECT" "$PARENT")"
 HOST_C="$(preview_host "$PROJECT" "$CHILD")"
 
-curl_version_method PUT "$PROJECT" "$PARENT" "/${KEY}" -d "$PARENT_BODY" >/dev/null
-curl_version_method PUT "$PROJECT" "$PARENT" "/${BULK_KEY}" -d "$BULK_PARENT_BODY" >/dev/null
+# Gateway requests to a version that just scaled to zero may be answered with the
+# documented cold contract (503 + Retry-After); *_cold helpers retry only that.
+curl_version_method_cold PUT "$PROJECT" "$PARENT" "/${KEY}" -d "$PARENT_BODY" >/dev/null
+curl_version_method_cold PUT "$PROJECT" "$PARENT" "/${BULK_KEY}" -d "$BULK_PARENT_BODY" >/dev/null
 
 create_version "$PROJECT" "$CHILD" "$PARENT" | jq -r .id >/dev/null
 poll_version "$PROJECT" "$CHILD" ready 120 >/dev/null
 
-CHILD_GET=$(curl_gateway_host "$HOST_C" "/${KEY}" || true)
+CHILD_GET=$(curl_gateway_host_cold "$HOST_C" "/${KEY}" || true)
 [[ "$CHILD_GET" == "$PARENT_BODY" ]] || fail "child GET after branch: want=${PARENT_BODY} got=${CHILD_GET}"
 
-curl_version_method PUT "$PROJECT" "$CHILD" "/${KEY}" -d "$CHILD_BODY" >/dev/null
-CHILD_GET=$(curl_gateway_host "$HOST_C" "/${KEY}" || true)
+curl_version_method_cold PUT "$PROJECT" "$CHILD" "/${KEY}" -d "$CHILD_BODY" >/dev/null
+CHILD_GET=$(curl_gateway_host_cold "$HOST_C" "/${KEY}" || true)
 [[ "$CHILD_GET" == "$CHILD_BODY" ]] || fail "child overwrite: want=${CHILD_BODY} got=${CHILD_GET}"
-PARENT_GET=$(curl_gateway_host "$HOST_P" "/${KEY}" || true)
+PARENT_GET=$(curl_gateway_host_cold "$HOST_P" "/${KEY}" || true)
 [[ "$PARENT_GET" == "$PARENT_BODY" ]] || fail "parent unchanged: want=${PARENT_BODY} got=${PARENT_GET}"
 
-curl_version_method DELETE "$PROJECT" "$CHILD" "/${KEY}" >/dev/null
-CHILD_CODE=$(http_code_gateway_host "$HOST_C" "/${KEY}")
+curl_version_method_cold DELETE "$PROJECT" "$CHILD" "/${KEY}" >/dev/null
+CHILD_CODE=$(http_code_gateway_host_cold "$HOST_C" "/${KEY}")
 [[ "$CHILD_CODE" == "404" ]] || fail "child delete tombstone: want=404 got=${CHILD_CODE}"
-curl_version_method PUT "$PROJECT" "$CHILD" "/${KEY}" -d "$CHILD_BODY" >/dev/null
-CHILD_GET=$(curl_gateway_host "$HOST_C" "/${KEY}" || true)
+curl_version_method_cold PUT "$PROJECT" "$CHILD" "/${KEY}" -d "$CHILD_BODY" >/dev/null
+CHILD_GET=$(curl_gateway_host_cold "$HOST_C" "/${KEY}" || true)
 [[ "$CHILD_GET" == "$CHILD_BODY" ]] || fail "child replacement after delete: want=${CHILD_BODY} got=${CHILD_GET}"
-PARENT_GET=$(curl_gateway_host "$HOST_P" "/${KEY}" || true)
+PARENT_GET=$(curl_gateway_host_cold "$HOST_P" "/${KEY}" || true)
 [[ "$PARENT_GET" == "$PARENT_BODY" ]] || fail "parent unchanged after child replacement: want=${PARENT_BODY} got=${PARENT_GET}"
 
-curl_version_method DELETE "$PROJECT" "$CHILD" "/${BULK_KEY}" >/dev/null
-CHILD_CODE=$(http_code_gateway_host "$HOST_C" "/${BULK_KEY}")
+curl_version_method_cold DELETE "$PROJECT" "$CHILD" "/${BULK_KEY}" >/dev/null
+CHILD_CODE=$(http_code_gateway_host_cold "$HOST_C" "/${BULK_KEY}")
 [[ "$CHILD_CODE" == "404" ]] || fail "child bulk key tombstone: want=404 got=${CHILD_CODE}"
 printf 'cellp-r2-bulk\0binary-payload\n' >"${BULK_TMP}/payload.bin"
 jq -n --arg key "$BULK_KEY" --arg file "${BULK_TMP}/payload.bin" \
@@ -80,11 +82,11 @@ celld r2 bulk put example-files --filename "${BULK_TMP}/manifest.json" \
   --endpoint "$S3_ENDPOINT" --region "$AWS_REGION" --json >/dev/null
 # `cmp` proves the operator-imported bytes cross the real fleet bucket and the
 # deployed JavaScript R2 binding without text or UTF-8 transformation.
-curl -fsS $(gateway_curl_tls_flags) -H "Host: ${HOST_C}" \
-  "${GATEWAY_URL}/${BULK_KEY}" -o "${BULK_TMP}/worker-readback.bin"
+READBACK_CODE=$(gateway_cold_request GET "$HOST_C" "/${BULK_KEY}" "${BULK_TMP}/worker-readback.bin")
+[[ "$READBACK_CODE" == "200" ]] || fail "child bulk readback → HTTP ${READBACK_CODE}"
 cmp "${BULK_TMP}/payload.bin" "${BULK_TMP}/worker-readback.bin" >/dev/null \
   || fail "operator bulk bytes differ from Worker R2 readback"
-PARENT_GET=$(curl_gateway_host "$HOST_P" "/${BULK_KEY}" || true)
+PARENT_GET=$(curl_gateway_host_cold "$HOST_P" "/${BULK_KEY}" || true)
 [[ "$PARENT_GET" == "$BULK_PARENT_BODY" ]] || fail "parent changed after child bulk import: want=${BULK_PARENT_BODY} got=${PARENT_GET}"
 
 log "V13 R2 branch PASS"

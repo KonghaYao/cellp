@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	defaultRouteCacheTTL         = 60 * time.Second
-	defaultRouteCacheMaxRoutes   = 10_000
-	defaultRouteCacheMaxProd     = 5_000
-	defaultRouteCacheMaxIngress  = 5_000
+	defaultRouteCacheTTL        = 60 * time.Second
+	defaultRouteCacheMaxRoutes  = 10_000
+	defaultRouteCacheMaxProd    = 5_000
+	defaultRouteCacheMaxIngress = 5_000
 )
 
 type cachedRoute struct {
@@ -52,18 +52,18 @@ type ingressCacheEntry struct {
 type RouteCache struct {
 	mu sync.Mutex
 
-	ttl          time.Duration
-	maxRoutes    int
-	maxProd      int
-	maxIngress   int
+	ttl        time.Duration
+	maxRoutes  int
+	maxProd    int
+	maxIngress int
 
 	routes map[string]*list.Element
 	routeL *list.List
 
-	prod map[string]*list.Element
+	prod  map[string]*list.Element
 	prodL *list.List
 
-	ingress map[string]*list.Element
+	ingress  map[string]*list.Element
 	ingressL *list.List
 }
 

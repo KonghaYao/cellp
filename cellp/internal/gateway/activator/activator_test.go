@@ -246,6 +246,78 @@ func TestConfigValidationFailClosed(t *testing.T) {
 	}
 }
 
+func TestWakeAfterDeadEndpointEnsuresDespiteWarmSnapshot(t *testing.T) {
+	fe := &fakeEnsure{}
+	cfg := activator.DefaultConfig()
+	cfg.WakeTimeout = 200 * time.Millisecond
+	cfg.PollInterval = 5 * time.Millisecond
+	a := activator.New(true, fe, cfg)
+	defer func() { _ = a.Shutdown(context.Background()) }()
+	// The snapshot that named the dead endpoint still reports it as warm: that entry is
+	// what the refused connect disproved, so it must not decide anything here.
+	stale := func() (string, bool) { return "127.0.0.1:1", true }
+	res := a.WakeAfterDeadEndpoint("p", "v", contract.StatusReady, 7, stale)
+	if res.AllowProxy {
+		t.Fatalf("dead endpoint must never be proxied again: %+v", res)
+	}
+	if res.Reason != activator.ReasonWakeRetry {
+		t.Fatalf("reason %q", res.Reason)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if fe.calls.Load() >= 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("capacity was not refreshed, ensure calls=%d", fe.calls.Load())
+}
+
+func TestWakeAfterDeadEndpointDisabledOrIneligibleAllows(t *testing.T) {
+	disabled := activator.New(false, &fakeEnsure{}, activator.DefaultConfig())
+	if res := disabled.WakeAfterDeadEndpoint("p", "v", contract.StatusReady, 1, nil); !res.AllowProxy {
+		t.Fatalf("disabled activator must leave the legacy path: %+v", res)
+	}
+	enabled := activator.New(true, &fakeEnsure{}, activator.DefaultConfig())
+	defer func() { _ = enabled.Shutdown(context.Background()) }()
+	if res := enabled.WakeAfterDeadEndpoint("p", "v", contract.StatusArchived, 1, nil); !res.AllowProxy {
+		t.Fatalf("archived version must not be woken: %+v", res)
+	}
+}
+
+func TestWakeAfterDeadEndpointWithoutClientFailsClosed(t *testing.T) {
+	a := activator.New(true, nil, activator.DefaultConfig())
+	res := a.WakeAfterDeadEndpoint("p", "v", contract.StatusReady, 1, nil)
+	if res.AllowProxy || res.Reason != activator.ReasonControlUnavailable {
+		t.Fatalf("got %+v", res)
+	}
+}
+
+func TestWakeAfterDeadEndpointSharesFlightWithColdWake(t *testing.T) {
+	fe := &blockingEnsure{started: make(chan struct{}), release: make(chan struct{})}
+	cfg := activator.DefaultConfig()
+	cfg.WakeTimeout = time.Second
+	cfg.PollInterval = time.Millisecond
+	a := activator.New(true, fe, cfg)
+	warm := func() (string, bool) { return "127.0.0.1:9001", true }
+	done := make(chan activator.AdmitResult, 1)
+	go func() {
+		done <- a.WakeAfterDeadEndpoint("p", "v", contract.StatusReady, 1, warm)
+	}()
+	<-fe.started
+	res := a.WakeAfterDeadEndpoint("p", "v", contract.StatusReady, 1, warm)
+	if res.AllowProxy || res.Reason != activator.ReasonWakeRetry {
+		t.Fatalf("second caller must reuse the flight: %+v", res)
+	}
+	close(fe.release)
+	if got := <-done; got.AllowProxy || got.Reason != activator.ReasonWakeRetry {
+		t.Fatalf("first caller: %+v", got)
+	}
+	if calls := fe.calls.Load(); calls != 1 {
+		t.Fatalf("ensure calls=%d", calls)
+	}
+}
+
 func TestShutdownCancelsAndQuiescesFastFailFlight(t *testing.T) {
 	fe := &blockingEnsure{started: make(chan struct{}), release: make(chan struct{})}
 	cfg := activator.DefaultConfig()

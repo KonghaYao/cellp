@@ -43,10 +43,19 @@ WHERE r.replica_id = ?`, scope.ReplicaID).Scan(
 			return nil, fmt.Errorf("node timestamp corrupt")
 		}
 		rep.ValidUntil = &validUntil
+		// Distinguish an authoritative fence from a lost CAS race. The lease moves on
+		// every node heartbeat and renewal, so a moved-but-live lease must not look like
+		// a stale generation: callers terminalize replicas on that signal.
 		if rep.ProjectID != scope.ProjectID || rep.VersionID != scope.VersionID || rep.NodeID != scope.NodeID ||
 			rep.Generation != scope.Generation || assignedNodeGeneration != currentNodeGeneration ||
-			cordoned != 0 || !validUntil.After(now) || !nodeLease.After(now) || !validUntil.Equal(scope.LeaseExpiry) {
+			cordoned != 0 {
 			return nil, ErrObservationStale
+		}
+		if !validUntil.After(now) || !nodeLease.After(now) {
+			return nil, ErrLeaseExpired
+		}
+		if !validUntil.Equal(scope.LeaseExpiry) {
+			return nil, ErrAssignmentCASConflict
 		}
 		rep.AssignedNodeGeneration = assignedNodeGeneration
 		return &rep, nil

@@ -31,7 +31,7 @@
 | 9 | **Registry** | SQLite：project · version · route · prod 指针 · jobs |
 | 10 | **Dashboard** | 运维 UI；**仅**消费 cellpd `:8790` REST API |
 | 11 | **可观测（AD-14）** | OTLP 发射 + 查询门面；后端可换（`memory`…`lgtm-prod`）；**不做**自研 Analytics |
-| 12 | **弹性 Serving（AD-15）** | `0..N` replica · 安全 scale-to-zero；cellpd **单轨** scheduler+agent；分阶段 E1–E5 |
+| 12 | **弹性 Serving（AD-15）** | `0..N` replica · 安全 scale-to-zero；cellpd **单轨** scheduler+agent；embedded heartbeat 与串行 boot/周期 reconcile 分离，关闭先 cancel/join 再释放 lease，保留 fail-closed ready gate；分阶段 E1–E5 |
 
 完整否定清单与边界论证见 **[docs/decisions.md §15 AD-10](./docs/decisions.md#15-ad-10--产品边界权威否定与核心范畴)**。
 
