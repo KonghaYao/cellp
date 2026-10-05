@@ -1,0 +1,12 @@
+# Install cellp toolchain via mise (https://mise.jdx.dev)
+#   mise trust
+#   mise install
+#   mise use -g github:KonghaYao/cellp@latest
+#
+# curl | sh remains supported: scripts/install.sh
+
+[tools]
+"github:KonghaYao/cellp" = { version = "latest", asset_pattern = "cellp_{{ version }}_{{ os() }}_{{ arch() }}.tar.gz" }
+
+[env]
+_.path = ["{{ config_root }}/.local/bin"]

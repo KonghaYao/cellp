@@ -20,7 +20,7 @@ function version(id, projectId, overrides = {}) {
     git_ref: "main",
     git_sha: "abc1234def5678",
     data_branch: `${projectId}/${id}`,
-    preview_url: `http://127.0.0.1:8787/${projectId}/${id}/`,
+    preview_url: `http://${id}.${projectId}.ingress.local:8787/`,
     created_at: "2026-01-01T00:30:00.000Z",
     updated_at: "2026-01-01T01:00:00.000Z",
     ready_at: "2026-01-01T01:00:00.000Z",

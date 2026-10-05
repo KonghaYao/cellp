@@ -139,11 +139,14 @@ jobs:
           mkdir -p dist
           chmod +x dist/cellp dist/cellpd dist/celld dist/offshoot dist/esbuild
           tar -C dist -czf "cellp_${VER}_${OS}_${ARCH}.tar.gz" cellp cellpd celld offshoot esbuild
+          (cd dist && sha256sum "cellp_${VER}_${OS}_${ARCH}.tar.gz" > "cellp_${VER}_${OS}_${ARCH}.tar.gz.sha256")
 
       - uses: actions/upload-artifact@v4
         with:
           name: cellp-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+          path: |
+            cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            dist/cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
 
   publish:
     needs: binaries
@@ -155,9 +158,17 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Build checksums.txt (mise / manual verify)
+        run: |
+          cd artifacts
+          sha256sum cellp_*.tar.gz > checksums.txt
+          cat checksums.txt
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/cellp_*
+          files: |
+            artifacts/cellp_*.tar.gz
+            artifacts/cellp_*.tar.gz.sha256
+            artifacts/checksums.txt
           generate_release_notes: true
           fail_on_unmatched_files: true

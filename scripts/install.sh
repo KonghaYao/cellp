@@ -1,6 +1,8 @@
 #!/bin/sh
-# Install cellp + cellpd + celld + offshoot from GitHub Releases.
-# Usage:
+# Install cellp + cellpd + celld + offshoot + esbuild from GitHub Releases.
+#
+# Preferred (mise): mise use -g github:KonghaYao/cellp@latest
+# One-liner:
 #   curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
 # Pin a tag:
 #   CELLP_VERSION=v0.1.0 curl -fsSL … | sh
@@ -100,6 +102,9 @@ fi
 echo
 echo "Add to PATH if needed:"
 echo "  export PATH=\"${DEST}:\$PATH\""
+echo
+echo "Or install with mise (recommended for upgrades):"
+echo "  mise use -g github:KonghaYao/cellp@latest"
 echo
 echo "Then:"
 echo "  cellp doctor"

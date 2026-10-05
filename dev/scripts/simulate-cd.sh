@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local CD simulation — deploy example worker + register version
+# Local CD simulation — deploy example worker + register version (Host ingress).
 # Usage: simulate-cd.sh <project> <version_id>
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -12,6 +12,8 @@ EXAMPLE="${3:-dev/examples/counter}"
 set -a
 # shellcheck disable=SC1091
 source dev/.env
+# shellcheck disable=SC1091
+source e2e/scripts/lib-ingress.sh
 set +a
 
 need() { command -v "$1" >/dev/null || { echo "MISSING $1" >&2; exit 1; }; }
@@ -51,16 +53,32 @@ RESP=$(curl -sf -X POST "${PLATFORM_URL}/v1/projects/${PROJECT}/versions" \
 echo "$RESP" | jq .
 
 PREVIEW=$(echo "$RESP" | jq -r .preview_url)
-echo "==> [4/5] preview URL: $PREVIEW"
+PREVIEW_HOST=$(preview_host "$PROJECT" "$VERSION")
+echo "==> [4/5] preview URL: ${PREVIEW:-Host ${PREVIEW_HOST} on ${GATEWAY_URL}}"
 
-echo "==> [5/5] smoke test"
-HTTP=$(curl -sf -o /tmp/cell-preview-body.json -w '%{http_code}' "${PREVIEW}" || echo "000")
+echo "==> [5/5] smoke test (Host ingress)"
+for _ in $(seq 1 120); do
+  STATUS=$(curl -sf -H "Authorization: Bearer ${CELLP_ADMIN_TOKEN:-$PLATFORM_TOKEN}" \
+    "${PLATFORM_URL}/v1/projects/${PROJECT}/versions/${VERSION}" | jq -r .status)
+  [[ "$STATUS" == "ready" ]] && break
+  sleep 1
+done
+[[ "${STATUS:-}" == "ready" ]] || { echo "FAIL version not ready (status=${STATUS:-?})"; exit 1; }
+
+READY_PREVIEW=$(version_preview_url "$PROJECT" "$VERSION")
+SMOKE_HOST="$PREVIEW_HOST"
+if [[ -n "$READY_PREVIEW" ]]; then
+  SMOKE_HOST=$(python3 -c "import urllib.parse; print(urllib.parse.urlparse('$READY_PREVIEW').hostname or '')" 2>/dev/null || echo "$PREVIEW_HOST")
+fi
+
+HTTP=$(curl -sf -o /tmp/cell-preview-body.json -w '%{http_code}' \
+  -H "Host: ${SMOKE_HOST}" "${GATEWAY_URL}/" || echo "000")
 if [[ "$HTTP" == "200" ]]; then
-  echo "OK smoke test HTTP 200"
+  echo "OK smoke test HTTP 200 Host=${SMOKE_HOST}"
   cat /tmp/cell-preview-body.json
   echo ""
   exit 0
 else
-  echo "FAIL smoke test HTTP $HTTP"
+  echo "FAIL smoke test HTTP $HTTP Host=${SMOKE_HOST}"
   exit 1
 fi

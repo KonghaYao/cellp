@@ -139,13 +139,25 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 
 	projectID, versionID, ok := g.versionForBinding(r.Context(), binding)
 	if !ok {
+		if binding.Role == registry.IngressRoleProd {
+			http.Error(w, g.prodNotConfiguredBody(projectID), http.StatusNotFound)
+			return
+		}
 		http.Error(w, "ingress_unknown", http.StatusNotFound)
 		return
 	}
 
 	version, err := g.store.GetVersion(r.Context(), projectID, versionID)
 	if err != nil || version == nil {
+		if binding.Role == registry.IngressRoleProd {
+			http.Error(w, g.prodVersionMissingBody(projectID, versionID), http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, "version unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if msg, blocked := g.prodVersionBlocked(binding, version); blocked {
+		http.Error(w, msg, http.StatusServiceUnavailable)
 		return
 	}
 	if version.Status == registry.StatusDeployReady {
@@ -179,12 +191,46 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {
 	v, err := g.store.GetVersion(ctx, projectID, versionID)
 	if err != nil || v == nil {
-		return "route draining"
+		return "route inactive"
 	}
-	if v.Status == registry.StatusArchived {
+	switch v.Status {
+	case registry.StatusArchived:
 		return "version_archived"
+	case registry.StatusDestroyed:
+		return g.prodVersionDestroyedBody(projectID, versionID)
+	case registry.StatusFailed:
+		return "version_failed"
+	case registry.StatusDraining:
+		return "version_draining"
+	default:
+		return "route inactive"
 	}
-	return "route draining"
+}
+
+func (g *Gateway) prodNotConfiguredBody(projectID string) string {
+	return "prod_not_set: no production version — promote a ready version (POST /v1/projects/" + projectID + "/versions/{id}/promote)"
+}
+
+func (g *Gateway) prodVersionMissingBody(projectID, versionID string) string {
+	return "prod_version_missing: production points to " + versionID + " which no longer exists — promote another ready version (POST /v1/projects/" + projectID + "/versions/{id}/promote)"
+}
+
+func (g *Gateway) prodVersionDestroyedBody(projectID, versionID string) string {
+	return "prod_version_destroyed: production points to destroyed version " + versionID + " — promote another ready version (POST /v1/projects/" + projectID + "/versions/{id}/promote)"
+}
+
+func (g *Gateway) prodVersionBlocked(binding *registry.IngressBinding, version *registry.Version) (string, bool) {
+	if binding == nil || binding.Role != registry.IngressRoleProd || version == nil {
+		return "", false
+	}
+	switch version.Status {
+	case registry.StatusDestroyed:
+		return g.prodVersionDestroyedBody(version.ProjectID, version.ID), true
+	case registry.StatusFailed:
+		return "prod_version_failed: production points to failed version " + version.ID, true
+	default:
+		return "", false
+	}
 }
 
 func (g *Gateway) lookupRoute(ctx context.Context, projectID, versionID string) (*registry.Route, bool) {

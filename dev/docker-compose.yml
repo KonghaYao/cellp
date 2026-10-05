@@ -4,7 +4,7 @@ services:
     command: /data
     ports:
       - "${S3_PORT:-9000}:9000"
-      - "${S3_CONSOLE_PORT:-9001}:9001"
+      - "${S3_CONSOLE_PORT:-19001}:9001"
     environment:
       RUSTFS_VOLUMES: /data
       RUSTFS_ADDRESS: 0.0.0.0:9000

@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cellp/cellp/internal/devlocal"
+	"github.com/cellp/cellp/internal/elasticdevcerts"
 	"github.com/cellp/cellp/internal/locals3"
 	"github.com/cellp/cellp/internal/serve"
 )
@@ -41,8 +43,16 @@ func cmdDev(args []string) int {
 	}
 	skipDeploy := false
 	project := ""
+	storeFlag := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "--store":
+			i++
+			if i >= len(args) {
+				log.Println("--store needs local|rustfs")
+				return 2
+			}
+			storeFlag = args[i]
 		case "--home":
 			i++
 			if i >= len(args) {
@@ -63,8 +73,11 @@ func cmdDev(args []string) int {
 			fmt.Print(`cellp dev — local platform without Docker
 
   --home DIR       data directory (default ~/.cellp)
+  --store MODE     object storage: local (embedded S3) or rustfs (default: local)
   --project ID     project id when deploying cwd (default: wrangler name)
   --no-deploy      do not upload cwd Worker
+
+  Env: CELLP_STORE=local|rustfs · S3_ENDPOINT (rustfs) · GATEWAY_PORT · PLATFORM_PORT
 `)
 			return 0
 		}
@@ -89,25 +102,49 @@ func cmdDev(args []string) int {
 		return 1
 	}
 
+	storeBackend, err := devlocal.ParseStore(storeFlag)
+	if err != nil {
+		log.Println(err)
+		return 2
+	}
+
 	s3addr := envOr("CELLP_S3_ADDR", "127.0.0.1:19000")
 	apiPort := envOr("PLATFORM_PORT", "8790")
 	gwPort := envOr("GATEWAY_PORT", "8787")
-	for _, p := range []string{"127.0.0.1:" + gwPort, "127.0.0.1:" + apiPort, s3addr} {
+	for _, p := range []string{"127.0.0.1:" + gwPort, "127.0.0.1:" + apiPort} {
 		if !portFree(p) {
-			log.Printf("port %s is in use — stop the other process, or set GATEWAY_PORT / PLATFORM_PORT / CELLP_S3_ADDR", p)
+			log.Printf("port %s is in use — run cellp doctor, stop the other process, or set GATEWAY_PORT / PLATFORM_PORT", p)
 			return 1
 		}
 	}
 
-	s3, err := locals3.Start(s3addr, filepath.Join(data, "s3.bolt"))
-	if err != nil {
-		log.Printf("local s3: %v", err)
+	var s3URL string
+	switch storeBackend {
+	case devlocal.StoreRustFS:
+		s3URL = envOr("S3_ENDPOINT", "http://"+s3addr)
+		if !strings.HasPrefix(s3URL, "http://") && !strings.HasPrefix(s3URL, "https://") {
+			s3URL = "http://" + strings.TrimPrefix(s3URL, "http://")
+		}
+		log.Printf("object store rustfs %s (start RustFS separately or ./dev/scripts/up.sh)", s3URL)
+	default:
+		if !portFree(s3addr) {
+			log.Printf("port %s is in use — stop the other process or set CELLP_S3_ADDR", s3addr)
+			return 1
+		}
+		s3, err := locals3.Start(s3addr, filepath.Join(data, "s3.bolt"))
+		if err != nil {
+			log.Printf("local s3: %v", err)
+			return 1
+		}
+		defer s3.Close()
+		s3URL = "http://" + s3.Addr
+		log.Printf("object store local (embedded S3) %s", s3URL)
+	}
+
+	if err := applyDevEnv(data, s3URL, apiPort, gwPort, storeBackend); err != nil {
+		log.Println(err)
 		return 1
 	}
-	defer s3.Close()
-	log.Printf("local s3 (no Docker) %s", s3.Addr)
-
-	applyDevEnv(data, s3.Addr, apiPort, gwPort)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -142,8 +179,10 @@ func cmdDev(args []string) int {
 	}
 
 	fmt.Printf("\n  API      http://127.0.0.1:%s\n", apiPort)
-	fmt.Printf("  Gateway  http://127.0.0.1:%s\n", gwPort)
+	fmt.Printf("  Gateway  http://127.0.0.1:%s  (Host from preview_url)\n", gwPort)
+	fmt.Printf("  Store    %s\n", storeBackend)
 	fmt.Printf("  Data     %s\n", data)
+	fmt.Printf("  Token    %s\n", envOr("CELLP_ADMIN_TOKEN", "dev-local-token"))
 	fmt.Printf("  Stop     Ctrl-C\n\n")
 
 	select {
@@ -158,27 +197,37 @@ func cmdDev(args []string) int {
 	}
 }
 
-func applyDevEnv(data, s3URL, apiPort, gwPort string) {
+func applyDevEnv(data, s3URL, apiPort, gwPort string, store devlocal.StoreBackend) error {
 	setDefault := func(k, v string) {
 		if os.Getenv(k) == "" {
 			os.Setenv(k, v)
 		}
 	}
+	setDefault("CELLP_STORE", string(store))
 	setDefault("CELLP_REGISTRY_DB", filepath.Join(data, "cellp-registry.sqlite"))
 	setDefault("ARTIFACTS_DIR", filepath.Join(data, "artifacts"))
 	setDefault("OFFSHOOT_STORE", filepath.Join(data, "offshoot-store"))
 	setDefault("OFFSHOOT_CHECKOUTS", filepath.Join(data, "offshoot-checkouts"))
 	setDefault("S3_ENDPOINT", s3URL)
-	setDefault("AWS_ACCESS_KEY_ID", "cellpdev")
-	setDefault("AWS_SECRET_ACCESS_KEY", "cellpdev")
+	if store == devlocal.StoreRustFS {
+		setDefault("AWS_ACCESS_KEY_ID", envOr("RUSTFS_ACCESS_KEY", "rustfsadmin"))
+		setDefault("AWS_SECRET_ACCESS_KEY", envOr("RUSTFS_SECRET_KEY", "rustfsadmin"))
+	} else {
+		setDefault("AWS_ACCESS_KEY_ID", "cellpdev")
+		setDefault("AWS_SECRET_ACCESS_KEY", "cellpdev")
+	}
 	setDefault("AWS_REGION", "us-east-1")
 	setDefault("CELLP_DEPLOY_TOKEN", "dev-local-token")
 	setDefault("CELLP_ADMIN_TOKEN", "dev-local-token")
 	setDefault("PLATFORM_TOKEN", "dev-local-token")
 	setDefault("GATEWAY_URL", "http://127.0.0.1:"+gwPort)
 	setDefault("PLATFORM_URL", "http://127.0.0.1:"+apiPort)
+	setDefault("CELLP_INGRESS_BASE_DOMAIN", "ingress.local")
+	setDefault("CELLP_PUBLIC_SCHEME_PREVIEW", "http")
+	setDefault("CELLP_PUBLIC_SCHEME_PROD", "http")
 	setDefault("CELLP_ARTIFACTS_BUCKET", "cellp-artifacts")
 	setDefault("CELLD_BUCKET", "s3://cellp-celld/demo-app")
+	return elasticdevcerts.ApplyEmbeddedAgentEnv(filepath.Join(data, "certs", "elastic"))
 }
 
 func envOr(k, def string) string {
@@ -261,8 +310,18 @@ func deployCwd(cwd, data, project string) error {
 	if err := waitVersionReady(api, token, project, version, 2*time.Minute); err != nil {
 		return err
 	}
-	gw := strings.TrimRight(envOr("GATEWAY_URL", "http://127.0.0.1:8787"), "/")
-	log.Printf("ready %s@%s → %s/%s/%s/", project, version, gw, project, version)
+	st, previewBody, err := apiJSON(http.MethodGet, api+"/v1/projects/"+project+"/versions/"+version, token, nil)
+	if err == nil && st == http.StatusOK {
+		var v struct {
+			PreviewURL string `json:"preview_url"`
+		}
+		_ = json.Unmarshal(previewBody, &v)
+		if u := strings.TrimSpace(v.PreviewURL); u != "" {
+			log.Printf("ready %s@%s → %s", project, version, u)
+			return nil
+		}
+	}
+	log.Printf("ready %s@%s (poll GET /v1/projects/%s/versions/%s for preview_url)", project, version, project, version)
 	return nil
 }
 

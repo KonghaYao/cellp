@@ -3,9 +3,7 @@
 `cellp dev` is the wrangler-style local loop: **one command, no Docker**. It starts an in-process S3, then cellpd (API + gateway). If the current directory has `wrangler.jsonc`, it deploys that Worker as version `dev`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-
+mise use -g github:KonghaYao/cellp@latest   # or scripts/install.sh
 cd my-shop          # folder with wrangler.jsonc + index.js
 cellp dev
 ```
@@ -20,11 +18,21 @@ Each `cellp dev` that finds `wrangler.jsonc` deploys a version. The first id is 
 
 `--no-deploy` only starts the platform.
 
+## Object storage (`--store`)
+
+| Mode | Flag / env | Behavior |
+|------|------------|----------|
+| **local** (default) | `--store local` · `CELLP_STORE=local` | Embedded Bolt-backed S3 on `:19000` under `~/.cellp/data` |
+| **rustfs** | `--store rustfs` · `CELLP_STORE=rustfs` | Uses `S3_ENDPOINT` (default `http://127.0.0.1:19000`) — start RustFS yourself or run `./dev/scripts/up.sh` |
+
+Offshoot always uses a **directory** under the data dir in local mode. RustFS mode uses the same S3 credentials as the contributor stack (`rustfsadmin` by default).
+
 ## Flags
 
 | Flag | Meaning |
 |------|---------|
 | `--home DIR` | Data directory (default `~/.cellp`) |
+| `--store MODE` | `local` (embedded S3) or `rustfs` |
 | `--project ID` | Project id (default: `name` in wrangler.jsonc) |
 | `--no-deploy` | Only start the platform; do not upload cwd |
 
@@ -41,9 +49,9 @@ You still write the same Worker + `wrangler.jsonc`. [Write a Worker](/build/).
 
 ## What is not Docker
 
-`cellp dev` does **not** start RustFS. Object storage is a local Bolt-backed S3 on `:19000`. Offshoot uses a **directory** under `~/.cellp/data`. That is the laptop path.
+By default `cellp dev` does **not** start RustFS — it runs embedded local S3. Use `--store rustfs` when RustFS is already up (contributor stack or Compose).
 
-For a production-like disk (RustFS + S3-backed offshoot), use [Docker Compose](/guides/self-hosting) or the [contributor local stack](/get-started/local).
+For a production-like disk (RustFS + S3-backed offshoot), use [Docker Compose](/guides/self-hosting) or the [contributor local stack](/get-started/local) with `CELLP_STORE=rustfs`.
 
 ## Doctor
 
@@ -51,7 +59,7 @@ For a production-like disk (RustFS + S3-backed offshoot), use [Docker Compose](/
 cellp doctor
 ```
 
-Checks `celld`, `offshoot`, `esbuild`, and ports `8787` / `8790` / `19000`. Release tarballs put the binaries in the same folder so `cellp` finds siblings on `PATH`.
+Checks `celld`, `offshoot`, `esbuild`, whether **cellpd** responds on `:8790`, gateway `:8787`, and store mode. If a port is taken, it prints the listening process when possible.
 
 ## Tokens
 

@@ -33,6 +33,7 @@ func testAPI(t *testing.T, deployToken, adminToken string) (*api.Server, *regist
 		ArtifactsBucket: "cellp-artifacts",
 		ArtifactsDir:    artifactsDir,
 	}
+	cfg.Ingress.BaseDomain = "ingress.local"
 	q := job.NewSQLiteQueue(store)
 	bm := branch.New(t.TempDir(), store)
 	rm := runtime.New(8792, "http://127.0.0.1:9000", "us-east-1", "s3://cellp-celld/demo", "k", "s")
@@ -159,6 +160,11 @@ func TestCreateVersion202(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["poll_url"] == nil {
 		t.Fatal("missing poll_url")
+	}
+	preview, _ := resp["preview_url"].(string)
+	wantPreview := "http://v1.demo.ingress.local:8787/"
+	if preview != wantPreview {
+		t.Fatalf("preview_url = %q want %q", preview, wantPreview)
 	}
 	v, _ := store.GetVersion(context.Background(), "demo", "v1")
 	if v == nil || v.Status != registry.StatusPending {

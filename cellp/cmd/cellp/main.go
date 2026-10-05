@@ -41,6 +41,7 @@ Usage:
   cellp version   Print the build version.
 
 Install:
+  mise use -g github:KonghaYao/cellp@latest
   curl -fsSL https://raw.githubusercontent.com/KonghaYao/cellp/main/scripts/install.sh | sh
 
 Docs: https://konghayao.github.io/cellp/get-started/

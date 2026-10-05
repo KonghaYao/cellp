@@ -1131,6 +1131,68 @@ func (s *SQLiteStore) PurgeDestroyedVersions(ctx context.Context, olderThan time
 			return 0, err
 		}
 
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM runtime_replica_endpoints
+			WHERE replica_id IN (
+			  SELECT replica_id FROM runtime_replicas r
+			  JOIN versions v ON v.project_id = r.project_id AND v.id = r.version_id
+			  WHERE v.status = ? AND v.updated_at < ?
+			    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id AND p.prod_version_id = v.id)
+			)`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM runtime_replicas
+			WHERE (project_id, version_id) IN (
+			  SELECT v.project_id, v.id FROM versions v
+			  WHERE v.status = ? AND v.updated_at < ?
+			    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id AND p.prod_version_id = v.id)
+			)`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM runtime_agent_commands
+			WHERE (project_id, version_id) IN (
+			  SELECT v.project_id, v.id FROM versions v
+			  WHERE v.status = ? AND v.updated_at < ?
+			    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id AND p.prod_version_id = v.id)
+			)`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM serving_policies
+			WHERE (project_id, version_id) IN (
+			  SELECT v.project_id, v.id FROM versions v
+			  WHERE v.status = ? AND v.updated_at < ?
+			    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id AND p.prod_version_id = v.id)
+			)`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM serving_desires
+			WHERE (project_id, version_id) IN (
+			  SELECT v.project_id, v.id FROM versions v
+			  WHERE v.status = ? AND v.updated_at < ?
+			    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id AND p.prod_version_id = v.id)
+			)`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		_, err = tx.ExecContext(ctx, `
+			DELETE FROM jobs
+			WHERE (project_id, version_id) IN (
+			  SELECT v.project_id, v.id FROM versions v
+			  WHERE v.status = ? AND v.updated_at < ?
+			    AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id AND p.prod_version_id = v.id)
+			)`, StatusDestroyed, cutoff)
+		if err != nil {
+			return 0, err
+		}
+
 		res, err := tx.ExecContext(ctx, `
 			DELETE FROM versions
 			WHERE status = ?

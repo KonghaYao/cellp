@@ -2,7 +2,7 @@
 
 The **`cellp`** binary is the operator entry point. Production runs **`cellp serve`** (cellpd + gateway). Laptops use **`cellp dev`** (in-process S3, no Docker).
 
-Install: [Install](/guides/install) or `curl -fsSL …/scripts/install.sh | sh`.
+Install: [Install](/guides/install) — `mise use -g github:KonghaYao/cellp@latest` or `curl -fsSL …/scripts/install.sh | sh`.
 
 ## Commands
 
@@ -10,7 +10,7 @@ Install: [Install](/guides/install) or `curl -fsSL …/scripts/install.sh | sh`.
 |---------|---------|
 | `cellp dev` | Local control plane on `127.0.0.1` — API **8790**, gateway **8787**, path-style S3 (default **19000**) |
 | `cellp serve` | Run cellpd from environment (Docker Compose, systemd, bare metal) |
-| `cellp doctor` | Check `celld`, `offshoot`, optional `esbuild`, and port availability |
+| `cellp doctor` | Check `celld`, `offshoot`, `esbuild`, cellpd/gateway reachability, and port conflicts |
 | `cellp version` | Print build version |
 
 ### `cellp dev`
@@ -19,6 +19,7 @@ Install: [Install](/guides/install) or `curl -fsSL …/scripts/install.sh | sh`.
 cellp dev
 cellp dev --project my-shop
 cellp dev --no-deploy          # platform only; deploy via API or Dashboard
+cellp dev --store rustfs       # use RustFS at S3_ENDPOINT instead of embedded S3
 cellp dev --home ~/.cellp      # data directory (default ~/.cellp)
 ```
 
@@ -31,7 +32,9 @@ Environment overrides used by dev (also apply when you run serve with the same v
 | `CELLP_HOME` | `~/.cellp` | State root |
 | `PLATFORM_PORT` | `8790` | cellpd API |
 | `GATEWAY_PORT` | `8787` | User traffic |
-| `CELLP_S3_ADDR` | `127.0.0.1:19000` | In-process artifact S3 |
+| `CELLP_STORE` | `local` | `local` (embedded S3) or `rustfs` |
+| `CELLP_S3_ADDR` | `127.0.0.1:19000` | Listen address for embedded S3 (`local` store) |
+| `S3_ENDPOINT` | (embedded URL) | RustFS / S3 API when `CELLP_STORE=rustfs` |
 | `CELLP_DEPLOY_TOKEN` / `CELLP_ADMIN_TOKEN` | `dev-local-token` | Bearer tokens |
 
 See [cellp dev](/guides/dev) for the full laptop workflow.

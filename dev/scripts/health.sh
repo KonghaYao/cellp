@@ -47,11 +47,35 @@ else
   bad "gateway deep health (http=${GW_DEEP_CODE})"
 fi
 
-if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
-  ok "celld :${CELLD_PORT}"
+ADMIN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
+
+# Elastic serving uses dynamic per-version celld ports — probe runtime routes, not fixed :8792.
+ROUTES_HEALTH_TMP=$(mktemp)
+ROUTES_HEALTH_CODE=$(curl -sS -o "$ROUTES_HEALTH_TMP" -w '%{http_code}' -H "Authorization: Bearer ${ADMIN}" "${PLATFORM_URL}/v1/runtime/routes" 2>/dev/null || echo "000")
+if [[ "$ROUTES_HEALTH_CODE" == "200" ]]; then
+  UPSTREAM_COUNT=$(jq -r '[.routes[]? | select(.celld_health == "ok")] | length' "$ROUTES_HEALTH_TMP" 2>/dev/null || echo "0")
+  if [[ "${UPSTREAM_COUNT:-0}" -gt 0 ]]; then
+    ok "runtime celld upstreams (${UPSTREAM_COUNT} healthy)"
+  else
+    TOTAL=$(jq -r '.routes | length' "$ROUTES_HEALTH_TMP" 2>/dev/null || echo "0")
+    if [[ "${TOTAL:-0}" -eq 0 ]]; then
+      if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
+        ok "celld :${CELLD_PORT} (shared dev probe)"
+      else
+        echo "WARN no active runtime routes and celld :${CELLD_PORT} down (deploy a version or run up.sh)"
+      fi
+    else
+      bad "runtime celld upstreams (${TOTAL} routes, none healthy)"
+    fi
+  fi
 else
-  bad "celld :${CELLD_PORT} (install celld or run up.sh)"
+  if curl -sf "http://127.0.0.1:${CELLD_PORT}/.well-known/celld/health" >/dev/null 2>&1; then
+    ok "celld :${CELLD_PORT} (fallback; runtime routes HTTP ${ROUTES_HEALTH_CODE})"
+  else
+    bad "runtime routes (http=${ROUTES_HEALTH_CODE}) and celld :${CELLD_PORT}"
+  fi
 fi
+rm -f "$ROUTES_HEALTH_TMP"
 
 if curl -sf "http://127.0.0.1:${S3_PORT:-9000}/health" >/dev/null 2>&1; then
   ok "rustfs :${S3_PORT:-9000}"
@@ -64,8 +88,6 @@ if bash "${ROOT}/dev/scripts/check-s3-clock-skew.sh"; then
 else
   bad "s3 clock skew (see PD-20260902-04)"
 fi
-
-ADMIN="${CELLP_ADMIN_TOKEN:-${PLATFORM_TOKEN:-dev-local-token}}"
 
 # Deep health: registry + RustFS + runtime fleet + queue
 DEEP_TMP=$(mktemp)

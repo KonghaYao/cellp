@@ -381,7 +381,7 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 
 	// TP-SEC-1: server-side artifact URI
 	artifactURI := artifact.ServerArtifactURI(s.cfg.ArtifactsBucket, projectID, req.ID)
-	previewURL := strings.TrimRight(s.cfg.GatewayURL, "/") + "/" + projectID + "/" + req.ID + "/"
+	previewURL := s.cfg.FormatPreviewURL(s.cfg.PreviewHost(projectID, req.ID), nil)
 
 	v, err := s.store.CreateVersion(r.Context(), registry.CreateVersionInput{
 		ID: req.ID, ProjectID: projectID, ParentVersionID: req.ParentVersionID,

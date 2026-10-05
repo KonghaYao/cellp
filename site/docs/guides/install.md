@@ -2,6 +2,21 @@
 
 One binary CLI (`cellp`) plus `celld`, `offshoot`, and `esbuild`. No Docker required for local `cellp dev`.
 
+## Recommended: mise
+
+[mise](https://mise.jdx.dev) installs from GitHub Releases and keeps versions pinned in `mise.toml`.
+
+```bash
+curl https://mise.run | sh
+mise use -g github:KonghaYao/cellp@latest
+cellp doctor
+cellp dev
+```
+
+Pin a version: `mise use -g github:KonghaYao/cellp@v0.1.0`
+
+The repository root [`mise.toml`](https://github.com/KonghaYao/cellp/blob/main/mise.toml) documents the asset pattern (`cellp_<tag>_<os>_<arch>.tar.gz`). Releases also publish `checksums.txt` for verification.
+
 ## One-liner (macOS / Linux)
 
 ```bash
@@ -40,7 +55,7 @@ Cross-platform archives are published on version tags (`v*`):
 
 https://github.com/KonghaYao/cellp/releases
 
-Names: `cellp_<tag>_<os>_<arch>.tar.gz` for **linux/darwin** × **amd64/arm64**.
+Names: `cellp_<tag>_<os>_<arch>.tar.gz` for **linux/darwin** × **amd64/arm64**, plus per-archive `.sha256` files and `checksums.txt`.
 
 Native Windows is not shipped yet (`celld` is Unix). Use WSL2, macOS, Linux, or [Docker](/guides/self-hosting).
 
