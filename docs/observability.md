@@ -28,7 +28,7 @@
 | **RustFS / S3** | 对象存储 | RustFS 自带 metrics |
 | **SQLite registry** | project / version / route | `sqlite3` 只读 |
 
-**还没有（以 AD-14 为准，未实现）：** 查询门面、Gateway `traceparent`、Dashboard 调查页、`dev --profile otel`。
+**AD-14 已落地：** 查询门面（`/v1/projects/{p}/versions/{v}/telemetry/*`）、Gateway `traceparent` + ingress span、Dashboard Storage → Telemetry 调查页、`./dev/scripts/up.sh --profile otel`（Collector + Tempo + Loki + Grafana）。
 
 ---
 

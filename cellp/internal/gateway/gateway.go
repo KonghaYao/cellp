@@ -14,6 +14,7 @@ import (
 	"github.com/cellp/cellp/internal/gateway/activator"
 	"github.com/cellp/cellp/internal/metrics"
 	"github.com/cellp/cellp/internal/registry"
+	"github.com/cellp/cellp/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -26,6 +27,7 @@ type Gateway struct {
 	activatorOnce sync.Once
 	router        chi.Router
 	cfg           GatewayConfig
+	telemetry     *telemetry.Service
 	lastTouchMu   sync.Mutex
 	lastTouchAt   map[string]time.Time
 }
@@ -98,6 +100,11 @@ func (g *Gateway) RouteCacheForTest() *RouteCache {
 // Config returns the gateway configuration (listeners, tests).
 func (g *Gateway) Config() GatewayConfig {
 	return g.cfg
+}
+
+// SetTelemetry wires AD-14 ingress span recording.
+func (g *Gateway) SetTelemetry(svc *telemetry.Service) {
+	g.telemetry = svc
 }
 
 func (g *Gateway) Handler() http.Handler {
@@ -185,7 +192,9 @@ func (g *Gateway) handleIngress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	g.proxyIngress(w, r, route, binding, projectID, versionID, nil)
+	g.withIngressTrace(w, r, binding, projectID, versionID, func(rw http.ResponseWriter, req *http.Request) {
+		g.proxyIngress(rw, req, route, binding, projectID, versionID, nil)
+	})
 }
 
 func (g *Gateway) versionInactiveBody(ctx context.Context, projectID, versionID string) string {
@@ -295,6 +304,9 @@ func (g *Gateway) proxyIngress(w http.ResponseWriter, r *http.Request, route *re
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 		applyUpstreamHeaders(req, binding, clientAuth, publicProto)
+		if tp := r.Header.Get("traceparent"); tp != "" {
+			req.Header.Set("traceparent", tp)
+		}
 	}
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		metrics.RecordGatewayUpstream(resp.StatusCode)

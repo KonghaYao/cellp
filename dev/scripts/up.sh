@@ -5,18 +5,31 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 FAST=0
+OTEL_PROFILE=0
 usage() {
   cat <<'EOF'
-Usage: ./dev/scripts/up.sh [--fast]
+Usage: ./dev/scripts/up.sh [--fast] [--profile otel]
 
-  --fast  Only build/start cellpd when needed. Reuse running dependencies and
-          skip Docker, shared celld bootstrap, and offshoot initialization.
+  --fast          Only build/start cellpd when needed. Reuse running dependencies and
+                  skip Docker, shared celld bootstrap, and offshoot initialization.
+  --profile otel  Start optional AD-14 stack (Collector + Tempo + Loki + Grafana).
+                  Sets CELLP_OTEL_BACKEND=lgtm and OTLP collector on :4318 when unset.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fast) FAST=1 ;;
+    --profile)
+      shift
+      if [[ "${1:-}" == "otel" ]]; then
+        OTEL_PROFILE=1
+      else
+        echo "unknown profile: ${1:-}" >&2
+        usage >&2
+        exit 2
+      fi
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -62,7 +75,22 @@ optional() {
 if [[ "$FAST" -eq 0 ]]; then
   need docker "https://docs.docker.com/get-docker/"
   echo "==> docker compose up (rustfs + s3-init)"
-  docker compose -f dev/docker-compose.yml --env-file dev/.env up -d rustfs s3-init
+  COMPOSE_FILES=(-f dev/docker-compose.yml)
+  COMPOSE_SERVICES=(rustfs s3-init)
+  if [[ "$OTEL_PROFILE" -eq 1 ]]; then
+    COMPOSE_FILES+=(-f dev/docker-compose.otel.yml)
+    COMPOSE_SERVICES+=(otel-collector tempo loki grafana)
+    export CELLP_OTEL_BACKEND="${CELLP_OTEL_BACKEND:-lgtm}"
+    export CELLP_OTEL_COLLECTOR="${CELLP_OTEL_COLLECTOR:-http://127.0.0.1:4318}"
+    export CELLP_OTEL_TEMPO_QUERY="${CELLP_OTEL_TEMPO_QUERY:-http://127.0.0.1:3200}"
+    export CELLP_OTEL_GRAFANA="${CELLP_OTEL_GRAFANA:-http://127.0.0.1:3000}"
+    echo "==> otel profile: backend=${CELLP_OTEL_BACKEND} collector=${CELLP_OTEL_COLLECTOR}"
+  fi
+  if [[ "$OTEL_PROFILE" -eq 1 ]]; then
+    docker compose "${COMPOSE_FILES[@]}" --env-file dev/.env --profile otel up -d "${COMPOSE_SERVICES[@]}"
+  else
+    docker compose "${COMPOSE_FILES[@]}" --env-file dev/.env up -d "${COMPOSE_SERVICES[@]}"
+  fi
 
   echo "==> wait for RustFS"
   for _ in $(seq 1 30); do
@@ -220,5 +248,8 @@ elif [[ "$PLATFORM_MODE" == "mock" ]]; then
   echo "  Platform: mock (CELLP_USE_MOCK=1 · API ${PLATFORM_URL}/v1/health · Gateway ${GATEWAY_URL})"
 else
   echo "  Platform: (not started — build cellpd or CELLP_USE_MOCK=1 ./dev/scripts/up.sh)"
+fi
+if [[ "$OTEL_PROFILE" -eq 1 ]]; then
+  echo "  OTEL:     Grafana ${CELLP_OTEL_GRAFANA:-http://127.0.0.1:3000} · Tempo ${CELLP_OTEL_TEMPO_QUERY:-http://127.0.0.1:3200}"
 fi
 echo "  Next:     ./dev/scripts/health.sh && ./dev/scripts/seed-demo.sh"

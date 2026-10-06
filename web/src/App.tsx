@@ -13,6 +13,7 @@ import { QueuesPage } from "@/pages/QueuesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { StoragePage } from "@/pages/StoragePage";
 import { VersionPage } from "@/pages/VersionPage";
+import { TelemetryPage } from "@/pages/TelemetryPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { bindingsHref, storageBrowserHref } from "@/lib/routes";
 import { StorageVersionLayout } from "@/components/layout/storage-version-layout";
@@ -112,6 +113,7 @@ export default function App() {
               <Route path="kv" element={<KvPage />} />
               <Route path="queues" element={<QueuesPage />} />
               <Route path="workflows" element={<WorkflowsPage />} />
+              <Route path="telemetry" element={<TelemetryPage />} />
             </Route>
             <Route path="settings" element={<SettingsPage />} />
             <Route path="versions/:vid" element={<VersionPage />} />

@@ -1052,6 +1052,95 @@ export async function fetchMetricsGauges(): Promise<Record<string, number>> {
   return parsePrometheusGauges(text);
 }
 
+export interface TelemetryContext {
+  enabled: boolean;
+  backend: string;
+  flush_hint?: string;
+  shed?: number;
+  deep_link?: string;
+}
+
+export type TelemetrySearchTemplate =
+  | "slow"
+  | "error"
+  | "status"
+  | "body"
+  | "request_id";
+
+export interface TelemetrySearchRequest {
+  template: TelemetrySearchTemplate;
+  start: string;
+  end: string;
+  limit?: number;
+  status?: number;
+  body?: string;
+  request_id?: string;
+  slow_ms?: number;
+}
+
+export interface TelemetrySearchHit {
+  trace_id: string;
+  span_id?: string;
+  name: string;
+  url?: string;
+  "http.method"?: string;
+  http?: { method?: string };
+  "http.status_code"?: number;
+  duration_ms: number;
+  start_time: string;
+  summary?: string;
+}
+
+export interface TelemetryTraceNode {
+  trace_id: string;
+  span_id: string;
+  parent_span_id?: string;
+  name: string;
+  service_name?: string;
+  "http.method"?: string;
+  url?: string;
+  "http.status_code"?: number;
+  duration_ms: number;
+  start_time: string;
+  children?: TelemetryTraceNode[];
+}
+
+export interface TelemetryTraceResponse {
+  trace_id: string;
+  tree: TelemetryTraceNode;
+  logs: { trace_id?: string; span_id?: string; time: string; body: string }[];
+}
+
+export async function getTelemetryContext(
+  projectId: string,
+  versionId: string,
+): Promise<TelemetryContext> {
+  return request<TelemetryContext>(
+    `/v1/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/telemetry/context`,
+  );
+}
+
+export async function searchTelemetry(
+  projectId: string,
+  versionId: string,
+  body: TelemetrySearchRequest,
+): Promise<TelemetrySearchHit[]> {
+  return request<TelemetrySearchHit[]>(
+    `/v1/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/telemetry/search`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export async function getTelemetryTrace(
+  projectId: string,
+  versionId: string,
+  traceId: string,
+): Promise<TelemetryTraceResponse> {
+  return request<TelemetryTraceResponse>(
+    `/v1/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/telemetry/traces/${encodeURIComponent(traceId)}`,
+  );
+}
+
 export async function getGatewayHealthDeep(): Promise<DeepHealth> {
   const base = gatewayBase();
   const res = await fetch(`${base}/health/deep`, { cache: "no-store" });

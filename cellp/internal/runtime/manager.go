@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/cellp/cellp/internal/health"
+	"github.com/cellp/cellp/internal/config"
 	"github.com/cellp/cellp/internal/registry"
 )
 
@@ -421,6 +422,9 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 		fmt.Sprintf("CELLD_WATCH=%s", watch),
 		fmt.Sprintf("CELLD_READY_FLEET_GATE_MS=%s", gateMs),
 		"CELLD_TRUST_FORWARDED_HEADERS=1",
+	}
+	if otelEnv := config.LoadOtelConfig().CelldOtelEnv(project, version, "preview"); len(otelEnv) > 0 {
+		envExtra = append(envExtra, otelEnv...)
 	}
 	if m.envLoader != nil {
 		workerEnv, err := m.envLoader(ctx, project, version)

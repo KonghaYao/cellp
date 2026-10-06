@@ -76,10 +76,12 @@ func (g *Gateway) proxySnapshotUpstream(w http.ResponseWriter, r *http.Request, 
 		g.writeActivationResponse(w, activator.AdmitResult{Reason: activator.ReasonControlUnavailable})
 		return true
 	}
-	g.proxyIngress(w, r, &registry.Route{
-		ProjectID: projectID, VersionID: versionID, Active: true,
-		UpstreamHost: host, UpstreamPort: port,
-	}, binding, projectID, versionID, g.elasticDialColdMiss(projectID, versionID))
+	g.withIngressTrace(w, r, binding, projectID, versionID, func(rw http.ResponseWriter, req *http.Request) {
+		g.proxyIngress(rw, req, &registry.Route{
+			ProjectID: projectID, VersionID: versionID, Active: true,
+			UpstreamHost: host, UpstreamPort: port,
+		}, binding, projectID, versionID, g.elasticDialColdMiss(projectID, versionID))
+	})
 	return true
 }
 

@@ -6,6 +6,7 @@ import {
   storageBrowserHref,
   storageKvHref,
   storageQueuesHref,
+  storageTelemetryHref,
   storageWorkflowsHref,
   versionHrefForStoragePathname,
 } from "@/lib/routes";
@@ -26,6 +27,7 @@ export function StorageVersionLayout() {
       { label: "KV", to: storageKvHref(id, vid), end: true },
       { label: "Queues", to: storageQueuesHref(id, vid), end: true },
       { label: "Workflows", to: storageWorkflowsHref(id, vid), end: true },
+      { label: "Telemetry", to: storageTelemetryHref(id, vid), end: true },
     ],
     [id, vid],
   );

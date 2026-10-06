@@ -17,6 +17,7 @@ import (
 	"github.com/cellp/cellp/internal/orch"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
+	"github.com/cellp/cellp/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -27,14 +28,15 @@ type Server struct {
 	orch    *orch.Orchestrator
 	runtime *runtime.Manager
 	cfg          config.Config
+	telemetry    *telemetry.Service
 	router       chi.Router
 	lastTouchMu  sync.Mutex
 	lastTouchAt  map[string]time.Time
 }
 
 // NewServer creates an API server.
-func NewServer(store registry.Store, queue job.Queue, o *orch.Orchestrator, rm *runtime.Manager, cfg config.Config) *Server {
-	s := &Server{store: store, queue: queue, orch: o, runtime: rm, cfg: cfg, lastTouchAt: make(map[string]time.Time)}
+func NewServer(store registry.Store, queue job.Queue, o *orch.Orchestrator, rm *runtime.Manager, cfg config.Config, tel *telemetry.Service) *Server {
+	s := &Server{store: store, queue: queue, orch: o, runtime: rm, cfg: cfg, telemetry: tel, lastTouchAt: make(map[string]time.Time)}
 	s.router = chi.NewRouter()
 	s.routes()
 	return s
@@ -120,6 +122,8 @@ func (s *Server) routes() {
 							r.Post("/purge", s.requireAdmin(s.handlePurgeQueue))
 						})
 					})
+
+					s.registerTelemetryRoutes(r)
 				})
 			})
 		})

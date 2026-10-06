@@ -35,11 +35,16 @@ export function storageWorkflowsHref(projectId: string, versionId: string): stri
   return `${projectBase(projectId)}/storage/${seg(versionId)}/workflows`;
 }
 
-export type StorageSurface = "browser" | "kv" | "queues" | "workflows";
+export function storageTelemetryHref(projectId: string, versionId: string): string {
+  return `${projectBase(projectId)}/storage/${seg(versionId)}/telemetry`;
+}
+
+export type StorageSurface = "browser" | "kv" | "queues" | "workflows" | "telemetry";
 
 /** Which storage sub-page the pathname refers to (for version switcher). */
 export function storageSurfaceFromPathname(pathname: string): StorageSurface {
   if (/\/storage\/[^/]+\/workflows(?:\/|$)/.test(pathname)) return "workflows";
+  if (/\/storage\/[^/]+\/telemetry(?:\/|$)/.test(pathname)) return "telemetry";
   if (/\/storage\/[^/]+\/queues(?:\/|$)/.test(pathname)) return "queues";
   if (/\/storage\/[^/]+\/kv(?:\/|$)/.test(pathname)) return "kv";
   return "browser";
@@ -57,6 +62,8 @@ export function storageHrefForSurface(
       return storageQueuesHref(projectId, versionId);
     case "workflows":
       return storageWorkflowsHref(projectId, versionId);
+    case "telemetry":
+      return storageTelemetryHref(projectId, versionId);
     default:
       return storageBrowserHref(projectId, versionId);
   }

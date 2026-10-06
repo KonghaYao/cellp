@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"net/http/httptest"
 	"testing"
 
@@ -17,10 +18,14 @@ import (
 	"github.com/cellp/cellp/internal/orch"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
+	"github.com/cellp/cellp/internal/telemetry"
 )
 
 func testAPI(t *testing.T, deployToken, adminToken string) (*api.Server, *registry.SQLiteStore, string) {
 	t.Helper()
+	if os.Getenv("CELLP_OTEL_BACKEND") == "" {
+		t.Setenv("CELLP_OTEL_BACKEND", "none")
+	}
 	store, err := registry.Open(t.TempDir() + "/api.sqlite")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +44,8 @@ func testAPI(t *testing.T, deployToken, adminToken string) (*api.Server, *regist
 	rm := runtime.New(8792, "http://127.0.0.1:9000", "us-east-1", "s3://cellp-celld/demo", "k", "s")
 	as := &artifact.Store{Bucket: "cellp-artifacts", LocalDir: cfg.ArtifactsDir}
 	o := orch.New(store, q, bm, rm, as, cfg)
-	return api.NewServer(store, q, o, rm, cfg), store, artifactsDir
+	tel := telemetry.NewFromConfig(config.LoadOtelConfig())
+	return api.NewServer(store, q, o, rm, cfg, tel), store, artifactsDir
 }
 
 func TestHealth(t *testing.T) {

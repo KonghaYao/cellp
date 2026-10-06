@@ -25,6 +25,7 @@ import (
 	"github.com/cellp/cellp/internal/orch"
 	"github.com/cellp/cellp/internal/registry"
 	"github.com/cellp/cellp/internal/runtime"
+	"github.com/cellp/cellp/internal/telemetry"
 )
 
 func controllerGuardID() string {
@@ -87,7 +88,10 @@ func Run(ctx context.Context) (retErr error) {
 		return err
 	}
 
+	otelCfg := config.LoadOtelConfig()
+	telSvc := telemetry.NewFromConfig(otelCfg)
 	gw := gateway.New(baseStore)
+	gw.SetTelemetry(telSvc)
 	activatorCfg, err := activator.ConfigFromEnv()
 	if err != nil {
 		return err
@@ -127,7 +131,7 @@ func Run(ctx context.Context) (retErr error) {
 	o.SetRouteSnapshotAck(gw.RouteSnapshotHolder())
 	var schedCtrl *scheduler.Controller
 
-	apiSrv := api.NewServer(store, queue, o, rm, cfg)
+	apiSrv := api.NewServer(store, queue, o, rm, cfg, telSvc)
 	apiServer := &http.Server{Addr: cfg.APIAddr(), Handler: apiSrv.Handler()}
 	gwServer := &http.Server{Addr: cfg.GatewayAddr(), Handler: gw.Handler()}
 	var gwTLSServer *http.Server

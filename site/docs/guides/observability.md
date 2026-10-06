@@ -1,6 +1,6 @@
 # Observability
 
-**Today:** Prometheus metrics on cellpd, structured logs on stdout, and per-version celld process output. **Planned (not shipped):** OTLP trace/log export and a version-scoped query API behind the same admin token — backends would be pluggable (memory, Jaeger, or your own LGTM stack).
+**Today:** Prometheus metrics on cellpd, structured logs on stdout, per-version celld process output, and **AD-14 telemetry** (OTLP export + version-scoped query facade). Backends are pluggable: `memory` (default for tests), `lgtm` (local stack), or `jaeger`.
 
 cellp will **not** ship a SaaS analytics product or an in-tree log search engine.
 
@@ -32,7 +32,39 @@ curl -s http://127.0.0.1:8790/metrics | head
 
 Archive reaper lines contain `orch: archive reaper`.
 
-There is no `wrangler tail` equivalent. Use process logs and metrics until OTLP live tail ships.
+Live tail uses the query facade `GET .../telemetry/logs/stream` (SSE) or process logs. There is no `wrangler tail` protocol.
+
+## Telemetry query facade (AD-14)
+
+Admin token only (`CELLP_ADMIN_TOKEN`). All paths under:
+
+`/v1/projects/{project}/versions/{version}/telemetry/`
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `context` | Backend, enabled, optional Grafana deep link |
+| GET | `traces/{trace_id}` | Trace tree + correlated logs |
+| POST | `search` | Template search (`slow`, `error`, `status`, `body`, `request_id`) |
+| GET | `logs/stream` | Live celld stdout (SSE) |
+
+```bash
+export TOKEN=dev-local-token
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8790/v1/projects/demo-app/versions/v1/telemetry/context | jq
+
+curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"template":"slow","start":"2026-01-01T00:00:00Z","end":"2026-12-31T23:59:59Z","limit":20,"slow_ms":500}' \
+  http://127.0.0.1:8790/v1/projects/demo-app/versions/v1/telemetry/search | jq
+```
+
+Dashboard: project → Storage → version → **Telemetry** tab.
+
+### Local LGTM stack
+
+```bash
+./dev/scripts/up.sh --profile otel
+# Sets CELLP_OTEL_BACKEND=lgtm, collector :4318, Grafana :3000
+```
 
 ## Health
 
@@ -45,16 +77,16 @@ Deep health is the right probe for “can I deploy?” — registry, object stor
 
 `GET /v1/runtime/routes` (admin) summarizes upstreams.
 
-## Planned observability (OTLP, not shipped)
+## Backend selection
 
-| Layer | Contract (design) |
-|-------|-------------------|
-| Emit | OTLP traces + logs; `cellp.project` / `cellp.version`; Gateway `traceparent` |
-| Query | cellpd facade (`context`, `traces/{id}`, template `search`) — `ADMIN_TOKEN` only |
-| Live | Process stream (SSE), not OTEL |
-| Backend | Operator-chosen collector (Jaeger, Grafana stack, etc.) |
+| `CELLP_OTEL_BACKEND` | Use |
+|----------------------|-----|
+| `none` | Default — no OTLP ingest |
+| `memory` | In-process ring buffer — tests and local dev |
+| `lgtm` | Collector + Tempo + Loki + Grafana (`up.sh --profile otel`) |
+| `jaeger` | Jaeger all-in-one OTLP |
 
-Bring your own Grafana for boards. The Dashboard talks only to `:8790`.
+Bring your own Grafana for advanced boards via `context.deep_link`. The Dashboard talks only to `:8790`.
 
 ## Promote windows
 
