@@ -139,14 +139,14 @@ jobs:
           mkdir -p dist
           chmod +x dist/cellp dist/cellpd dist/celld dist/offshoot dist/esbuild
           tar -C dist -czf "cellp_${VER}_${OS}_${ARCH}.tar.gz" cellp cellpd celld offshoot esbuild
-          (cd dist && sha256sum "cellp_${VER}_${OS}_${ARCH}.tar.gz" > "cellp_${VER}_${OS}_${ARCH}.tar.gz.sha256")
+          sha256sum "cellp_${VER}_${OS}_${ARCH}.tar.gz" > "cellp_${VER}_${OS}_${ARCH}.tar.gz.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: cellp-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
             cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
-            dist/cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
+            cellp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
 
   publish:
     needs: binaries
