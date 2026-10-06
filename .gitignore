@@ -60,6 +60,10 @@ cellp/cellp.exe
 dev/bin/
 *.exe
 
+# --- docker CI prebuilt celld (native runner injects per-arch binary) ---
+docker/prebuilt/**
+!docker/prebuilt/.gitkeep
+
 # --- SQLite registry (runtime) ---
 *.sqlite
 *.sqlite-wal
