@@ -14,6 +14,7 @@ import (
 	"github.com/cellp/cellp/internal/artifact"
 	"github.com/cellp/cellp/internal/branch"
 	"github.com/cellp/cellp/internal/config"
+	"github.com/cellp/cellp/internal/dashboard"
 	"github.com/cellp/cellp/internal/elastic/autoscaler"
 	"github.com/cellp/cellp/internal/elastic/scheduler"
 	"github.com/cellp/cellp/internal/gateway"
@@ -134,6 +135,8 @@ func Run(ctx context.Context) (retErr error) {
 	var remoteRuntime *remoteControlRuntime
 	apiDone := make(chan struct{})
 	gwDone := make(chan struct{})
+	var dashboardServer *http.Server
+	var dashboardDone chan struct{}
 	var gwTLSDone chan struct{}
 	orchDone := make(chan struct{})
 	var autoscalerDone, schedulerDone, metricsDone, gcDone, archiveDone <-chan struct{}
@@ -159,6 +162,12 @@ func Run(ctx context.Context) (retErr error) {
 		if err := shutdownHTTPServer(shutdownCtx, gwServer, gwDone); err != nil {
 			errs = append(errs, fmt.Errorf("gateway shutdown: %w", err))
 			markQuiescence(err, &quiesced)
+		}
+		if dashboardServer != nil {
+			if err := shutdownHTTPServer(shutdownCtx, dashboardServer, dashboardDone); err != nil {
+				errs = append(errs, fmt.Errorf("dashboard shutdown: %w", err))
+				markQuiescence(err, &quiesced)
+			}
 		}
 		if gwTLSServer != nil {
 			if err := shutdownHTTPServer(shutdownCtx, gwTLSServer, gwTLSDone); err != nil {
@@ -306,6 +315,29 @@ func Run(ctx context.Context) (retErr error) {
 			errCh <- err
 		}
 	}()
+	if cfg.DashboardAddr() != "" {
+		if _, err := os.Stat(cfg.DashboardStaticDir); err == nil {
+			dashHandler, err := dashboard.NewHandler(dashboard.Config{
+				StaticDir:   cfg.DashboardStaticDir,
+				APIPort:     cfg.APIPort,
+				GatewayPort: cfg.GatewayPort,
+			})
+			if err != nil {
+				return fmt.Errorf("dashboard: %w", err)
+			}
+			dashboardServer = &http.Server{Addr: cfg.DashboardAddr(), Handler: dashHandler}
+			dashboardDone = make(chan struct{})
+			go func() {
+				defer close(dashboardDone)
+				log.Printf("cellpd Dashboard listening on http://0.0.0.0:%d", cfg.DashboardPort)
+				if err := dashboardServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					errCh <- err
+				}
+			}()
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("dashboard static dir: %w", err)
+		}
+	}
 	if tlsAddr := cfg.GatewayTLSAddr(); tlsAddr != "" && cfg.GatewayTLSCert != "" && cfg.GatewayTLSKey != "" {
 		if _, err := os.Stat(cfg.GatewayTLSCert); err != nil {
 			log.Printf("gateway TLS disabled: cert not found (%s)", cfg.GatewayTLSCert)

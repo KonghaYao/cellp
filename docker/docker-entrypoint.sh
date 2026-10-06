@@ -9,7 +9,4 @@ if [ ! -f "${CERT_DIR}/agent-server.pem" ]; then
   genelasticdevcerts --dir "${CERT_DIR}"
 fi
 
-echo "==> starting Dashboard (nginx :5190)"
-nginx
-
 exec cellpd "$@"

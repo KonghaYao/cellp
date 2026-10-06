@@ -97,7 +97,7 @@ export function OperatorChecklist({
       </summary>
       <div className="space-y-3 border-t border-border px-4 py-4 text-sm">
         <p className="text-muted-foreground">
-          Platform operator closed loop (Bearer admin token; no login UI).{" "}
+          Platform operator closed loop (Bearer admin token via Dashboard sign-in).{" "}
           <a
             href={OPERATOR_JOURNEY_DOC_HREF}
             target="_blank"

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Boxes, ChevronRight, Menu, X } from "lucide-react";
+import { Boxes, ChevronRight, LogOut, Menu, X } from "lucide-react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ApiHealthBanner } from "@/components/api-health-banner";
+import { clearStoredAdminToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
@@ -120,8 +121,20 @@ function SidebarChrome({
         <AppSidebar projectId={inProject ? projectId : undefined} />
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="space-y-2 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">Control plane</p>
+        <button
+          type="button"
+          data-testid="logout-button"
+          className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={() => {
+            clearStoredAdminToken();
+            window.location.href = "/";
+          }}
+        >
+          <LogOut className="size-3.5" />
+          Sign out
+        </button>
       </div>
     </>
   );

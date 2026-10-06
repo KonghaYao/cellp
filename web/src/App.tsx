@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
+import { AuthGate } from "@/components/auth-gate";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectLayout } from "@/components/layout/project-layout";
 import { DatabasePage } from "@/pages/DatabasePage";
@@ -36,7 +37,8 @@ function BindingsRedirect() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <AuthGate>
+      <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<ProjectsPage />} />
@@ -121,5 +123,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </AuthGate>
   );
 }

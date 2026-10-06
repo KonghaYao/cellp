@@ -2,10 +2,10 @@
 # Per-version celld processes are spawned by cellpd at runtime — not separate compose services.
 #
 # Quick start: docker compose up -d
-# Dashboard:  http://127.0.0.1:5190  (nginx serves web/dist; /v1 and /__gateway proxied to cellpd)
+# Dashboard:  http://127.0.0.1:5190  (cellpd serves web/dist; /v1 and /__gateway proxied on same origin)
 # Platform API: http://127.0.0.1:8790/v1/health
 # Gateway:      http://127.0.0.1:8787/health
-# Default auth token (API + Dashboard build): dev-local-token — set CELLP_ADMIN_TOKEN in .env for production.
+# Default API auth token: dev-local-token — set CELLP_ADMIN_TOKEN in .env for production; Dashboard login stores token in browser localStorage.
 # See docker/README.md for env vars and GHCR image reference.
 
 services:
@@ -72,6 +72,8 @@ services:
       CELLD_PORT: "${CELLD_PORT:-8792}"
       GATEWAY_URL: ${GATEWAY_URL:-http://127.0.0.1:8787}
       PLATFORM_URL: ${PLATFORM_URL:-http://127.0.0.1:8790}
+      DASHBOARD_PORT: "${DASHBOARD_PORT:-5190}"
+      CELLP_DASHBOARD_STATIC: /usr/share/cellp-dashboard
 
       CELLP_REGISTRY_DB: /data/registry/cellp-registry.sqlite
       CELLP_DEPLOY_TOKEN: ${CELLP_DEPLOY_TOKEN:-dev-local-token}

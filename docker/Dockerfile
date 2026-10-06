@@ -13,10 +13,10 @@ ARG ESBUILD_VERSION=0.28.2
 ARG PNPM_VERSION=10.12.1
 ARG NODE_VERSION=22
 
-# Dashboard build-time env (same-origin proxy in nginx when empty).
+# Dashboard build-time env (same-origin proxy via cellpd when empty; no baked admin token).
 ARG VITE_CELLP_API_URL=
 ARG VITE_CELLP_GATEWAY_URL=
-ARG VITE_CELLP_ADMIN_TOKEN=dev-local-token
+ARG VITE_CELLP_ADMIN_TOKEN=
 ARG VITE_CELLP_DEPLOY_TOKEN=
 ARG VITE_CELLP_INGRESS_BASE_DOMAIN=ingress.local
 
@@ -99,8 +99,8 @@ RUN apt-get update && \
 # --- runtime ---
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl nginx sqlite3 && \
-    rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/default
+    apt-get install -y --no-install-recommends ca-certificates curl sqlite3 && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=build-celld /out/celld /usr/local/bin/celld
 COPY --from=build-cellpd /out/cellpd /usr/local/bin/cellpd
@@ -109,7 +109,6 @@ COPY --from=build-cellpd /out/genelasticdevcerts /usr/local/bin/genelasticdevcer
 COPY --from=build-offshoot /out/offshoot /usr/local/bin/offshoot
 COPY --from=build-esbuild /out/esbuild /usr/local/bin/esbuild
 COPY --from=build-dashboard /src/web/dist /usr/share/cellp-dashboard
-COPY docker/nginx-dashboard.conf /etc/nginx/conf.d/cellp-dashboard.conf
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 WORKDIR /data

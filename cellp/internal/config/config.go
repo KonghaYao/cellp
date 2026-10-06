@@ -16,6 +16,8 @@ type Config struct {
 	AdminToken    string
 	APIPort       int
 	GatewayPort    int
+	DashboardPort  int
+	DashboardStaticDir string
 	GatewayTLSPort int
 	GatewayTLSCert string
 	GatewayTLSKey  string
@@ -53,6 +55,14 @@ func (c Config) GatewayAddr() string {
 	return fmt.Sprintf(":%d", c.GatewayPort)
 }
 
+// DashboardAddr returns the Dashboard listen address (empty when disabled).
+func (c Config) DashboardAddr() string {
+	if c.DashboardPort <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(":%d", c.DashboardPort)
+}
+
 // GatewayVerifyBaseURL is used for post-deploy route probes (may be HTTP :8787 while public GATEWAY_URL is HTTPS).
 func (c Config) GatewayVerifyBaseURL() string {
 	if v := strings.TrimSpace(os.Getenv("CELLP_GATEWAY_VERIFY_URL")); v != "" {
@@ -83,6 +93,8 @@ func Load() Config {
 		AdminToken:      envOr("CELLP_ADMIN_TOKEN", envOr("PLATFORM_TOKEN", "dev-local-token")),
 		APIPort:         envInt("PLATFORM_PORT", 8790),
 		GatewayPort:    envInt("GATEWAY_PORT", 8787),
+		DashboardPort:  envInt("DASHBOARD_PORT", 5190),
+		DashboardStaticDir: envOr("CELLP_DASHBOARD_STATIC", "/usr/share/cellp-dashboard"),
 		GatewayTLSPort: envInt("GATEWAY_TLS_PORT", 0),
 		GatewayTLSCert: envOr("GATEWAY_TLS_CERT", ""),
 		GatewayTLSKey:  envOr("GATEWAY_TLS_KEY", ""),

@@ -3,6 +3,7 @@
  * Generated from DESIGN.md §9 + mock-platform contract.
  */
 
+import { resolveAdminToken } from "@/lib/auth";
 import { gatewayBase } from "@/lib/format";
 
 const DEFAULT_API_URL = "http://127.0.0.1:8790";
@@ -362,7 +363,16 @@ function apiBase(): string {
 }
 
 function adminToken(): string {
-  return import.meta.env.VITE_CELLP_ADMIN_TOKEN ?? "";
+  return resolveAdminToken();
+}
+
+/** Validate an admin token before persisting it (login form). */
+export async function validateAdminToken(token: string): Promise<void> {
+  await request<{ projects: unknown[] }>(
+    "/v1/projects?limit=1",
+    {},
+    token.trim(),
+  );
 }
 
 function deployToken(): string {
