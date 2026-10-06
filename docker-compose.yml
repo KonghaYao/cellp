@@ -1,7 +1,11 @@
-# cellp single-machine stack (RustFS + cellpd control plane).
+# cellp single-machine stack (RustFS + cellpd control plane + Dashboard SPA).
 # Per-version celld processes are spawned by cellpd at runtime — not separate compose services.
 #
 # Quick start: docker compose up -d
+# Dashboard:  http://127.0.0.1:5190  (nginx serves web/dist; /v1 and /__gateway proxied to cellpd)
+# Platform API: http://127.0.0.1:8790/v1/health
+# Gateway:      http://127.0.0.1:8787/health
+# Default auth token (API + Dashboard build): dev-local-token — set CELLP_ADMIN_TOKEN in .env for production.
 # See docker/README.md for env vars and GHCR image reference.
 
 services:
@@ -61,6 +65,7 @@ services:
     ports:
       - "${GATEWAY_PORT:-8787}:8787"
       - "${PLATFORM_PORT:-8790}:8790"
+      - "${DASHBOARD_PORT:-5190}:5190"
     environment:
       GATEWAY_PORT: "8787"
       PLATFORM_PORT: "8790"
