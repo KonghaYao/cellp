@@ -11,6 +11,7 @@ Per-version **celld** runtimes are spawned by cellpd at deploy time — they are
 # Build locally (requires celld submodule)
 git submodule update --init celld
 
+cp .env.example .env   # optional; compose defaults work without it
 docker compose up -d --build
 curl -sf http://127.0.0.1:8790/v1/health
 curl -sf http://127.0.0.1:8787/health
@@ -36,7 +37,9 @@ docker compose up -d
 
 ## Required environment variables
 
-Match names from `dev/.env.example`. Compose sets sensible defaults for container networking.
+Use repo-root **`.env.example`** for Docker (`cp .env.example .env`). Compose sets sensible defaults for container networking and the **embedded Node Agent** (AD-15).
+
+On first start, `docker-entrypoint.sh` generates dev mTLS material under `/data/certs/elastic` (volume `cellp-elastic-certs`) when PEM files are absent. Override paths via `CELLP_AGENT_*_CERT_FILE` / `CELLP_AGENT_*_KEY_FILE` env vars and mount your own certs at the same paths.
 
 | Variable | Default (compose) | Purpose |
 |----------|-------------------|---------|
@@ -55,8 +58,14 @@ Match names from `dev/.env.example`. Compose sets sensible defaults for containe
 | `CELLD_BUCKET` | `s3://cellp-celld/demo-app` | Base celld bucket prefix |
 | `CELLD_PORT` | `8792` | Base port; per-version celld uses `8792+N` |
 | `GATEWAY_PORT` / `PLATFORM_PORT` | `8787` / `8790` | Published ports |
+| `CELLP_AGENT_EMBEDDED` | `1` | Embedded Node Agent in cellpd |
+| `CELLP_AGENT_CAPACITY_UNITS` | `8` | Node capacity units |
+| `CELLP_AGENT_MAX_BODY_BYTES` | `1048576` | Agent HTTP body limit |
+| `CELLP_AGENT_*_CERT_FILE` | `/data/certs/elastic/...` | mTLS PEM paths (auto-generated on first boot) |
 
-**Production:** set strong `CELLP_DEPLOY_TOKEN` and `CELLP_ADMIN_TOKEN`.  
+See `.env.example` for the full embedded-agent block (`CELLP_AGENT_NODE_ID`, heartbeat intervals, SPIFFE URIs, etc.).
+
+**Production:** set strong `CELLP_DEPLOY_TOKEN` and `CELLP_ADMIN_TOKEN`. Replace auto-generated agent certs with your own PKI if exposing the agent port beyond localhost.  
 **Debug:** `CELLP_CELLD_WATCH_PERSIST=1` persists per-version `CELLD_WATCH` dirs (default is ephemeral `$TMPDIR`).
 
 ## Volumes
@@ -67,6 +76,7 @@ Match names from `dev/.env.example`. Compose sets sensible defaults for containe
 | `cellp-registry` | `/data/registry` | SQLite registry |
 | `cellp-artifacts` | `/data/artifacts` | Artifact staging |
 | `cellp-offshoot-checkouts` | `/data/offshoot-checkouts` | offshoot checkout cache |
+| `cellp-elastic-certs` | `/data/certs/elastic` | Embedded Node Agent mTLS (auto-init) |
 
 ## Build image only
 

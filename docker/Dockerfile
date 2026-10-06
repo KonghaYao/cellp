@@ -45,7 +45,8 @@ COPY cellp/ ./
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cellpd ./cmd/cellpd && \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cellp ./cmd/cellp
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cellp ./cmd/cellp && \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/genelasticdevcerts ./cmd/genelasticdevcerts
 
 # --- esbuild (celld deploy bundling; prebuilt npm tarball, no node install) ---
 FROM debian:bookworm-slim AS build-esbuild
@@ -73,8 +74,10 @@ RUN apt-get update && \
 COPY --from=build-celld /out/celld /usr/local/bin/celld
 COPY --from=build-cellpd /out/cellpd /usr/local/bin/cellpd
 COPY --from=build-cellpd /out/cellp /usr/local/bin/cellp
+COPY --from=build-cellpd /out/genelasticdevcerts /usr/local/bin/genelasticdevcerts
 COPY --from=build-offshoot /out/offshoot /usr/local/bin/offshoot
 COPY --from=build-esbuild /out/esbuild /usr/local/bin/esbuild
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 WORKDIR /data
 EXPOSE 8787 8790
@@ -82,4 +85,6 @@ EXPOSE 8787 8790
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
     CMD curl -fsS http://127.0.0.1:8790/v1/health && curl -fsS http://127.0.0.1:8787/health
 
-ENTRYPOINT ["cellpd"]
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
