@@ -49,6 +49,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: false
+          platforms: linux/amd64
           load: true
           tags: cellp:ci-${{ github.sha }}
           cache-from: type=gha
