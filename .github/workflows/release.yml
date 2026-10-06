@@ -106,7 +106,7 @@ jobs:
           GOPATH="$(go env GOPATH)"
           HOSTOS="$(go env GOHOSTOS)"
           HOSTARCH="$(go env GOHOSTARCH)"
-          go install github.com/sricola/offshoot/cmd/offshoot@latest
+          go install github.com/sricola/offshoot/cmd/offshoot@v0.2.0
           mkdir -p dist
           if [ "$GOOS" = "$HOSTOS" ] && [ "$GOARCH" = "$HOSTARCH" ]; then
             cp "${GOPATH}/bin/offshoot${EXT}" "dist/offshoot${EXT}"

@@ -22,7 +22,7 @@ RUN --mount=type=cache,id=cellp-celld-cargo-registry,target=/usr/local/cargo/reg
 # --- offshoot CLI ---
 FROM golang:${GO_VERSION}-bookworm AS build-offshoot
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
-    CGO_ENABLED=0 GOBIN=/out go install github.com/sricola/offshoot/cmd/offshoot@latest
+    CGO_ENABLED=0 GOBIN=/out go install github.com/sricola/offshoot/cmd/offshoot@v0.2.0
 
 # --- cellpd ---
 FROM golang:${GO_VERSION}-bookworm AS build-cellpd
