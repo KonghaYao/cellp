@@ -309,7 +309,7 @@
 
 ---
 
-## I. Bindings（Phase 7 · celld 0.4.0）
+## I. Bindings（Phase 7 · celld 0.5.1）
 
 > KV / Queue / Workflow / Cron 经 **cellpd `:8790`**。 **E2E 全绿：** `docs/evidence/m2-run-all-20260830-190100.log`（`run-all.sh` · 2026-08-30）。Dashboard 全绿不能代替本表。对齐 [VALIDATION.md V9–V11](../VALIDATION.md) · [phase-7-t5-e2e.md](./plans/phase-7-t5-e2e.md)。
 

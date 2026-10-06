@@ -21,7 +21,7 @@
 | **Registry** | SQLite（`cellp-registry.sqlite`，WAL）；**不用 PostgreSQL** |
 | **Gateway** | cellpd **内置** reverse proxy；监听 HTTP，由外部 LB 反代并终止 TLS |
 | **一期范围** | CD + Branch + Version + promote/saga；**首个 ready 可 bootstrap prod**（`prod_version_id` 空时 CAS + prod ingress）；ready 数量**无硬上限**（AD-9，靠封存回收进程） |
-| **Bindings（本期）** | 沿用 celld 0.4.0；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 脚本不 branch；可选 experimental **`native-http-v1`**（AD-16） |
+| **Bindings（本期）** | 沿用 celld 0.5.1（submodule @ `5cb4c1a`）；子 version **D1+KV+R2+Queue branch**（AD-8）；Workflow/Cron/Worker 脚本不 branch；可选 experimental **`native-http-v1`**（AD-16） |
 
 ---
 
@@ -197,9 +197,9 @@ flowchart LR
 
 ---
 
-## 11. AD-6 — Worker 绑定沿用 celld 0.4.0
+## 11. AD-6 — Worker 绑定沿用 celld 0.5.1
 
-**问题：** Worker 绑定（KV · Queue · Workflow · R2 · Cron）需要与 celld 运行时对齐。celld **v0.4.0**（2026-08-28）已原生支持 `kv_namespaces`、`queues`、`workflows`、`r2_buckets`，并提供 `celld kv` / `celld queue` / `celld cell list`。
+**问题：** Worker 绑定（KV · Queue · Workflow · R2 · Cron）需要与 celld 运行时对齐。cellp vendored **celld v0.5.1**（submodule `celld/` @ `5cb4c1a`；合并 `upgrade/celld-v0.5.1` 并保留 cellp extensions）已原生支持 `kv_namespaces`、`queues`、`workflows`、`r2_buckets`，并提供 `celld kv` / `celld queue` / `celld cell list`。
 
 **决策：**
 

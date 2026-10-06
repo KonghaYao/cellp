@@ -145,7 +145,7 @@
 
 ---
 
-## Bindings（本期 · celld 0.4.0）— KV · Queue · Workflow · Cron
+## Bindings（本期 · celld 0.5.1）— KV · Queue · Workflow · Cron
 
 > Worker 绑定 **沿用 celld**（AD-6）。**无 branch 则空起步**（AD-7）。
 
@@ -155,7 +155,7 @@
 
 | 项 | 内容 |
 |----|------|
-| 前置 | celld ≥ 0.4.0；example `celld/examples/kv` 可 deploy |
+| 前置 | celld ≥ 0.5.1；example `celld/examples/kv` 可 deploy |
 | 通过 | `GET /bindings` 含 kv；`kv list/get/put/delete/info` 经 `:8790` 成功；父子 version key 空间隔离 |
 | 失败 | 不得在 Dashboard 开放 KV 写 |
 | 不做 | bulk · inherit（AD-7） |

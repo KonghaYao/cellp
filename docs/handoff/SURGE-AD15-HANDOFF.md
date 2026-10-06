@@ -40,7 +40,7 @@
 - 当时工作树快照：
   - `go test -count=1 ./...`
   - `go vet ./...`
-- 真实 RustFS + 真实 `celld 0.4.0`：
+- 真实 RustFS + 真实 `celld 0.5.1`：
   - `v0a-celld-diagnose`
 - 真实本机 `celld` lifecycle（非多节点）：
   - `e2e/surge/real-celld-lifecycle.sh`

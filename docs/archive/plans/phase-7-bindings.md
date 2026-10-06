@@ -1,4 +1,4 @@
-# Phase 7 — celld 0.4.0 Bindings（KV · Queue · Workflow · Cron）
+# Phase 7 — celld 0.5.1 Bindings（KV · Queue · Workflow · Cron）
 
 > **规格：** [DESIGN.md §8](../../DESIGN.md)（唯一设计）  
 > **决策：** [decisions.md AD-6 · AD-7](../../decisions.md)  
@@ -37,7 +37,7 @@ T4 **不得**在 T1–T3 API 合同未写入 OpenAPI 前开工写死路径。T5 
 - Dashboard 直连 `:8792` / S3 / offshoot
 - 改 `cellp/go.mod`（除非 deps owner）
 - 改冻结契约 `D1-*-RPC.md`
-- 改 `celld/` submodule（bindings 已在 0.4.0）
+- 改 `celld/` submodule（bindings 已在 0.5.1）
 
 ## Exit
 

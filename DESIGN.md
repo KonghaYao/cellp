@@ -54,7 +54,7 @@
 | 阶段 | 范围 | 能力 |
 |------|------|------|
 | **一期** | 核心 Serverless 平台 | **CD 全流程**（外部 CI → artifact → `POST /versions` → preview URL）· **Branch + Version**（App+Data）· **线上稳定**（promote · quiesce · saga · health gate） |
-| **Bindings（本期）** | celld 0.4.0 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld；R2 **清单可见**；D1/KV/R2/Queue **branch**（AD-8） |
+| **Bindings（本期）** | celld 0.5.1 绑定治理 | **KV / Queues / Workflows / Cron** 沿用 celld；R2 **清单可见**；D1/KV/R2/Queue **branch**（AD-8） |
 | **二期** | 弹性（**AD-15**） | 0→1 / 1→N serving fleet · Node Agent · 安全 scale-to-zero；见 [decisions §20](./docs/decisions.md#20-ad-15--elastic-serving-fleet-与安全-scale-to-zero) 与 [SURGE-DESIGN-INDEX](./docs/plans/SURGE-DESIGN-INDEX.md) |
 | **三期** | 可观测 | **AD-14：** OTLP 发射 + 查询门面 + 可换后端（测试 `memory` / 生产 LGTM）；**不做**自研搜索引擎 · 用量计费（**架构已冻结**，实现按 [OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md) 分期） |
 
@@ -368,7 +368,7 @@ cellp 的护城河不在「包一层 celld」，而在下面 **6 项必须自研
 | offshoot pre-1.0 | 存储 layout / 兼容可能变 | **pin offshoot SHA**；prod 已上 RustFS 仍须 **持续 V0b 类探针**；非永久兼容承诺 |
 | RustFS 条件写探针失败 | celld 双主 / fleet 无法启动 | 部署前 `celld diagnose`；Phase 0 锁定 RustFS 版本；探针失败则不上线 |
 
-**Bindings 本期攻：** 沿用 celld 0.4.0 的 KV / Queue / Workflow / Cron（见 §8）；子 version **D1 branch**（deploy · `runtime.D1Branch`）与 **KV + R2 + Queue branch**（AD-8 · `orch/runBindingBranches`）已落地。**仍延期：** R2 对象浏览器（无 `celld r2`）· Workflow 实例控制（无 `celld workflow`）· Gateway wake · 多节点 Orchestrator · offshoot↔celld 运行时双向 sync · Queue pull consumer / HTTP API · KV bulk 包装（可第二轮）。
+**Bindings 本期攻：** 沿用 celld 0.5.1 的 KV / Queue / Workflow / Cron（见 §8）；子 version **D1 branch**（deploy · `runtime.D1Branch`）与 **KV + R2 + Queue branch**（AD-8 · `orch/runBindingBranches`）已落地。**仍延期：** R2 对象浏览器（无 `celld r2`）· Workflow 实例控制（无 `celld workflow`）· Gateway wake · 多节点 Orchestrator · offshoot↔celld 运行时双向 sync · Queue pull consumer / HTTP API · KV bulk 包装（可第二轮）。
 
 **三期（架构冻结 · 实现未排期）：** [OTEL-OBSERVABILITY.md](./docs/plans/OTEL-OBSERVABILITY.md)（AD-14）。**不做**用量计费 / 自研搜索。
 
@@ -459,12 +459,12 @@ celld:    d1 execute --file seed.sql → deploy → Worker 用 D1/DO
 
 ---
 
-## 8. Bindings — celld 0.4.0 原生绑定（本期）
+## 8. Bindings — celld 0.5.1 原生绑定（本期）
 
 > **决策：** [docs/decisions.md](./docs/decisions.md) **AD-6 · AD-7 · AD-8**
-> **celld 依据：** 本仓库 `celld/`（[KonghaYao/celld](https://github.com/KonghaYao/celld)，cellp-maintained extended runtime）· [celld/docs/cloudflare-compat.md](./celld/docs/cloudflare-compat.md)
+> **celld 依据：** 本仓库 `celld/` @ `5cb4c1a`（[KonghaYao/celld](https://github.com/KonghaYao/celld) v0.5.1，合并 `upgrade/celld-v0.5.1` 并保留 cellp extensions）· [celld/docs/cloudflare-compat.md](./celld/docs/cloudflare-compat.md)
 
-celld **v0.4.0**（2026-08-28）已能从 wrangler 部署 **KV · Queues · Workflows · R2**，并继续支持 **D1 · Durable Objects · Cron · Assets**。cellp **沿用这些运行时能力**，控制面只做三件事：解析清单、包装已有 operator CLI、在 Dashboard 展示。Worker KV 数据在 celld fleet bucket（RustFS）。
+celld **v0.5.1** 已能从 wrangler 部署 **KV · Queues · Workflows · R2**，并继续支持 **D1 · Durable Objects · Cron · Assets**。cellp **沿用这些运行时能力**，控制面只做三件事：解析清单、包装已有 operator CLI、在 Dashboard 展示。Worker KV 数据在 celld fleet bucket（RustFS）。
 
 ### 8.1 原则
 
@@ -612,7 +612,7 @@ Storage 升级为 **Bindings hub**（仍按 version 切换，沿用现有 D1 bro
 
 ### 8.6 健康检查
 
-celld 0.4.0 公共健康路径是 **`/.well-known/celld/health`**（不再是 `/__celld/health`）。Runtime Manager 已用新路径；dev / e2e 脚本凡仍打旧路径的必须改掉。
+celld 0.5.1 公共健康路径是 **`/.well-known/celld/health`**（不再是 `/__celld/health`）。Runtime Manager 已用新路径；dev / e2e 脚本凡仍打旧路径的必须改掉。
 
 ### 8.7 明确不做（本期）
 
@@ -769,7 +769,7 @@ web/                            # Dashboard（Vite SPA · web/src/）
 
 **诚实结论：** 在 **SQLite + 单 token** 约束下，6A 分页/GC/缓存已落地；10k project 列表 p99 无法稳定 <200ms，此为存储引擎上限而非实现 bug。
 
-### Bindings（本期 · celld 0.4.0）
+### Bindings（本期 · celld 0.5.1）
 
 | 模块 | 交付物 |
 |------|--------|

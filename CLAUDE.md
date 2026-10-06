@@ -34,7 +34,7 @@
 | **AD-1** | 每 ready version = 独立 celld + bucket；watch 临时；S3/RustFS 持久 |
 | **AD-4** | Dev local offshoot；**prod RustFS offshoot = TP-V0b**（✅ 已 PASS，压测须标 `offshoot_tier`） |
 | **AD-5** | Promote saga + 补偿 |
-| **AD-6–8** | celld 0.4.0 绑定；子 version **D1+KV+R2+Queue branch** |
+| **AD-6–8** | celld 0.5.1 绑定（submodule @ `5cb4c1a`）；子 version **D1+KV+R2+Queue branch** |
 | **AD-9** | archived / wake；无 ready 硬上限 |
 | **AD-10** | 不做账号/Git/DNS/CDN/TLS/WAF/全球边缘 |
 | **AD-11** | Cron **仅 prod** version 武装 |

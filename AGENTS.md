@@ -39,7 +39,7 @@
 - **AD-4：** Dev 可用 local offshoot；**prod offshoot on RustFS = TP-V0b**（✅ 已 PASS；M2 dev 路径仍可用 local tier — 压测须注明 `offshoot_tier`）
 - **D1 import：** 根 version；`celld d1 import --file`；契约 [D1-IMPORT-RPC.md](./docs/plans/D1-IMPORT-RPC.md)
 - **D1 branch：** 子 version（`parent_version_id`）；`celld d1 branch --parent-bucket`；契约 [D1-BRANCH-RPC.md](./docs/plans/D1-BRANCH-RPC.md)
-- **AD-6：** Worker KV / Queue / Workflow / R2 / Cron **沿用 celld 0.4.0**
+- **AD-6：** Worker KV / Queue / Workflow / R2 / Cron **沿用 celld 0.5.1**（submodule @ `5cb4c1a`）
 - **AD-7：** 仅 Workflow / Cron / Worker 脚本**不** branch；R2 无 CLI → 无对象浏览器；Workflow 无 CLI → 只读 list
 - **AD-8：** 子 version **KV / R2 / Queue branch**（与 D1 同构）
 - **AD-9：** archived / wake；取消 ready 硬上限

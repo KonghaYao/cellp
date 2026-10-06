@@ -59,7 +59,7 @@ Gateway 仅 queue 脚本需要：`POST ${GATEWAY_URL}/{project}/{version}/enqueu
 
 ## P7-T5a — health 公共路径
 
-celld 0.4.0：**`GET /.well-known/celld/health`**。旧 `/__celld/health` 不再作为验收。
+celld 0.5.1：**`GET /.well-known/celld/health`**。旧 `/__celld/health` 不再作为验收。
 
 | 文件 | 改动 |
 |------|------|
@@ -183,7 +183,7 @@ v11-workflow-cron.sh
 
 ## `docs/test-plan.md` 条目（T5 负责写入）
 
-在 **§H D1** 之后新增 **§I. Bindings（Phase 7 · celld 0.4.0）**。勾选保持 `[ ]` 直到脚本绿。
+在 **§H D1** 之后新增 **§I. Bindings（Phase 7 · celld 0.5.1）**。勾选保持 `[ ]` 直到脚本绿。
 
 ### [ ] TP-V9 — celld KV operator（经 cellpd）
 

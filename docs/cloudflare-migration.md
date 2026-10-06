@@ -65,7 +65,7 @@ build wrangler bundle
 
 ## 3. Binding 映射与 branch 行为
 
-cellp 沿用 celld 0.4.0 wrangler 绑定；控制面只解析清单并包装已有 CLI（AD-6）。
+cellp 沿用 celld 0.5.1 wrangler 绑定；控制面只解析清单并包装已有 CLI（AD-6）。
 
 | Binding | 根 version（无 parent） | 子 version（有 `parent_version_id`） | Dashboard / operator |
 |---------|-------------------------|----------------------------------------|----------------------|

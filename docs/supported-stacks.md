@@ -1,6 +1,6 @@
 # 支持的技术栈（cellp v1）
 
-> **运行时：** celld 0.4.x（Workers 语义）· **不是** Node / Next.js 托管平台。  
+> **运行时：** celld 0.5.1（Workers 语义）· **不是** Node / Next.js 托管平台。  
 > **框架 verdict（社区验证）：** [support-matrix.md](./support-matrix.md) · **AD-13** [framework-coverage-cellp.md](./framework-coverage-cellp.md)
 
 ---

@@ -7,7 +7,7 @@
 > **状态：** 计划中（2026-08-29）  
 > **Module root：** `cellp/` — 本 track **不写** Dashboard（T4）· **不写** E2E 新场景（T5）
 
-沿用 celld 0.4.0。控制面只包装已有 `celld cell list`，并从 T1 的 wrangler 解析结果读出 workflow / cron / r2 清单。不发明 operator 协议。
+沿用 celld 0.5.1。控制面只包装已有 `celld cell list`，并从 T1 的 wrangler 解析结果读出 workflow / cron / r2 清单。不发明 operator 协议。
 
 ## 依赖
 
@@ -15,7 +15,7 @@
 |------|-----------------|
 | **P7-T1** `runtime.ParseBindings` | `workflows[]` → `Binding{Type:"workflow", Name, WorkflowName, ClassName}`；`triggers.crons` → `Crons` + `Binding{Type:"cron"}`；`r2_buckets` → `Binding{Type:"r2"}` |
 | **P7-T1** `GET .../bindings` | Cron / R2 **只出现在这里**。T3 **不**再加 `/crons`、`/r2` 路由 |
-| celld ≥ 0.4.0 | `celld cell list [CLASS] --all --json --bucket …`；`cli.rs` **无** `workflow` / `r2` 子命令（已核对 `Action`：`deploy/dev/cell/d1/kv/queue/connect/credentials/token/disconnect`） |
+| celld ≥ 0.5.1 | `celld cell list [CLASS] --all --json --bucket …`；`cli.rs` **无** `workflow` / `r2` 子命令（已核对 `Action`：`deploy/dev/cell/d1/kv/queue/connect/credentials/token/disconnect`） |
 | Runtime `Health()` | **已是** `GET /.well-known/celld/health`（`cellp/internal/runtime/manager.go`）。本 track 只改 **dev / e2e 脚本与验收表** |
 
 T1 未合入时不得假设新路径；解析函数已在 `cellp/internal/runtime/bindings.go`，T3 只消费，不重写 wrangler 解析。
@@ -198,7 +198,7 @@ argv 必须包含：`cell` `list`、`--json`、`--all`、`--bucket`（version bu
 
 ## `/__celld/health` 残留与一行修复
 
-celld 0.4.0 公共路径：**`/.well-known/celld/health`**。替换时只改 path，host/port 不变。
+celld 0.5.1 公共路径：**`/.well-known/celld/health`**。替换时只改 path，host/port 不变。
 
 一行：
 
