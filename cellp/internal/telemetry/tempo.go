@@ -18,14 +18,16 @@ type TempoBackend struct {
 	grafanaURL string
 	client     *http.Client
 	memory     *MemoryBackend
+	loki       *LokiClient
 }
 
-func NewTempoBackend(queryURL, grafanaURL string, memory *MemoryBackend) *TempoBackend {
+func NewTempoBackend(queryURL, grafanaURL string, memory *MemoryBackend, loki *LokiClient) *TempoBackend {
 	return &TempoBackend{
 		queryURL:   strings.TrimRight(queryURL, "/"),
 		grafanaURL: strings.TrimRight(grafanaURL, "/"),
 		client:     &http.Client{Timeout: 15 * time.Second},
 		memory:     memory,
+		loki:       loki,
 	}
 }
 
@@ -62,20 +64,20 @@ func (b *TempoBackend) GetTrace(ctx context.Context, project, version, traceID s
 	if err != nil {
 		return TraceResponse{}, err
 	}
-	resp, err := b.client.Do(req)
+	httpResp, err := b.client.Do(req)
 	if err != nil {
 		return TraceResponse{}, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
+	defer httpResp.Body.Close()
+	if httpResp.StatusCode == http.StatusNotFound {
 		return TraceResponse{}, ErrTraceNotFound
 	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if httpResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096))
 		return TraceResponse{}, fmt.Errorf("tempo query: %s", strings.TrimSpace(string(body)))
 	}
 	var payload tempoTracePayload
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(httpResp.Body).Decode(&payload); err != nil {
 		return TraceResponse{}, err
 	}
 	spans := payload.filter(project, version)
@@ -83,7 +85,20 @@ func (b *TempoBackend) GetTrace(ctx context.Context, project, version, traceID s
 		return TraceResponse{}, ErrTraceNotFound
 	}
 	tree := tempoBuildTree(spans, traceID)
-	return TraceResponse{TraceID: strings.ToLower(traceID), Tree: tree}, nil
+	out := TraceResponse{TraceID: strings.ToLower(traceID), Tree: tree}
+	if b.loki != nil {
+		start := time.Now().Add(-24 * time.Hour)
+		end := time.Now().Add(time.Minute)
+		if logs, err := b.loki.QueryLogsForTrace(ctx, project, version, traceID, start, end); err == nil && len(logs) > 0 {
+			out.Logs = logs
+		}
+	}
+	if len(out.Logs) == 0 && b.memory != nil {
+		if tr, err := b.memory.GetTrace(ctx, project, version, traceID); err == nil {
+			out.Logs = tr.Logs
+		}
+	}
+	return out, nil
 }
 
 func (b *TempoBackend) Search(ctx context.Context, project, version string, req SearchRequest) ([]SearchHit, error) {
@@ -100,9 +115,43 @@ func (b *TempoBackend) Search(ctx context.Context, project, version string, req 
 	q.Set("limit", strconv.Itoa(limit))
 	q.Set("start", strconv.FormatInt(req.Start.Unix(), 10))
 	q.Set("end", strconv.FormatInt(req.End.Unix(), 10))
-	q.Set("tags", fmt.Sprintf("resource.cellp.project=%s resource.cellp.version=%s", project, version))
-	if req.Template == TemplateError {
-		q.Set("tags", q.Get("tags")+" status=error")
+	baseTags := fmt.Sprintf("resource.cellp.project=%s resource.cellp.version=%s", project, version)
+	switch req.Template {
+	case TemplateError:
+		q.Set("tags", baseTags+" status=error")
+	case TemplateStatus:
+		if req.Status != nil {
+			q.Set("tags", fmt.Sprintf("%s http.status_code=%d", baseTags, *req.Status))
+		} else {
+			q.Set("tags", baseTags)
+		}
+	case TemplateRequestID:
+		if req.RequestID != "" {
+			q.Set("tags", fmt.Sprintf("%s request_id=%s", baseTags, req.RequestID))
+		} else {
+			q.Set("tags", baseTags)
+		}
+	case TemplateSlow:
+		q.Set("tags", baseTags)
+		slowMs := DefaultSlowMs
+		if req.SlowMs != nil && *req.SlowMs > 0 {
+			slowMs = *req.SlowMs
+		}
+		q.Set("minDuration", fmt.Sprintf("%dms", slowMs))
+	case TemplateBody:
+		if b.loki != nil && req.Body != "" {
+			ids, err := b.loki.SearchTraceIDsByBody(ctx, project, version, req.Body, req.Start, req.End, limit)
+			if err != nil {
+				return nil, err
+			}
+			return tempoHitsFromTraceIDs(ids, limit), nil
+		}
+		if b.memory != nil {
+			return b.memory.Search(ctx, project, version, req)
+		}
+		q.Set("tags", baseTags)
+	default:
+		q.Set("tags", baseTags)
 	}
 	u := b.queryURL + "/api/search?" + q.Encode()
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
@@ -135,6 +184,25 @@ func (b *TempoBackend) Search(ctx context.Context, project, version string, req 
 		}
 	}
 	return hits, nil
+}
+
+func tempoHitsFromTraceIDs(ids []string, limit int) []SearchHit {
+	var hits []SearchHit
+	for _, id := range ids {
+		hits = append(hits, SearchHit{TraceID: id})
+		if limit > 0 && len(hits) >= limit {
+			break
+		}
+	}
+	return hits
+}
+
+func tempoSlowMs(req SearchRequest) int {
+	slowMs := DefaultSlowMs
+	if req.SlowMs != nil && *req.SlowMs > 0 {
+		slowMs = *req.SlowMs
+	}
+	return slowMs
 }
 
 type tempoSearchPayload struct {

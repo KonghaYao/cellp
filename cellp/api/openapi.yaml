@@ -339,6 +339,142 @@ paths:
           description: Invalid key or value
         "404":
           description: Version not found
+  /projects/{projectID}/versions/{versionID}/telemetry/context:
+    get:
+      summary: Telemetry backend context for a version (AD-14)
+      operationId: getTelemetryContext
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Telemetry context
+        "404":
+          description: Version not found
+  /projects/{projectID}/versions/{versionID}/telemetry/traces/{traceID}:
+    get:
+      summary: Fetch a trace tree by id (AD-14)
+      operationId: getTelemetryTrace
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traceID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trace tree and correlated logs
+        "404":
+          description: Trace or version not found
+  /projects/{projectID}/versions/{versionID}/telemetry/search:
+    post:
+      summary: Template search over traces (AD-14)
+      operationId: searchTelemetry
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template, start, end]
+              properties:
+                template:
+                  type: string
+                  enum: [slow, error, status, body, request_id]
+                start:
+                  type: string
+                  format: date-time
+                end:
+                  type: string
+                  format: date-time
+                limit:
+                  type: integer
+                status:
+                  type: integer
+                body:
+                  type: string
+                request_id:
+                  type: string
+                slow_ms:
+                  type: integer
+      responses:
+        "200":
+          description: Search hits
+        "400":
+          description: Invalid template or time window
+        "413":
+          description: Scan too large
+        "404":
+          description: Version not found
+  /projects/{projectID}/versions/{versionID}/telemetry/logs/stream:
+    get:
+      summary: Live celld log SSE stream (AD-14)
+      operationId: streamTelemetryLogs
+      security:
+        - adminToken: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Resume byte offset in the celld log file
+      responses:
+        "200":
+          description: Server-sent events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "404":
+          description: Version not found
+        "410":
+          description: Version archived
   /projects/{projectID}/versions/{versionID}:
     get:
       summary: Get version status

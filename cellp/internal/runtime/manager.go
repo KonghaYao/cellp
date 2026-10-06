@@ -37,8 +37,9 @@ type Manager struct {
 	ports         map[string]int
 	lifecycle     map[string]*lifecycleLock
 	nextN         int
-	envLoader     WorkerEnvLoader
-	ensureServing EnsureServing
+	envLoader          WorkerEnvLoader
+	deploymentEnvFn    DeploymentEnvResolver
+	ensureServing      EnsureServing
 	// fleetRetryGap overrides the operator fleet retry delay in tests.
 	fleetRetryGap time.Duration
 	replicaHosts  ReplicaHostConfig
@@ -46,6 +47,9 @@ type Manager struct {
 
 // WorkerEnvLoader returns dashboard/CD Worker vars for a version (not platform keys).
 type WorkerEnvLoader func(ctx context.Context, project, version string) (map[string]string, error)
+
+// DeploymentEnvResolver returns deployment.environment for OTEL (prod or preview).
+type DeploymentEnvResolver func(ctx context.Context, project, version string) string
 
 type celldProc struct {
 	cmd           *exec.Cmd
@@ -79,6 +83,20 @@ func New(basePort int, endpoint, region, bucket, accessKey, secretKey string) *M
 // SetWorkerEnvLoader supplies per-version Worker vars written to CELLD_VARS_FILE at Start.
 func (m *Manager) SetWorkerEnvLoader(fn WorkerEnvLoader) {
 	m.envLoader = fn
+}
+
+// SetDeploymentEnvResolver supplies prod vs preview for OTEL resource attributes.
+func (m *Manager) SetDeploymentEnvResolver(fn DeploymentEnvResolver) {
+	m.deploymentEnvFn = fn
+}
+
+func (m *Manager) deploymentEnv(ctx context.Context, project, version string) string {
+	if m.deploymentEnvFn != nil {
+		if env := m.deploymentEnvFn(ctx, project, version); env != "" {
+			return env
+		}
+	}
+	return "preview"
 }
 
 // EnsureServing wakes a cold version for an operator command and returns a release that
@@ -423,7 +441,7 @@ func (m *Manager) startManagedOnPortLocked(ctx context.Context, k, project, vers
 		fmt.Sprintf("CELLD_READY_FLEET_GATE_MS=%s", gateMs),
 		"CELLD_TRUST_FORWARDED_HEADERS=1",
 	}
-	if otelEnv := config.LoadOtelConfig().CelldOtelEnv(project, version, "preview"); len(otelEnv) > 0 {
+	if otelEnv := config.LoadOtelConfig().CelldOtelEnv(project, version, m.deploymentEnv(ctx, project, version)); len(otelEnv) > 0 {
 		envExtra = append(envExtra, otelEnv...)
 	}
 	if m.envLoader != nil {

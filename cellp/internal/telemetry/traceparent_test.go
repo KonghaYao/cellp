@@ -33,6 +33,18 @@ func TestStartIngressTraceRoot(t *testing.T) {
 	}
 }
 
+func TestStartIngressTracePreservesUnsampled(t *testing.T) {
+	unsampled := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
+	parent, child := StartIngressTrace(unsampled)
+	if parent.Sampled || child.Sampled {
+		t.Fatal("expected unsampled parent and child")
+	}
+	out := FormatTraceparent(child)
+	if !strings.HasSuffix(out, "-00") {
+		t.Fatalf("traceparent = %q, want unsampled flags", out)
+	}
+}
+
 func TestStartIngressTraceChild(t *testing.T) {
 	root := NewRootTrace()
 	in := FormatTraceparent(root)

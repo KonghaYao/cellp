@@ -12,13 +12,34 @@ func CelldLogPath(project, version string) string {
 
 // LogTail supports incremental reads for live log SSE.
 type LogTail struct {
-	path string
+	path         string
+	startOffset  int64
 }
 
-// TailFileFromEnd opens a log file for tailing; missing files yield empty reads.
-func TailFileFromEnd(path string, _ int64) *LogTail {
-	return &LogTail{path: path}
+// TailFileFromEnd opens a log file for tailing. The returned tail starts at end-of-file
+// (or at most maxBytes from the end when maxBytes > 0). Missing files yield empty reads.
+func TailFileFromEnd(path string, maxBytes int64) *LogTail {
+	t := &LogTail{path: path}
+	f, err := os.Open(path)
+	if err != nil {
+		return t
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return t
+	}
+	size := info.Size()
+	if maxBytes > 0 && size > maxBytes {
+		t.startOffset = size - maxBytes
+	} else {
+		t.startOffset = size
+	}
+	return t
 }
+
+// InitialOffset is the byte offset clients should use when no explicit offset is supplied.
+func (t *LogTail) InitialOffset() int64 { return t.startOffset }
 
 func (t *LogTail) Close() error { return nil }
 
@@ -37,7 +58,7 @@ func (t *LogTail) ReadSince(offset int64) ([]byte, int64, error) {
 	}
 	size := info.Size()
 	if offset > size {
-		offset = 0
+		offset = size
 	}
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return nil, offset, err

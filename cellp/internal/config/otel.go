@@ -11,6 +11,7 @@ type OtelConfig struct {
 	CollectorURL    string
 	JaegerQueryURL  string
 	TempoQueryURL   string
+	LokiQueryURL    string
 	GrafanaURL      string
 	IngestPort      int
 	MemoryMaxSpans  int
@@ -25,6 +26,7 @@ func LoadOtelConfig() OtelConfig {
 		CollectorURL:   envOr("CELLP_OTEL_COLLECTOR", envOr("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")),
 		JaegerQueryURL: envOr("CELLP_OTEL_JAEGER_QUERY", "http://127.0.0.1:16686"),
 		TempoQueryURL:  envOr("CELLP_OTEL_TEMPO_QUERY", "http://127.0.0.1:3200"),
+		LokiQueryURL:   envOr("CELLP_OTEL_LOKI_QUERY", "http://127.0.0.1:3100"),
 		GrafanaURL:     envOr("CELLP_OTEL_GRAFANA", "http://127.0.0.1:3000"),
 		IngestPort:     envInt("CELLP_OTEL_INGEST_PORT", 4318),
 		MemoryMaxSpans: envInt("CELLP_OTEL_MEMORY_MAX_SPANS", 50000),

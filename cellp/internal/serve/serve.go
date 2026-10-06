@@ -114,6 +114,16 @@ func Run(ctx context.Context) (retErr error) {
 	rm.SetWorkerEnvLoader(func(ctx context.Context, project, version string) (map[string]string, error) {
 		return store.GetVersionEnv(ctx, project, version)
 	})
+	rm.SetDeploymentEnvResolver(func(ctx context.Context, project, version string) string {
+		p, err := store.GetProject(ctx, project)
+		if err != nil || p == nil || p.ProdVersionID == nil {
+			return "preview"
+		}
+		if *p.ProdVersionID == version {
+			return "prod"
+		}
+		return "preview"
+	})
 	// Operator commands (celld kv|queue|r2) need a live fleet, so a cold version is woken
 	// through the same ensure-desire the Gateway uses and released again afterwards. This
 	// keeps scale-to-zero on by default instead of pinning every version up.

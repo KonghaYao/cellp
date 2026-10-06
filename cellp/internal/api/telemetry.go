@@ -179,7 +179,7 @@ func (s *Server) handleTelemetryLogsStream(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Connection", "keep-alive")
 	tail := runtime.TailFileFromEnd(logPath, 64*1024)
 	defer tail.Close()
-	offset := int64(0)
+	offset := tail.InitialOffset()
 	if v := r.URL.Query().Get("offset"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			offset = n

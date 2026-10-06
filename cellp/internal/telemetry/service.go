@@ -1,8 +1,11 @@
 package telemetry
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
+
+	"github.com/cellp/cellp/internal/config"
 )
 
 // Service coordinates recording and query for cellpd (AD-14).
@@ -11,10 +14,15 @@ type Service struct {
 	store   *MemoryStore
 	enabled bool
 	name    string
+	exporter *OTLPExporter
 }
 
-func NewService(backend Backend, store *MemoryStore, enabled bool, name string) *Service {
-	return &Service{Backend: backend, store: store, enabled: enabled, name: name}
+func NewService(backend Backend, store *MemoryStore, enabled bool, name string, cfg config.OtelConfig) *Service {
+	var exporter *OTLPExporter
+	if cfg.ExportGateway && shouldExportGateway(cfg.Backend) {
+		exporter = NewOTLPExporter(cfg.CollectorURL)
+	}
+	return &Service{Backend: backend, store: store, enabled: enabled, name: name, exporter: exporter}
 }
 
 func (s *Service) Enabled() bool { return s.enabled }
@@ -52,6 +60,9 @@ func (s *Service) RecordIngress(project, version, env, method, url string, statu
 		rec.ParentSpanID = HexSpanID(parent.SpanID)
 	}
 	s.store.IngestSpan(rec)
+	if s.exporter != nil {
+		go s.exporter.ExportIngress(context.Background(), rec, parent)
+	}
 }
 
 var shedCounter atomic.Int64

@@ -99,9 +99,8 @@ func ChildSpan(parent TraceContext) TraceContext {
 // gatewaySpan is what we put on the upstream traceparent header.
 func StartIngressTrace(incoming string) (parent TraceContext, gatewaySpan TraceContext) {
 	if p := ParseTraceparent(incoming); p != nil {
-		parent = TraceContext{TraceID: p.TraceID, SpanID: p.SpanID, Sampled: true}
+		parent = TraceContext{TraceID: p.TraceID, SpanID: p.SpanID, Sampled: p.Sampled}
 		gatewaySpan = ChildSpan(parent)
-		gatewaySpan.Sampled = true
 		return parent, gatewaySpan
 	}
 	gatewaySpan = NewRootTrace()

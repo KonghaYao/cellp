@@ -72,25 +72,31 @@ optional() {
   fi
 }
 
+otel_profile_env() {
+  export CELLP_OTEL_BACKEND="${CELLP_OTEL_BACKEND:-lgtm}"
+  export CELLP_OTEL_COLLECTOR="${CELLP_OTEL_COLLECTOR:-http://127.0.0.1:4318}"
+  export CELLP_OTEL_TEMPO_QUERY="${CELLP_OTEL_TEMPO_QUERY:-http://127.0.0.1:3200}"
+  export CELLP_OTEL_LOKI_QUERY="${CELLP_OTEL_LOKI_QUERY:-http://127.0.0.1:3100}"
+  export CELLP_OTEL_GRAFANA="${CELLP_OTEL_GRAFANA:-http://127.0.0.1:3000}"
+  echo "==> otel profile: backend=${CELLP_OTEL_BACKEND} collector=${CELLP_OTEL_COLLECTOR}"
+  echo "WARN: otel profile exposes Grafana/Tempo/Loki on 127.0.0.1 only; anonymous Grafana is Viewer (local dev only)" >&2
+}
+
+start_otel_stack() {
+  need docker "https://docs.docker.com/get-docker/"
+  otel_profile_env
+  docker compose -f dev/docker-compose.yml -f dev/docker-compose.otel.yml \
+    --env-file dev/.env --profile otel up -d otel-collector tempo loki grafana
+}
+
+if [[ "$OTEL_PROFILE" -eq 1 ]]; then
+  start_otel_stack
+fi
+
 if [[ "$FAST" -eq 0 ]]; then
   need docker "https://docs.docker.com/get-docker/"
   echo "==> docker compose up (rustfs + s3-init)"
-  COMPOSE_FILES=(-f dev/docker-compose.yml)
-  COMPOSE_SERVICES=(rustfs s3-init)
-  if [[ "$OTEL_PROFILE" -eq 1 ]]; then
-    COMPOSE_FILES+=(-f dev/docker-compose.otel.yml)
-    COMPOSE_SERVICES+=(otel-collector tempo loki grafana)
-    export CELLP_OTEL_BACKEND="${CELLP_OTEL_BACKEND:-lgtm}"
-    export CELLP_OTEL_COLLECTOR="${CELLP_OTEL_COLLECTOR:-http://127.0.0.1:4318}"
-    export CELLP_OTEL_TEMPO_QUERY="${CELLP_OTEL_TEMPO_QUERY:-http://127.0.0.1:3200}"
-    export CELLP_OTEL_GRAFANA="${CELLP_OTEL_GRAFANA:-http://127.0.0.1:3000}"
-    echo "==> otel profile: backend=${CELLP_OTEL_BACKEND} collector=${CELLP_OTEL_COLLECTOR}"
-  fi
-  if [[ "$OTEL_PROFILE" -eq 1 ]]; then
-    docker compose "${COMPOSE_FILES[@]}" --env-file dev/.env --profile otel up -d "${COMPOSE_SERVICES[@]}"
-  else
-    docker compose "${COMPOSE_FILES[@]}" --env-file dev/.env up -d "${COMPOSE_SERVICES[@]}"
-  fi
+  docker compose -f dev/docker-compose.yml --env-file dev/.env up -d rustfs s3-init
 
   echo "==> wait for RustFS"
   for _ in $(seq 1 30); do
@@ -100,7 +106,11 @@ if [[ "$FAST" -eq 0 ]]; then
     sleep 1
   done
 else
-  echo "==> fast mode: reuse RustFS, celld, and offshoot"
+  if [[ "$OTEL_PROFILE" -eq 1 ]]; then
+    echo "==> fast mode: otel stack started; reusing RustFS, celld, and offshoot"
+  else
+    echo "==> fast mode: reuse RustFS, celld, and offshoot"
+  fi
 fi
 
 # Platform: cellpd first; mock only when CELLP_USE_MOCK=1 (see docs/plans/phase-3-e2e.md P3-T3)
@@ -156,6 +166,10 @@ if [[ -n "$CELLPD_BIN" ]]; then
   fi
   if platform_running && [[ "${CELLP_RESTART_CELLPD:-0}" == "1" ]]; then
     echo "==> restart cellpd (CELLP_RESTART_CELLPD=1)"
+    stop_platform
+  fi
+  if platform_running && [[ "$OTEL_PROFILE" -eq 1 ]]; then
+    echo "==> restart cellpd (otel profile env)"
     stop_platform
   fi
   if platform_running; then

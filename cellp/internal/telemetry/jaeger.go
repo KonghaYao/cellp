@@ -112,6 +112,17 @@ func (b *JaegerBackend) Search(ctx context.Context, project, version string, req
 		if req.Status != nil {
 			tags["http.status_code"] = strconv.Itoa(*req.Status)
 		}
+	case TemplateRequestID:
+		if req.RequestID != "" {
+			tags["request_id"] = req.RequestID
+		}
+	case TemplateSlow:
+		slowMs := tempoSlowMs(req)
+		q.Set("minDuration", fmt.Sprintf("%dus", slowMs*1000))
+	case TemplateBody:
+		if b.memory != nil {
+			return b.memory.Search(ctx, project, version, req)
+		}
 	}
 	tagJSON, _ := json.Marshal(tags)
 	q.Set("tags", string(tagJSON))

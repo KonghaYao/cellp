@@ -21,7 +21,7 @@ func NewFromConfig(cfg config.OtelConfig) *Service {
 		backend = NewJaegerBackend(cfg.JaegerQueryURL, cfg.GrafanaURL, mem)
 		enabled = true
 	case "lgtm", "lgtm-prod":
-		backend = NewTempoBackend(cfg.TempoQueryURL, cfg.GrafanaURL, mem)
+		backend = NewTempoBackend(cfg.TempoQueryURL, cfg.GrafanaURL, mem, NewLokiClient(cfg.LokiQueryURL))
 		enabled = true
 		name = "lgtm"
 	case "otlp-file":
@@ -31,7 +31,7 @@ func NewFromConfig(cfg config.OtelConfig) *Service {
 	default:
 		name = "none"
 	}
-	return NewService(backend, store, enabled, name)
+	return NewService(backend, store, enabled, name, cfg)
 }
 
 // ValidateSearchRequest enforces frozen search contract.

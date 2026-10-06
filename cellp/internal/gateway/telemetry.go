@@ -1,6 +1,9 @@
 package gateway
 
 import (
+	"bufio"
+	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -18,6 +21,24 @@ func deploymentEnv(binding *registry.IngressBinding) string {
 type statusCapturingWriter struct {
 	http.ResponseWriter
 	status int
+}
+
+func (w *statusCapturingWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+func (w *statusCapturingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("gateway statusCapturingWriter: underlying ResponseWriter is not a Hijacker")
+	}
+	return h.Hijack()
+}
+
+func (w *statusCapturingWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (w *statusCapturingWriter) WriteHeader(code int) {
